@@ -69,7 +69,7 @@ export function Sidebar({
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">Pathology LIS</p>
+                <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">BLDignostics LIMS</p>
                 <p className="truncate text-[11px] text-[color:var(--muted)]">Laboratory workspace</p>
               </div>
             )}

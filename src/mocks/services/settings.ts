@@ -5,7 +5,7 @@ import { users } from "@/mocks/data";
 const delay = <T,>(data: T): Promise<T> => new Promise((resolve) => setTimeout(() => resolve(data), 240));
 
 const defaultLaboratory: LaboratoryInfo = {
-  name: "Pathology LIS Reference Laboratory",
+  name: "BLDignostics LIMS Reference Laboratory",
   address: "142, Healthcare Avenue, Bengaluru, Karnataka 560001, India",
   phone: "+91 80 4455 6677",
   email: "lab@pathologylis.example",
@@ -15,7 +15,7 @@ const defaultLaboratory: LaboratoryInfo = {
 };
 
 const defaultReport: ReportSettings = {
-  header: "Pathology LIS Reference Laboratory",
+  header: "BLDignostics LIMS Reference Laboratory",
   footer: "This is a computer-generated report and does not require manual signature. Interpret clinically.",
   signature: "Dr. Ananya Rao, MD (Pathology)\nConsultant Pathologist",
   reportNumberingPrefix: "RPT-",

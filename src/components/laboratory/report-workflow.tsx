@@ -90,17 +90,17 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
   if (!path.length || path[0] === "pending") {
     const isPending = path[0] === "pending";
     const filteredData = (reports.data ?? []).filter(item => !isPending || item.status === "Pending Review");
-    
+
     return (
       <div className="space-y-6">
-        <PageHeader 
-          title={isPending ? "Pending reports" : "Reports"} 
-          description="Review, approve, and release verified pathology reports." 
+        <PageHeader
+          title={isPending ? "Pending reports" : "Reports"}
+          description="Review, approve, and release verified pathology reports."
           action={
             <Link href="/reports/templates">
               <Button variant="outline">Templates</Button>
             </Link>
-          } 
+          }
         />
         <DataTable
           columns={reportColumns}
@@ -116,16 +116,16 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
 
   if (path[0] === "templates") {
     if (path[1] === "new") {
-      const initial = { name: "", department: "Hematology", tests: "CBC", header: "Pathology LIS", footer: "Electronic report", referenceRanges: "", notes: "", signatory: "Dr. Ananya Rao", active: true };
+      const initial = { name: "", department: "Hematology", tests: "CBC", header: "BLDignostics LIMS", footer: "Electronic report", referenceRanges: "", notes: "", signatory: "Dr. Ananya Rao", active: true };
       return (
         <div className="space-y-6 max-w-4xl mx-auto">
-          <PageHeader 
-            title="New report template" 
+          <PageHeader
+            title="New report template"
             description="Configure reusable departmental report content."
           />
           <Card>
-            <Formik 
-              initialValues={initial} 
+            <Formik
+              initialValues={initial}
               onSubmit={(values) => createTemplate.mutateAsync({ ...values, tests: values.tests.split(",") }).then(() => router.push("/reports/templates"))}
             >
               {({ isSubmitting }) => (
@@ -147,12 +147,12 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
         </div>
       );
     }
-    
+
     return (
       <div className="space-y-6">
-        <PageHeader 
-          title="Report templates" 
-          description="Reusable layout and signatory settings." 
+        <PageHeader
+          title="Report templates"
+          description="Reusable layout and signatory settings."
           action={
             <Link href="/reports/templates/new">
               <Button variant="primary">New template</Button>
@@ -173,21 +173,21 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
 
   const item = report.data;
   if (!item) return <p className="text-sm text-[color:var(--muted)]">Loading report…</p>;
-  
+
   const reportResults = (results.data ?? []).filter((result) => item.resultIds.includes(result.id));
   const critical = reportResults.some((result) => result.criticalFlag);
-  
+
   const approve = () => {
     if (!critical || confirm("Critical values are present. Confirm final approval?")) {
       actions.approveReport.mutate(item.id);
     }
   };
-  
+
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title={item.reportNumber} 
-        description="Review and validate this pathology report." 
+      <PageHeader
+        title={item.reportNumber}
+        description="Review and validate this pathology report."
         action={
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => window.print()} title="Print"><Printer size={15} /></Button>
@@ -199,12 +199,12 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
       <article className="mx-auto max-w-4xl border border-[color:var(--line)] bg-[color:var(--surface)] p-8 shadow-sm rounded-2xl print:border-0 print:shadow-none print:p-0">
         <header className="flex justify-between border-b border-[color:var(--line)] pb-6">
           <div>
-            <p className="text-2xl font-bold text-[color:var(--brand-600)]">Pathology LIS</p>
+            <p className="text-2xl font-bold text-[color:var(--brand-600)]">BLDignostics LIMS</p>
             <p className="text-sm text-[color:var(--muted)] mt-1">Clinical laboratory report</p>
           </div>
           <StatusBadge tone={item.status === "Approved" ? "success" : "warning"} size="lg">{item.status}</StatusBadge>
         </header>
-        
+
         <section className="grid gap-6 py-6 text-sm sm:grid-cols-3">
           <p><span className="text-[color:var(--muted)] block mb-1">Patient</span><b className="text-[color:var(--foreground)]">{item.patientId === "pat-01" ? "Maya Srinivasan" : item.patientId}</b></p>
           <p><span className="text-[color:var(--muted)] block mb-1">Sample ID</span><b className="text-[color:var(--foreground)]">{item.sampleId}</b></p>
@@ -213,20 +213,20 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
           <p><span className="text-[color:var(--muted)] block mb-1">Report date</span><b className="text-[color:var(--foreground)]">{item.createdAt.slice(0, 10)}</b></p>
           <p><span className="text-[color:var(--muted)] block mb-1">Pathologist</span><b className="text-[color:var(--foreground)]">{item.pathologist ?? "Pending approval"}</b></p>
         </section>
-        
+
         {critical && (
           <div className="mb-6 rounded-lg border-l-4 border-[color:var(--danger)] bg-[color:var(--danger-bg)] p-4 text-sm text-[color:var(--danger)]">
             <p className="font-semibold flex items-center gap-2">Critical result detected</p>
             <p className="mt-1 opacity-90">Confirmation is required before approval.</p>
           </div>
         )}
-        
+
         <div className="py-4">
           <ResultTable results={reportResults} />
         </div>
-        
-        <Formik 
-          initialValues={{ comments: item.comments ?? "" }} 
+
+        <Formik
+          initialValues={{ comments: item.comments ?? "" }}
           onSubmit={(values) => actions.updateComments.mutate({ id: item.id, comments: values.comments })}
         >
           {({ isSubmitting }) => (
@@ -237,7 +237,7 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
             </Form>
           )}
         </Formik>
-        
+
         <footer className="mt-8 flex flex-wrap gap-3 border-t border-[color:var(--line)] pt-6 print:hidden">
           <Button variant="primary" onClick={approve}>Approve report</Button>
           <Button variant="danger-outline" onClick={() => actions.rejectReport.mutate(item.id)}>Reject</Button>
