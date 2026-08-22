@@ -1,0 +1,9 @@
+"use client";
+import { Field } from "formik";
+import type { Result } from "@/types/domain";
+export function ReferenceRange({ children }: Readonly<{ children: string }>) { return <span className="text-xs text-[color:var(--muted)]">{children}</span>; }
+export function AbnormalIndicator({ value }: Readonly<{ value: boolean }>) { return value ? <span className="font-semibold text-amber-600">Abnormal</span> : <span className="text-emerald-600">Normal</span>; }
+export function CriticalIndicator({ value }: Readonly<{ value: boolean }>) { return value ? <span className="font-semibold text-rose-600">Critical</span> : null; }
+export function ResultInput({ name }: Readonly<{ name: string }>) { return <Field name={name} className="w-full rounded-lg border bg-surface px-3 py-2 text-sm"/>; }
+export function ResultTable({ results }: Readonly<{ results: readonly Result[] }>) { return <table className="w-full text-left text-sm"><thead><tr className="border-b text-xs uppercase text-[color:var(--muted)]"><th className="pb-3">Parameter</th><th className="pb-3">Result</th><th className="pb-3">Range</th><th className="pb-3">Flag</th></tr></thead><tbody>{results.map((result) => <tr className="border-b" key={result.id}><td className="py-3 font-medium">{result.parameter}</td><td className="py-3">{result.value} {result.unit}</td><td className="py-3"><ReferenceRange>{result.referenceRange}</ReferenceRange></td><td className="py-3"><AbnormalIndicator value={result.abnormalFlag}/><CriticalIndicator value={result.criticalFlag}/></td></tr>)}</tbody></table>; }
+export function ResultSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) { return <section className="border-t pt-4"><h2 className="font-semibold">{title}</h2><div className="mt-4">{children}</div></section>; }

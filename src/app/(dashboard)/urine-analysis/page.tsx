@@ -1,0 +1,2 @@
+import { DepartmentPage } from "@/components/laboratory/department-page";
+export default function Page() { return <DepartmentPage title="Urine Analysis" sections={[{ label: "Physical", items: ["Color", "Appearance", "Specific Gravity", "pH"] }, { label: "Chemical", items: ["Protein", "Glucose", "Ketones", "Blood", "Bilirubin", "Urobilinogen", "Nitrite", "Leukocytes"] }, { label: "Microscopic", items: ["RBC", "WBC", "Epithelial Cells", "Casts", "Crystals", "Bacteria", "Yeast"] }]}/>; }

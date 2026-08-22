@@ -1,0 +1,2 @@
+import { DepartmentPage } from "@/components/laboratory/department-page";
+export default function Page() { return <DepartmentPage title="Biochemistry" sections={[{ label: "Liver function", items: ["Bilirubin", "AST", "ALT", "ALP", "Total Protein", "Albumin"] }, { label: "Renal, lipid & diabetes", items: ["Urea", "Creatinine", "Uric Acid", "Cholesterol", "HDL", "LDL", "VLDL", "Triglycerides", "Glucose", "HbA1c", "Cardiac markers"] }]}/>; }
