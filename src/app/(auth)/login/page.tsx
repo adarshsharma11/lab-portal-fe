@@ -24,11 +24,11 @@ export default function LoginPage() {
       <section className="hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 p-8 lg:flex lg:flex-col lg:items-center lg:justify-center relative overflow-hidden border-r border-[color:var(--line)]">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-red-500/5 blur-3xl pointer-events-none" />
-        
+
         <div className="relative w-full max-w-xl p-8 flex flex-col items-center justify-center">
           <div className="relative w-full aspect-[16/9] transition-transform duration-300 hover:scale-[1.02]">
             <Image
-              src="/branding/bxl-diagnostic-brand.webp"
+              src="/bxl-diagnostic-brand.png"
               alt="BXL Diagnostic (A unit of Botlif Life Sciences Pvt Ltd)"
               fill
               priority
@@ -129,14 +129,14 @@ export default function LoginPage() {
             )}
           </Formik>
 
-          <div className="mt-6 border-t border-[color:var(--line)] pt-4 text-center text-xs text-[color:var(--muted)]">
+          {/* <div className="mt-6 border-t border-[color:var(--line)] pt-4 text-center text-xs text-[color:var(--muted)]">
             <p>
               Don't have an account?{" "}
               <Link href="/signup" className="font-semibold text-[#176b87] hover:underline">
                 Create new account
               </Link>
             </p>
-          </div>
+          </div> */}
         </div>
       </section>
     </main>
