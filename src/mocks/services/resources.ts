@@ -1,10 +1,27 @@
-import { doctors, patients, reports, samples, tests, users } from "@/mocks/data";
 import { apiClient } from "@/lib/api/client";
 import type { Doctor, Patient, Report, ReportTemplate, Result, Sample, Supplier, Test, User } from "@/types/domain";
-const wait = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 260));
-type RecordItem = { id: string };
-const memoryCrud = <T extends RecordItem>(seed: readonly T[]) => { let records = [...seed]; return { list: () => apiClient.request(() => wait([...records])), getById: (id: string) => apiClient.request(() => wait(records.find((item) => item.id === id) ?? null)), create: (input: Omit<T, "id">) => apiClient.request(() => { const created = { ...input, id: `${Date.now()}` } as T; records = [created, ...records]; return wait(created); }), update: (id: string, input: Partial<Omit<T, "id">>) => apiClient.request(() => { const current = records.find((item) => item.id === id); if (!current) throw new Error("Record not found"); const updated = { ...current, ...input }; records = records.map((item) => item.id === id ? updated : item); return wait(updated); }), delete: (id: string) => apiClient.request(() => { records = records.filter((item) => item.id !== id); return wait(undefined); }) }; };
-export const patientApi = memoryCrud<Patient>(patients); export const doctorApi = memoryCrud<Doctor>(doctors); export const userApi = memoryCrud<User>(users);
-export const supplierApi = memoryCrud<Supplier>([{ id: "sup-01", name: "Medisource Diagnostics", phone: "+91 99800 11223", city: "Bengaluru", country: "India", pincode: "560001", description: "Consumables and reagents" }]);
-export const sampleApi = memoryCrud<Sample>(samples); export const testApi = memoryCrud<Test>(tests); export const resultApi = memoryCrud<Result>([{ id: "res-01", testId: "tst-01", parameter: "Hemoglobin", value: "11.2", unit: "g/dL", referenceRange: "12.0–15.5", abnormalFlag: true, criticalFlag: false }]);
-export const reportApi = memoryCrud<Report>(reports); export const reportTemplateApi = memoryCrud<ReportTemplate>([{ id: "tpl-01", name: "CBC Standard", department: "Hematology", tests: ["CBC"], header: "Pathology LIS", footer: "Electronic report", referenceRanges: "Adult reference ranges", notes: "Interpret clinically", signatory: "Dr. Ananya Rao", active: true }]);
+
+const apiCrud = <T extends { id: string }>(resource: string) => ({
+  list: (params?: Record<string, any>) => apiClient.get<T[]>(`/${resource}`, params),
+  getById: (id: string) => apiClient.get<T | null>(`/${resource}/${id}`),
+  create: (input: Omit<T, "id">) => apiClient.post<T>(`/${resource}`, input),
+  update: (id: string, input: Partial<Omit<T, "id">>) => apiClient.put<T>(`/${resource}/${id}`, input),
+  delete: (id: string) => apiClient.delete<void>(`/${resource}/${id}`),
+});
+
+export const patientApi = apiCrud<Patient>("patients");
+export const doctorApi = apiCrud<Doctor>("doctors");
+export const userApi = apiCrud<User>("users");
+export const supplierApi = apiCrud<Supplier>("suppliers");
+export const sampleApi = apiCrud<Sample>("samples");
+export const testApi = apiCrud<Test>("tests");
+export const resultApi = apiCrud<Result>("results");
+export const reportApi = apiCrud<Report>("reports");
+
+export const reportTemplateApi = {
+  list: () => apiClient.get<ReportTemplate[]>("/reports/templates"),
+  getById: (id: string) => apiClient.get<ReportTemplate | null>(`/reports/templates/${id}`),
+  create: (input: Omit<ReportTemplate, "id">) => apiClient.post<ReportTemplate>("/reports/templates", input),
+  update: (id: string, input: Partial<Omit<ReportTemplate, "id">>) => apiClient.put<ReportTemplate>(`/reports/templates/${id}`, input),
+  delete: (id: string) => apiClient.delete<void>(`/reports/templates/${id}`),
+};

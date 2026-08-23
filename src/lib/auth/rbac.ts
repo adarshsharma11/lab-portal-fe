@@ -12,14 +12,15 @@ export type NavItem = Readonly<{
   roles: readonly UserRole[];
 }>;
 
-const ALL: readonly UserRole[] = ["Administrator", "Pathologist", "Technician", "Admin", "Receptionist", "Doctor"] as const;
+const ALL: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor", "Receptionist"] as const;
 const ADMIN: readonly UserRole[] = ["Administrator", "Admin"] as const;
-const LAB: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist"] as const;
-const REPORTING: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor"] as const;
-const OPS: readonly UserRole[] = ["Administrator", "Admin", "Receptionist"] as const;
-const QUALITY: readonly UserRole[] = ["Administrator", "Admin", "Pathologist"] as const;
-const RECEPTION: readonly UserRole[] = ["Administrator", "Admin", "Receptionist"] as const;
-const DOCTOR_VIEW: readonly UserRole[] = ["Administrator", "Admin", "Doctor"] as const;
+const TECH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Technician"] as const;
+const PATH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist"] as const;
+const DOCTOR_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor"] as const;
+const CLINICAL_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor", "Pathologist", "Receptionist"] as const;
+const LAB_PROCESS: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist"] as const;
+const REPORT_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Doctor", "Technician"] as const;
+const OPS_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor", "Receptionist"] as const;
 
 export const NAVIGATION: readonly NavGroup[] = [
   {
@@ -29,46 +30,46 @@ export const NAVIGATION: readonly NavGroup[] = [
     ],
   },
   {
-    label: "Laboratory",
+    label: "Laboratory & Testing",
     items: [
-      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Receptionist", "Doctor", "Pathologist"] },
-      { label: "Samples", href: "/samples", icon: "TestTube2", roles: LAB },
-      { label: "Tests", href: "/tests", icon: "ClipboardList", roles: LAB },
-      { label: "Hematology", href: "/hematology", icon: "Droplets", roles: LAB },
-      { label: "Biochemistry", href: "/biochemistry", icon: "FlaskConical", roles: LAB },
-      { label: "Urine Analysis", href: "/urine-analysis", icon: "Activity", roles: LAB },
-      { label: "Electrolytes", href: "/electrolytes", icon: "Gauge", roles: LAB },
+      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist"] },
+      { label: "Samples", href: "/samples", icon: "TestTube2", roles: LAB_PROCESS },
+      { label: "Tests Master", href: "/tests", icon: "ClipboardList", roles: LAB_PROCESS },
+      { label: "Hematology", href: "/hematology", icon: "Droplets", roles: TECH_ROLES },
+      { label: "Biochemistry", href: "/biochemistry", icon: "FlaskConical", roles: TECH_ROLES },
+      { label: "Urine Analysis", href: "/urine-analysis", icon: "Activity", roles: TECH_ROLES },
+      { label: "Electrolytes", href: "/electrolytes", icon: "Gauge", roles: TECH_ROLES },
     ],
   },
   {
-    label: "Reporting",
+    label: "Diagnostic Reports",
     items: [
-      { label: "Results", href: "/results", icon: "FileBarChart", roles: REPORTING },
-      { label: "Reports", href: "/reports", icon: "ReceiptText", roles: REPORTING },
+      { label: "Test Results", href: "/results", icon: "FileBarChart", roles: REPORT_ROLES },
+      { label: "Reports Workflow", href: "/reports", icon: "ReceiptText", roles: ["Administrator", "Admin", "Pathologist", "Doctor"] },
     ],
   },
   {
-    label: "Operations",
+    label: "Clinical & Operations",
     items: [
-      { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: RECEPTION },
-      { label: "Billing", href: "/billing", icon: "IndianRupee", roles: OPS },
-      { label: "Inventory", href: "/inventory", icon: "Package", roles: OPS },
-      { label: "Suppliers", href: "/suppliers", icon: "Truck", roles: OPS },
+      { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: ["Administrator", "Admin", "Doctor", "Receptionist"] },
+      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist"] },
+      { label: "Inventory Stock", href: "/inventory", icon: "Package", roles: ADMIN },
+      { label: "Suppliers", href: "/suppliers", icon: "Truck", roles: ADMIN },
     ],
   },
   {
-    label: "Quality",
+    label: "Quality & Equipment",
     items: [
-      { label: "Quality Control", href: "/quality-control", icon: "ShieldCheck", roles: QUALITY },
-      { label: "Instruments", href: "/instruments", icon: "Cpu", roles: LAB },
+      { label: "Quality Control", href: "/quality-control", icon: "ShieldCheck", roles: PATH_ROLES },
+      { label: "Instruments", href: "/instruments", icon: "Cpu", roles: ["Administrator", "Admin", "Technician", "Pathologist"] },
     ],
   },
   {
     label: "Administration",
     items: [
-      { label: "Doctors", href: "/doctors", icon: "Stethoscope", roles: DOCTOR_VIEW },
-      { label: "Users", href: "/users", icon: "UserCog", roles: ADMIN },
-      { label: "Settings", href: "/settings", icon: "Settings", roles: ADMIN },
+      { label: "Doctors Directory", href: "/doctors", icon: "Stethoscope", roles: ["Administrator", "Admin", "Doctor"] },
+      { label: "User Management", href: "/users", icon: "UserCog", roles: ADMIN },
+      { label: "System Settings", href: "/settings", icon: "Settings", roles: ADMIN },
     ],
   },
 ];
@@ -91,13 +92,6 @@ export function getFilteredNavigation(role: UserRole | undefined): readonly NavG
     .filter((g) => g.items.length > 0);
 }
 
-export function getLandingPageForRole(role: UserRole | undefined): string {
-  const normalized = (role === "Administrator" ? "Admin" : role) as UserRole | undefined;
-  switch (normalized) {
-    case "Technician": return "/samples";
-    case "Pathologist": return "/reports";
-    case "Receptionist": return "/patients";
-    case "Doctor": return "/reports";
-    default: return "/dashboard";
-  }
+export function getLandingPageForRole(_role: UserRole | undefined): string {
+  return "/dashboard";
 }

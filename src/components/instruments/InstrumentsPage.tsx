@@ -26,15 +26,18 @@ const connTone = (c: ConnectionStatus) =>
   c === "Connected" ? "success" : c === "Disconnected" ? "neutral" : c === "Connecting" ? "warning" : "danger";
 
 const instrumentSchema = Yup.object({
-  name: Yup.string().required("Instrument name is required"),
-  manufacturer: Yup.string().required("Manufacturer is required"),
-  model: Yup.string().required("Model is required"),
-  serialNumber: Yup.string().required("Serial number is required"),
-  department: Yup.string().required("Department is required"),
-  instrumentType: Yup.string().required("Instrument type is required"),
-  status: Yup.string().required("Status is required"),
+  name: Yup.string().trim().required("Instrument name is required (e.g. Sysmex XN-550)").min(2, "Name must be at least 2 characters"),
+  manufacturer: Yup.string().trim().required("Manufacturer is required (e.g. Sysmex, Roche, Abbott)").min(2, "Manufacturer must be at least 2 characters"),
+  model: Yup.string().trim().required("Model identifier is required (e.g. XN-550)"),
+  serialNumber: Yup.string().trim().required("Serial number is required (e.g. SN-882910)"),
+  department: Yup.string().required("Please select a laboratory department"),
+  instrumentType: Yup.string().required("Please select the instrument type"),
+  status: Yup.string().required("Please select operational status").oneOf(["Online", "Offline", "Maintenance", "Error"], "Invalid status option"),
   installationDate: Yup.string().required("Installation date is required"),
-  connectionStatus: Yup.string().required("Connection status is required"),
+  connectionStatus: Yup.string().required("Please select connection status").oneOf(["Connected", "Disconnected", "Connecting", "Error"], "Invalid connection status"),
+  ipAddress: Yup.string().trim().matches(/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^$/, "Please enter a valid IP address (e.g. 192.168.1.101)"),
+  location: Yup.string().trim(),
+  description: Yup.string().trim(),
 });
 
 function InstrumentCard({ instrument, onEdit, onDelete }: Readonly<{ instrument: Instrument; onEdit: (id: string) => void; onDelete: (id: string) => void }>) {
@@ -177,7 +180,7 @@ export function InstrumentsPage({ path }: Readonly<{ path: readonly string[] }>)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const list = useInstruments(filters);
-  const detail = useInstrument(path[0] ?? "");
+  const detail = useInstrument(path[0] && path[0] !== "new" ? path[0] : "");
   const analyzerStatus = useAnalyzerStatus();
   const analyzerResults = useAnalyzerResults();
   const analyzerOrders = useAnalyzerOrders();
@@ -238,9 +241,9 @@ export function InstrumentsPage({ path }: Readonly<{ path: readonly string[] }>)
     const isNew = path[0] === "new";
     const id = isNew ? "" : path[0];
     const current = detail.data;
-    const initial: Omit<Instrument, "id"> = isNew
-      ? { name: "", manufacturer: "", model: "", serialNumber: "", department: "Hematology", instrumentType: "Hematology Analyzer", status: "Online", installationDate: new Date().toISOString().slice(0, 10), connectionStatus: "Disconnected" }
-      : (current as Omit<Instrument, "id">) ?? { name: "", manufacturer: "", model: "", serialNumber: "", department: "", instrumentType: "Other", status: "Offline", installationDate: "", connectionStatus: "Disconnected" };
+    const initial = (isNew
+      ? { name: "", manufacturer: "", model: "", serialNumber: "", department: "", instrumentType: "", status: "", installationDate: "", connectionStatus: "", lastMaintenance: "", nextMaintenance: "", ipAddress: "", location: "", description: "" }
+      : (current as Omit<Instrument, "id">) ?? { name: "", manufacturer: "", model: "", serialNumber: "", department: "", instrumentType: "", status: "", installationDate: "", connectionStatus: "", lastMaintenance: "", nextMaintenance: "", ipAddress: "", location: "", description: "" }) as unknown as Omit<Instrument, "id">;
     const submit = async (values: typeof initial) => {
       if (isNew) await mutations.create.mutateAsync(values);
       else await mutations.update.mutateAsync({ id, input: values });
@@ -255,31 +258,33 @@ export function InstrumentsPage({ path }: Readonly<{ path: readonly string[] }>)
           description="Maintain accurate records of all laboratory analyzers, devices, and equipment including maintenance history."
           action={<Link href="/instruments"><Button variant="ghost">← Back to instruments</Button></Link>}
         />
-        <Formik initialValues={initial} validationSchema={instrumentSchema} enableReinitialize onSubmit={submit}>
-          {({ errors, touched }) => (
+        <Formik initialValues={initial} validationSchema={instrumentSchema} enableReinitialize validateOnMount={false} validateOnChange={true} validateOnBlur={true} onSubmit={submit}>
+          {({ errors, touched, isSubmitting }) => (
             <Form className="space-y-5">
               <FormSection title="Basic Information" description="Instrument identity and manufacturer details.">
                 <Grid2>
                   <UIField label="Instrument Name" name="name" required error={touched.name ? errors.name as string : undefined}>
-                    <Field name="name" as={Input} />
+                    <Field name="name" as={Input} placeholder="e.g. Sysmex XN-550 Hematology Analyzer" />
                   </UIField>
                   <UIField label="Department" name="department" required error={touched.department ? errors.department as string : undefined}>
                     <Field name="department" as={Select}>
-                      {["Hematology", "Biochemistry", "Electrolytes", "Urine", "Serology", "Molecular", "Sample Processing", "Histopathology", "Microbiology"].map((d) => <option key={d}>{d}</option>)}
+                      <option value="" disabled>Select department</option>
+                      {["Hematology", "Biochemistry", "Electrolytes", "Urine Analysis", "Serology", "Molecular", "Sample Processing", "Histopathology", "Microbiology"].map((d) => <option key={d} value={d}>{d}</option>)}
                     </Field>
                   </UIField>
                   <UIField label="Manufacturer" name="manufacturer" required error={touched.manufacturer ? errors.manufacturer as string : undefined}>
-                    <Field name="manufacturer" as={Input} />
+                    <Field name="manufacturer" as={Input} placeholder="e.g. Sysmex Corporation" />
                   </UIField>
                   <UIField label="Model" name="model" required error={touched.model ? errors.model as string : undefined}>
-                    <Field name="model" as={Input} />
+                    <Field name="model" as={Input} placeholder="e.g. XN-550" />
                   </UIField>
                   <UIField label="Serial Number" name="serialNumber" required error={touched.serialNumber ? errors.serialNumber as string : undefined}>
-                    <Field name="serialNumber" as={Input} />
+                    <Field name="serialNumber" as={Input} placeholder="e.g. SN-8829104" />
                   </UIField>
-                  <UIField label="Instrument Type" name="instrumentType" required>
+                  <UIField label="Instrument Type" name="instrumentType" required error={touched.instrumentType ? errors.instrumentType as string : undefined}>
                     <Field name="instrumentType" as={Select}>
-                      {(["Hematology Analyzer", "Biochemistry Analyzer", "Urine Analyzer", "Electrolyte Analyzer", "ELISA Reader", "PCR Machine", "Centrifuge", "Microscope", "Other"] as readonly InstrumentType[]).map((t) => <option key={t}>{t}</option>)}
+                      <option value="" disabled>Select instrument type</option>
+                      {(["Hematology Analyzer", "Biochemistry Analyzer", "Urine Analyzer", "Electrolyte Analyzer", "ELISA Reader", "PCR Machine", "Centrifuge", "Microscope", "Other"] as readonly InstrumentType[]).map((t) => <option key={t} value={t}>{t}</option>)}
                     </Field>
                   </UIField>
                 </Grid2>
@@ -287,17 +292,19 @@ export function InstrumentsPage({ path }: Readonly<{ path: readonly string[] }>)
 
               <FormSection title="Operational Status" description="Track availability, maintenance cycles, and connectivity state.">
                 <Grid2>
-                  <UIField label="Status" name="status" required>
+                  <UIField label="Status" name="status" required error={touched.status ? errors.status as string : undefined}>
                     <Field name="status" as={Select}>
-                      {(["Online", "Offline", "Maintenance", "Error"] as readonly InstrumentStatus[]).map((s) => <option key={s}>{s}</option>)}
+                      <option value="" disabled>Select operational status</option>
+                      {(["Online", "Offline", "Maintenance", "Error"] as readonly InstrumentStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
                     </Field>
                   </UIField>
-                  <UIField label="Connection Status" name="connectionStatus" required>
+                  <UIField label="Connection Status" name="connectionStatus" required error={touched.connectionStatus ? errors.connectionStatus as string : undefined}>
                     <Field name="connectionStatus" as={Select}>
-                      {(["Connected", "Disconnected", "Connecting", "Error"] as readonly ConnectionStatus[]).map((s) => <option key={s}>{s}</option>)}
+                      <option value="" disabled>Select connection status</option>
+                      {(["Connected", "Disconnected", "Connecting", "Error"] as readonly ConnectionStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
                     </Field>
                   </UIField>
-                  <UIField label="Installation Date" name="installationDate" required>
+                  <UIField label="Installation Date" name="installationDate" required error={touched.installationDate ? errors.installationDate as string : undefined}>
                     <Field name="installationDate" type="date" as={Input} />
                   </UIField>
                   <UIField label="Last Maintenance" name="lastMaintenance">
@@ -307,22 +314,22 @@ export function InstrumentsPage({ path }: Readonly<{ path: readonly string[] }>)
                     <Field name="nextMaintenance" type="date" as={Input} />
                   </UIField>
                   <UIField label="Last Communication" name="lastCommunication">
-                    <Field name="lastCommunication" as={Input} placeholder="2026-08-22T10:50:00Z" />
+                    <Field name="lastCommunication" as={Input} placeholder="e.g. 2026-08-22T10:50:00Z" />
                   </UIField>
                 </Grid2>
               </FormSection>
 
               <FormSection title="Network & Location" description="Optional details for remote management and physical tracking.">
                 <Grid2>
-                  <UIField label="IP Address" name="ipAddress" hint="Internal network address for LIS integration">
-                    <Field name="ipAddress" as={Input} placeholder="192.168.1.101" />
+                  <UIField label="IP Address" name="ipAddress" hint="Internal network address for LIS integration" error={touched.ipAddress ? errors.ipAddress as string : undefined}>
+                    <Field name="ipAddress" as={Input} placeholder="e.g. 192.168.1.101" />
                   </UIField>
                   <UIField label="Physical Location" name="location" hint="Lab, bay, or room identifier">
-                    <Field name="location" as={Input} placeholder="Hematology Lab, Bay 1" />
+                    <Field name="location" as={Input} placeholder="e.g. Hematology Lab, Room 102" />
                   </UIField>
                 </Grid2>
                 <UIField label="Description / Notes" name="description" className="mt-4">
-                  <Field name="description" as={Textarea} rows={3} placeholder="Capabilities, supported tests, interface type (ASTM, HL7, proprietary), etc." />
+                  <Field name="description" as={Textarea} rows={3} placeholder="e.g. High-throughput automated 5-part differential analyzer with ASTM middleware support." />
                 </UIField>
               </FormSection>
 

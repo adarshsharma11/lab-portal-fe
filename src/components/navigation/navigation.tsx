@@ -2,7 +2,7 @@
 import {
   Activity, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Cpu, Droplets, FileBarChart, FlaskConical,
   Gauge, IndianRupee, LayoutDashboard, LogOut, Package, ReceiptText, Search, Settings as SettingsIcon,
-  ShieldCheck, Stethoscope, TestTube2, Truck, User, UserCog, Users, X
+  ShieldCheck, Stethoscope, TestTube2, User, UserCog, Users, X
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ import { Avatar, Breadcrumb, cn, Dot, StatusBadge } from "@/components/ui";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Users, TestTube2, ClipboardList, Droplets, FlaskConical, Activity, Gauge,
-  FileBarChart, ReceiptText, CalendarDays, IndianRupee, Package, Truck, ShieldCheck, Cpu, Stethoscope, UserCog, Settings: SettingsIcon,
+  FileBarChart, ReceiptText, CalendarDays, IndianRupee, Package, ShieldCheck, Cpu, Stethoscope, UserCog, Settings: SettingsIcon,
 };
 
 export function Sidebar({

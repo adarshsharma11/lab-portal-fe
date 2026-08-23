@@ -2,8 +2,51 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { resultApi, sampleApi, testApi } from "@/mocks/services/resources";
 import type { Result, Sample, Test } from "@/types/domain";
-const makeHooks = <T extends { id: string }>(key: string, service: { list: () => Promise<{ data: T[] }>; getById: (id: string) => Promise<{ data: T | null }>; create: (input: Omit<T, "id">) => Promise<{ data: T }>; update: (id: string, input: Partial<Omit<T, "id">>) => Promise<{ data: T }> }) => ({ useList: () => useQuery({ queryKey: [key], queryFn: service.list, select: (response) => response.data }), useOne: (id: string) => useQuery({ queryKey: [key, id], queryFn: () => service.getById(id), select: (response) => response.data }), useCreate: () => { const c = useQueryClient(); return useMutation({ mutationFn: service.create, onSuccess: () => c.invalidateQueries({ queryKey: [key] }) }); }, useUpdate: () => { const c = useQueryClient(); return useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<Omit<T, "id">> }) => service.update(id, input), onSuccess: () => c.invalidateQueries({ queryKey: [key] }) }); } });
-const samples = makeHooks<Sample>("samples", sampleApi); const tests = makeHooks<Test>("tests", testApi); const results = makeHooks<Result>("results", resultApi);
-export const useSamples = samples.useList; export const useSample = samples.useOne; export const useCreateSample = samples.useCreate; export const useUpdateSample = samples.useUpdate;
-export const useTests = tests.useList; export const useTest = tests.useOne; export const useCreateTest = tests.useCreate; export const useUpdateTest = tests.useUpdate;
-export const useResults = results.useList; export const useResult = results.useOne; export const useCreateResult = results.useCreate; export const useUpdateResult = results.useUpdate;
+
+const makeHooks = <T extends { id: string }>(
+  key: string,
+  service: {
+    list: () => Promise<{ data: T[] }>;
+    getById: (id: string) => Promise<{ data: T | null }>;
+    create: (input: Omit<T, "id">) => Promise<{ data: T }>;
+    update: (id: string, input: Partial<Omit<T, "id">>) => Promise<{ data: T }>;
+    delete: (id: string) => Promise<any>;
+  }
+) => ({
+  useList: () => useQuery({ queryKey: [key], queryFn: service.list, select: (response) => response.data }),
+  useOne: (id: string) => useQuery({ queryKey: [key, id], queryFn: () => service.getById(id), select: (response) => response.data, enabled: Boolean(id && id !== "new") }),
+  useCreate: () => {
+    const c = useQueryClient();
+    return useMutation({ mutationFn: service.create, onSuccess: () => c.invalidateQueries({ queryKey: [key] }) });
+  },
+  useUpdate: () => {
+    const c = useQueryClient();
+    return useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<Omit<T, "id">> }) => service.update(id, input), onSuccess: () => c.invalidateQueries({ queryKey: [key] }) });
+  },
+  useDelete: () => {
+    const c = useQueryClient();
+    return useMutation({ mutationFn: (id: string) => service.delete(id), onSuccess: () => c.invalidateQueries({ queryKey: [key] }) });
+  },
+});
+
+const samples = makeHooks<Sample>("samples", sampleApi);
+const tests = makeHooks<Test>("tests", testApi);
+const results = makeHooks<Result>("results", resultApi);
+
+export const useSamples = samples.useList;
+export const useSample = samples.useOne;
+export const useCreateSample = samples.useCreate;
+export const useUpdateSample = samples.useUpdate;
+export const useDeleteSample = samples.useDelete;
+
+export const useTests = tests.useList;
+export const useTest = tests.useOne;
+export const useCreateTest = tests.useCreate;
+export const useUpdateTest = tests.useUpdate;
+export const useDeleteTest = tests.useDelete;
+
+export const useResults = results.useList;
+export const useResult = results.useOne;
+export const useCreateResult = results.useCreate;
+export const useUpdateResult = results.useUpdate;
+export const useDeleteResult = results.useDelete;

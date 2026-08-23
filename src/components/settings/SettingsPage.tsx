@@ -37,6 +37,28 @@ const reportSchema = Yup.object({
   autoApprovePathologist: Yup.boolean(),
 });
 
+const rangeSchema = Yup.object({
+  testCode: Yup.string().trim().required("Test code is required (e.g. CBC)"),
+  testName: Yup.string().trim().required("Test name is required (e.g. Complete Blood Count)"),
+  parameter: Yup.string().trim().required("Parameter name is required (e.g. Hemoglobin)"),
+  gender: Yup.string().required("Please select gender option").oneOf(["Both", "Male", "Female"], "Invalid option"),
+  ageMin: Yup.number().typeError("Min age must be a number").min(0, "Age cannot be negative"),
+  ageMax: Yup.number().typeError("Max age must be a number").min(0, "Age cannot be negative"),
+  minimum: Yup.number().typeError("Minimum reference value is required").required("Minimum value is required"),
+  maximum: Yup.number().typeError("Maximum reference value is required").required("Maximum value is required"),
+  unit: Yup.string().trim().required("Unit is required (e.g. g/dL)"),
+  criticalLow: Yup.number().typeError("Must be a number").nullable(),
+  criticalHigh: Yup.number().typeError("Must be a number").nullable(),
+});
+
+const unitSchema = Yup.object({
+  code: Yup.string().trim().required("Unit code is required (e.g. mg/dL)"),
+  name: Yup.string().trim().required("Full unit name is required (e.g. milligrams per deciliter)"),
+  category: Yup.string().required("Please select category"),
+  conversionFactor: Yup.number().typeError("Conversion factor must be a number").required("Conversion factor is required"),
+  baseUnit: Yup.string().trim(),
+});
+
 export function SettingsPage() {
   const [tab, setTab] = useState("laboratory");
   const lab = useLaboratorySettings();
@@ -415,59 +437,74 @@ export function SettingsPage() {
           <div className="w-full max-w-xl rounded-[var(--radius-xl)] border bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-semibold mb-5">{rangeForm.id ? "Edit Reference Range" : "Add Reference Range"}</h3>
             <Formik
-              initialValues={(rangeForm.default ?? { testCode: "", testName: "", parameter: "", gender: "Both", ageMin: 0, ageMax: 99, minimum: 0, maximum: 0, unit: "", criticalLow: undefined, criticalHigh: undefined }) as Record<string, unknown>}
+              initialValues={(rangeForm.default ?? { testCode: "", testName: "", parameter: "", gender: "Both", ageMin: "", ageMax: "", minimum: "", maximum: "", unit: "", criticalLow: "", criticalHigh: "" }) as Record<string, unknown>}
+              validationSchema={rangeSchema}
+              validateOnMount={false}
+              validateOnChange={true}
+              validateOnBlur={true}
               enableReinitialize
               onSubmit={(values) => {
+                const payload = {
+                  ...values,
+                  ageMin: Number(values.ageMin) || 0,
+                  ageMax: Number(values.ageMax) || 120,
+                  minimum: Number(values.minimum) || 0,
+                  maximum: Number(values.maximum) || 0,
+                  criticalLow: values.criticalLow !== "" ? Number(values.criticalLow) : undefined,
+                  criticalHigh: values.criticalHigh !== "" ? Number(values.criticalHigh) : undefined,
+                };
                 if (rangeForm.id) {
-                  rangeMut.update.mutate({ id: rangeForm.id, input: values as never });
+                  rangeMut.update.mutate({ id: rangeForm.id, input: payload as never });
                 } else {
-                  rangeMut.create.mutate(values as never);
+                  rangeMut.create.mutate(payload as never);
                 }
                 setRangeForm({ open: false });
               }}
             >
-              {() => (
+              {({ errors, touched, isSubmitting }) => (
                 <Form className="space-y-4">
                   <Grid2>
-                    <UIField label="Test Code" name="testCode" required>
-                      <Field name="testCode" as={Input} placeholder="CBC" />
+                    <UIField label="Test Code" name="testCode" required error={touched.testCode ? errors.testCode as string : undefined}>
+                      <Field name="testCode" as={Input} placeholder="e.g. CBC" />
                     </UIField>
-                    <UIField label="Test Name" name="testName" required>
-                      <Field name="testName" as={Input} placeholder="Complete Blood Count" />
+                    <UIField label="Test Name" name="testName" required error={touched.testName ? errors.testName as string : undefined}>
+                      <Field name="testName" as={Input} placeholder="e.g. Complete Blood Count" />
                     </UIField>
-                    <UIField label="Parameter" name="parameter" required>
-                      <Field name="parameter" as={Input} placeholder="Hemoglobin" />
+                    <UIField label="Parameter" name="parameter" required error={touched.parameter ? errors.parameter as string : undefined}>
+                      <Field name="parameter" as={Input} placeholder="e.g. Hemoglobin" />
                     </UIField>
-                    <UIField label="Gender" name="gender" required>
+                    <UIField label="Gender" name="gender" required error={touched.gender ? errors.gender as string : undefined}>
                       <Field name="gender" as={Select}>
-                        <option>Both</option><option>Male</option><option>Female</option>
+                        <option value="Both">Both (All Genders)</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
                       </Field>
                     </UIField>
-                    <UIField label="Minimum Age (y)" name="ageMin">
-                      <Field name="ageMin" as={Input} type="number" />
+                    <UIField label="Minimum Age (Years)" name="ageMin" error={touched.ageMin ? errors.ageMin as string : undefined}>
+                      <Field name="ageMin" as={Input} type="number" placeholder="e.g. 18" />
                     </UIField>
-                    <UIField label="Maximum Age (y)" name="ageMax">
-                      <Field name="ageMax" as={Input} type="number" />
+                    <UIField label="Maximum Age (Years)" name="ageMax" error={touched.ageMax ? errors.ageMax as string : undefined}>
+                      <Field name="ageMax" as={Input} type="number" placeholder="e.g. 65" />
                     </UIField>
-                    <UIField label="Minimum" name="minimum" required>
-                      <Field name="minimum" as={Input} type="number" step="0.01" />
+                    <UIField label="Minimum Value" name="minimum" required error={touched.minimum ? errors.minimum as string : undefined}>
+                      <Field name="minimum" as={Input} type="number" step="any" placeholder="e.g. 13.0" />
                     </UIField>
-                    <UIField label="Maximum" name="maximum" required>
-                      <Field name="maximum" as={Input} type="number" step="0.01" />
+                    <UIField label="Maximum Value" name="maximum" required error={touched.maximum ? errors.maximum as string : undefined}>
+                      <Field name="maximum" as={Input} type="number" step="any" placeholder="e.g. 17.0" />
                     </UIField>
-                    <UIField label="Unit" name="unit" required>
-                      <Field name="unit" as={Input} placeholder="g/dL" />
+                    <UIField label="Unit" name="unit" required error={touched.unit ? errors.unit as string : undefined}>
+                      <Field name="unit" as={Input} placeholder="e.g. g/dL" />
                     </UIField>
-                    <UIField label="Critical Low" name="criticalLow">
-                      <Field name="criticalLow" as={Input} type="number" step="0.01" />
+                    <UIField label="Critical Low (Alert)" name="criticalLow" error={touched.criticalLow ? errors.criticalLow as string : undefined}>
+                      <Field name="criticalLow" as={Input} type="number" step="any" placeholder="e.g. 7.0" />
                     </UIField>
                   </Grid2>
-                  <UIField label="Critical High" name="criticalHigh">
-                    <Field name="criticalHigh" as={Input} type="number" step="0.01" />
+                  <UIField label="Critical High (Alert)" name="criticalHigh" error={touched.criticalHigh ? errors.criticalHigh as string : undefined}>
+                    <Field name="criticalHigh" as={Input} type="number" step="any" placeholder="e.g. 20.0" />
                   </UIField>
-                  <div className="flex justify-end gap-2 pt-2">
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[color:var(--line)]">
                     <Button type="button" variant="ghost" onClick={() => setRangeForm({ open: false })}>Cancel</Button>
-                    <Button type="submit" variant="primary" loading={rangeForm.id ? rangeMut.update.isPending : rangeMut.create.isPending}>Save</Button>
+                    <Button type="submit" variant="primary" loading={isSubmitting || (rangeForm.id ? rangeMut.update.isPending : rangeMut.create.isPending)}>Save</Button>
                   </div>
                 </Form>
               )}
@@ -482,40 +519,48 @@ export function SettingsPage() {
             <h3 className="text-base font-semibold mb-5">{unitForm.id ? "Edit Unit" : "Add Unit"}</h3>
             <Formik
               initialValues={(unitForm.default ?? { code: "", name: "", category: "General", baseUnit: "", conversionFactor: 1 }) as Record<string, unknown>}
+              validationSchema={unitSchema}
+              validateOnMount={false}
+              validateOnChange={true}
+              validateOnBlur={true}
               enableReinitialize
               onSubmit={(values) => {
+                const payload = {
+                  ...values,
+                  conversionFactor: Number(values.conversionFactor) || 1,
+                };
                 if (unitForm.id) {
-                  unitMut.update.mutate({ id: unitForm.id, input: values as never });
+                  unitMut.update.mutate({ id: unitForm.id, input: payload as never });
                 } else {
-                  unitMut.create.mutate(values as never);
+                  unitMut.create.mutate(payload as never);
                 }
                 setUnitForm({ open: false });
               }}
             >
-              {() => (
+              {({ errors, touched, isSubmitting }) => (
                 <Form className="space-y-4">
                   <Grid2>
-                    <UIField label="Unit Code" name="code" required hint="Short identifier (e.g. mg/dL)">
-                      <Field name="code" as={Input} />
+                    <UIField label="Unit Code" name="code" required hint="Short identifier (e.g. mg/dL)" error={touched.code ? errors.code as string : undefined}>
+                      <Field name="code" as={Input} placeholder="e.g. mg/dL" />
                     </UIField>
-                    <UIField label="Full Name" name="name" required>
-                      <Field name="name" as={Input} placeholder="milligrams per deciliter" />
+                    <UIField label="Full Name" name="name" required error={touched.name ? errors.name as string : undefined}>
+                      <Field name="name" as={Input} placeholder="e.g. milligrams per deciliter" />
                     </UIField>
-                    <UIField label="Category" name="category">
+                    <UIField label="Category" name="category" required error={touched.category ? errors.category as string : undefined}>
                       <Field name="category" as={Select}>
-                        {["General", "Hematology", "Biochemistry", "Electrolytes", "Enzymes", "Immunology", "Microbiology"].map(c => <option key={c}>{c}</option>)}
+                        {["General", "Hematology", "Biochemistry", "Electrolytes", "Enzymes", "Immunology", "Microbiology"].map(c => <option key={c} value={c}>{c}</option>)}
                       </Field>
                     </UIField>
-                    <UIField label="Conversion Factor" name="conversionFactor" hint="Optional base-unit multiplier">
-                      <Field name="conversionFactor" as={Input} type="number" step="any" />
+                    <UIField label="Conversion Factor" name="conversionFactor" hint="Base-unit multiplier" error={touched.conversionFactor ? errors.conversionFactor as string : undefined}>
+                      <Field name="conversionFactor" as={Input} type="number" step="any" placeholder="1" />
                     </UIField>
                   </Grid2>
                   <UIField label="Base Unit" name="baseUnit" hint="e.g. mmol/L for conversion reference">
-                    <Field name="baseUnit" as={Input} />
+                    <Field name="baseUnit" as={Input} placeholder="e.g. mmol/L" />
                   </UIField>
-                  <div className="flex justify-end gap-2 pt-2">
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[color:var(--line)]">
                     <Button type="button" variant="ghost" onClick={() => setUnitForm({ open: false })}>Cancel</Button>
-                    <Button type="submit" variant="primary" loading={unitForm.id ? unitMut.update.isPending : unitMut.create.isPending}>Save</Button>
+                    <Button type="submit" variant="primary" loading={isSubmitting || (unitForm.id ? unitMut.update.isPending : unitMut.create.isPending)}>Save</Button>
                   </div>
                 </Form>
               )}

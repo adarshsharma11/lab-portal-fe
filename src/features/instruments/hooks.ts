@@ -15,7 +15,7 @@ export const useInstrument = (id: string) => useQuery<ApiResponse<Instrument | n
   queryKey: queryKeys.instruments.detail(id),
   queryFn: () => instrumentApi.getById(id),
   select: (r) => r.data,
-  enabled: !!id,
+  enabled: Boolean(id && id !== "new"),
 });
 
 export const useInstrumentMutations = () => {

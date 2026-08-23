@@ -1,39 +1,196 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Field, Form, Formik } from "formik";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PageHeader, StatusBadge, Button, Input, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
+import { AlertTriangle, Edit3, Eye, Plus, Trash2 } from "lucide-react";
+import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { ResultSection, ResultTable } from "@/components/laboratory/result-engine";
-import { useCreateSample, useCreateTest, useResults, useSample, useSamples, useTest, useTests } from "@/features/laboratory/hooks";
-import type { Sample, Test } from "@/types/domain";
+import { useCreateSample, useCreateTest, useDeleteSample, useDeleteTest, useResults, useSample, useSamples, useTest, useTests, useUpdateSample, useUpdateTest } from "@/features/laboratory/hooks";
+import { authService } from "@/lib/auth/auth-service";
+import type { Sample, Test, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
 type Entity = Sample | Test;
 
+interface FormFieldDef {
+  name: string;
+  label: string;
+  type: "text" | "select" | "textarea" | "number" | "datetime";
+  placeholder?: string;
+  required?: boolean;
+  hint?: string;
+  colSpan?: 1 | 2;
+  options?: readonly { label: string; value: string }[];
+}
+
+const sampleFields: readonly FormFieldDef[] = [
+  { name: "accession", label: "Accession Number", type: "text", placeholder: "e.g. LIS-240822 (auto-generated if empty)" },
+  { name: "barcode", label: "Barcode ID", type: "text", placeholder: "e.g. BC902188 (auto-generated if empty)" },
+  { name: "patientId", label: "Patient Code / ID", type: "text", placeholder: "e.g. pat-01 or PT-24018", required: true, hint: "Enter patient reference code" },
+  {
+    name: "sampleType",
+    label: "Specimen Type",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select specimen type", value: "" },
+      { label: "Whole Blood (EDTA/Heparin)", value: "Blood" },
+      { label: "Serum", value: "Serum" },
+      { label: "Plasma", value: "Plasma" },
+      { label: "Urine (Clean Catch/24h)", value: "Urine" },
+      { label: "Cerebrospinal Fluid (CSF)", value: "CSF" },
+      { label: "Synovial / Serous Fluid", value: "Fluid" },
+      { label: "Other Biopsy / Swab", value: "Other" },
+    ],
+  },
+  { name: "collectedAt", label: "Collection Date & Time", type: "datetime", required: true },
+  {
+    name: "priority",
+    label: "Processing Priority",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select priority", value: "" },
+      { label: "Routine (Standard TAT)", value: "Routine" },
+      { label: "Urgent (Priority processing)", value: "Urgent" },
+      { label: "STAT (Emergency immediate)", value: "STAT" },
+    ],
+  },
+  {
+    name: "status",
+    label: "Specimen Status",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select status", value: "" },
+      { label: "Collected (Phlebotomy complete)", value: "Collected" },
+      { label: "Received (In Laboratory)", value: "Received" },
+      { label: "Processing (On Analyzer)", value: "Processing" },
+      { label: "Completed (Results Ready)", value: "Completed" },
+      { label: "Rejected (Hemolyzed/Clotted)", value: "Rejected" },
+    ],
+  },
+  { name: "notes", label: "Phlebotomy / Clinical Notes", type: "textarea", placeholder: "e.g. Fasting sample, collected without hemolysis, stored at 2-8°C", colSpan: 2 },
+];
+
+const testFields: readonly FormFieldDef[] = [
+  { name: "code", label: "Test Code", type: "text", placeholder: "e.g. CBC, LFT, KFT, HBA1C", required: true },
+  { name: "name", label: "Test Full Name", type: "text", placeholder: "e.g. Complete Blood Count with 5-Part Diff", required: true },
+  {
+    name: "department",
+    label: "Laboratory Department",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select department", value: "" },
+      { label: "Hematology & Coagulation", value: "Hematology" },
+      { label: "Clinical Biochemistry", value: "Biochemistry" },
+      { label: "Electrolyte Panel", value: "Electrolytes" },
+      { label: "Urine Analysis & Microscopy", value: "Urine Analysis" },
+      { label: "Immunology & Serology", value: "Serology" },
+      { label: "Molecular Diagnostics", value: "Molecular" },
+      { label: "Microbiology & Cultures", value: "Microbiology" },
+      { label: "Histopathology", value: "Histopathology" },
+    ],
+  },
+  {
+    name: "sampleType",
+    label: "Required Specimen",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select required specimen", value: "" },
+      { label: "Whole Blood (EDTA)", value: "Blood" },
+      { label: "Serum", value: "Serum" },
+      { label: "Plasma", value: "Plasma" },
+      { label: "Random Urine", value: "Urine" },
+      { label: "Other / Swab", value: "Other" },
+    ],
+  },
+  { name: "price", label: "Test Price (₹)", type: "number", placeholder: "e.g. 450", required: true },
+  { name: "turnaroundHours", label: "Standard Turnaround Time (Hours)", type: "number", placeholder: "e.g. 4", required: true },
+  { name: "referenceRange", label: "Default Reference Range", type: "text", placeholder: "e.g. 13.0 - 17.0 g/dL" },
+  { name: "unit", label: "Measurement Unit", type: "text", placeholder: "e.g. g/dL, mg/dL, mmol/L" },
+  {
+    name: "status",
+    label: "Catalog Status",
+    type: "select",
+    required: true,
+    options: [
+      { label: "Select status", value: "" },
+      { label: "Active (Available for order)", value: "Active" },
+      { label: "Inactive (Discontinued)", value: "Inactive" },
+    ],
+  },
+];
+
+const sampleSchema = Yup.object({
+  patientId: Yup.string().trim().required("Patient ID is required (e.g. pat-01 or PT-24018)"),
+  sampleType: Yup.string().required("Please select specimen type").oneOf(["Blood", "Serum", "Plasma", "Urine", "CSF", "Fluid", "Other"], "Invalid specimen type"),
+  accession: Yup.string().trim(),
+  barcode: Yup.string().trim(),
+  collectedAt: Yup.string().required("Collection date and time is required"),
+  priority: Yup.string().required("Please select priority level").oneOf(["Routine", "Urgent", "STAT"], "Invalid priority"),
+  status: Yup.string().required("Please select initial sample status").oneOf(["Collected", "Received", "Processing", "Completed", "Rejected"], "Invalid status"),
+  notes: Yup.string().trim(),
+});
+
+const testSchema = Yup.object({
+  code: Yup.string().trim().required("Test code is required e.g. CBC").min(2, "Test code must be at least 2 characters"),
+  name: Yup.string().trim().required("Test name is required e.g. Complete Blood Count").min(2, "Name must be at least 2 characters"),
+  department: Yup.string().required("Please select a department"),
+  sampleType: Yup.string().required("Please select required specimen type"),
+  price: Yup.number().typeError("Price must be a valid number").required("Price is required").min(0, "Price cannot be negative"),
+  turnaroundHours: Yup.number().typeError("Turnaround time must be a number").required("Turnaround time is required").min(1, "Turnaround time must be at least 1 hour"),
+  referenceRange: Yup.string().trim(),
+  unit: Yup.string().trim(),
+  status: Yup.string().required("Please select catalog status").oneOf(["Active", "Inactive"], "Invalid status"),
+});
+
 export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly string[] }>) {
   const router = useRouter();
+  const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s?.role) setCurrentRole(s.role);
+  }, []);
+
+  const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+
   const sampleList = useSamples();
   const testList = useTests();
-  const sampleDetail = useSample(path[0] ?? "");
-  const testDetail = useTest(path[0] ?? "");
+  const sampleDetail = useSample(kind === "samples" && path[0] && path[0] !== "new" ? path[0] : "");
+  const testDetail = useTest(kind === "tests" && path[0] && path[0] !== "new" ? path[0] : "");
   
   const createSample = useCreateSample();
+  const updateSample = useUpdateSample();
+  const deleteSample = useDeleteSample();
+
   const createTest = useCreateTest();
+  const updateTest = useUpdateTest();
+  const deleteTest = useDeleteTest();
+
   const results = useResults();
   
   const isSample = kind === "samples";
   const list = isSample ? sampleList : testList;
   const detail = isSample ? sampleDetail : testDetail;
+  const isNew = path[0] === "new";
+  const id = isNew ? "" : path[0];
+  const edit = path[1] === "edit";
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Entity>();
     return [
       h.accessor(row => ("accession" in row ? row.accession : row.name), {
         id: "id_name",
-        header: isSample ? "Sample ID" : "Test",
+        header: isSample ? "Sample ID / Barcode" : "Test Name",
         cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
       }),
       h.accessor(row => ("patientId" in row ? row.patientId : row.department), {
@@ -46,33 +203,65 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         header: "Status",
         cell: ({ getValue }) => {
           const val = getValue();
-          const tone = val === "Completed" || val === "Active" ? "success" : val === "Processing" ? "warning" : "neutral";
+          const tone = val === "Completed" || val === "Active" ? "success" : val === "Processing" ? "warning" : val === "Rejected" ? "danger" : "neutral";
           return <StatusBadge tone={tone} size="sm">{val}</StatusBadge>;
         }
       }),
       h.display({
         id: "actions",
-        header: "",
+        header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-1.5">
             <Link href={`/${kind}/${row.original.id}`}>
-              <Button size="sm" variant="ghost">View</Button>
+              <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                View
+              </Button>
             </Link>
+            {isAdmin && (
+              <>
+                <Link href={`/${kind}/${row.original.id}/edit`}>
+                  <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                    Edit
+                  </Button>
+                </Link>
+                <Button 
+                  size="sm" 
+                  variant="danger-outline" 
+                  leftIcon={<Trash2 size={13} />}
+                  onClick={() => setConfirmDeleteId(row.original.id)}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
           </div>
         )
       })
     ];
-  }, [isSample, kind]);
+  }, [isSample, kind, isAdmin]);
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    if (isSample) {
+      await deleteSample.mutateAsync(confirmDeleteId);
+    } else {
+      await deleteTest.mutateAsync(confirmDeleteId);
+    }
+    setConfirmDeleteId(null);
+    if (id && !isNew) {
+      router.push(`/${kind}`);
+    }
+  };
 
   if (!path.length) {
     return (
       <div className="space-y-6">
         <PageHeader 
-          title={isSample ? "Samples" : "Tests"} 
-          description={isSample ? "Track collection, receipt, and processing." : "Manage catalogued and assigned laboratory tests."} 
+          title={isSample ? "Samples" : "Tests Catalog"} 
+          description={isSample ? "Track specimen collection, receipt, and laboratory processing." : "Manage catalogued and assigned laboratory diagnostic tests."} 
           action={
             <Link href={`/${kind}/new`}>
-              <Button variant="primary">New {isSample ? "sample" : "test"}</Button>
+              <Button variant="primary" leftIcon={<Plus size={16} />}>New {isSample ? "sample" : "test"}</Button>
             </Link>
           } 
         />
@@ -85,39 +274,174 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           searchPlaceholder={`Search ${kind}...`}
           emptyTitle={`No ${kind} found`}
         />
+
+        {/* Delete Confirmation Modal */}
+        {confirmDeleteId && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                  <p className="text-xs text-[color:var(--muted)]">This will delete the {isSample ? "sample" : "test"} from the database.</p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+                Are you sure you want to delete this {isSample ? "sample record" : "test catalog entry"}? This action is permanent and cannot be undone.
+              </p>
+              <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+                <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="danger" 
+                  loading={isSample ? deleteSample.isPending : deleteTest.isPending} 
+                  onClick={handleDelete}
+                >
+                  Confirm Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  if (path[0] === "new") {
-    const initial = isSample 
-      ? { accession: `LIS-${Date.now().toString().slice(-6)}`, barcode: `BC${Date.now()}`, patientId: "pat-01", sampleType: "Blood", collectedAt: "2026-08-22T10:00", priority: "Routine", status: "Collected", notes: "" } 
-      : { code: "NEW", name: "", department: "Hematology", sampleId: "smp-01", sampleType: "Blood", price: 0, referenceRange: "", unit: "", turnaroundHours: 4, status: "Active" };
-    
-    const submit = (values: typeof initial) => (isSample 
-      ? createSample.mutateAsync(values as Omit<Sample, "id">) 
-      : createTest.mutateAsync(values as Omit<Test, "id">)
-    ).then(() => router.push(`/${kind}`));
-    
+  if (path[0] === "new" || edit) {
+    const rawRecord = detail.data as Record<string, any> | undefined;
+    const initialValues = isNew
+      ? isSample
+        ? { accession: "", barcode: "", patientId: "", sampleType: "", collectedAt: new Date().toISOString().slice(0, 16), priority: "", status: "", notes: "" }
+        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "", status: "" }
+      : isSample
+      ? {
+          accession: rawRecord?.accession ?? "",
+          barcode: rawRecord?.barcode ?? "",
+          patientId: rawRecord?.patientId ?? "",
+          sampleType: rawRecord?.sampleType ?? "",
+          collectedAt: rawRecord?.collectedAt ? new Date(rawRecord.collectedAt).toISOString().slice(0, 16) : "",
+          priority: rawRecord?.priority ?? "",
+          status: rawRecord?.status ?? "",
+          notes: rawRecord?.notes ?? "",
+        }
+      : {
+          code: rawRecord?.code ?? "",
+          name: rawRecord?.name ?? "",
+          department: rawRecord?.department ?? "",
+          sampleType: rawRecord?.sampleType ?? "",
+          price: rawRecord?.price ?? "",
+          referenceRange: rawRecord?.referenceRange ?? "",
+          unit: rawRecord?.unit ?? "",
+          turnaroundHours: rawRecord?.turnaroundHours ?? "",
+          status: rawRecord?.status ?? "",
+        };
+
+    const fields = isSample ? sampleFields : testFields;
+    const schema = isSample ? sampleSchema : testSchema;
+
+    const submit = async (values: typeof initialValues) => {
+      if (isSample) {
+        const payload = {
+          ...values,
+          accession: values.accession || `LIS-${Date.now().toString().slice(-6)}`,
+          barcode: values.barcode || `BC${Date.now()}`,
+          collectedAt: values.collectedAt || new Date().toISOString(),
+        };
+        if (isNew) {
+          await createSample.mutateAsync(payload as Omit<Sample, "id">);
+        } else {
+          await updateSample.mutateAsync({ id, input: payload });
+        }
+      } else {
+        const payload = {
+          ...values,
+          price: Number(values.price) || 0,
+          turnaroundHours: Number(values.turnaroundHours) || 4,
+        };
+        if (isNew) {
+          await createTest.mutateAsync(payload as Omit<Test, "id">);
+        } else {
+          await updateTest.mutateAsync({ id, input: payload });
+        }
+      }
+      router.push(`/${kind}`);
+    };
+
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
         <PageHeader 
-          title={`New ${isSample ? "sample" : "test"}`} 
-          description="Save this record to continue the laboratory workflow."
+          title={isNew ? `New ${isSample ? "sample" : "test"}` : `Edit ${isSample ? "sample" : "test"}`} 
+          description="Complete the required fields below. All fields are validated before submission."
+          action={
+            <Link href={`/${kind}`}>
+              <Button variant="ghost">← Back to {isSample ? "samples" : "tests"}</Button>
+            </Link>
+          }
         />
         <Card>
-          <Formik initialValues={initial} onSubmit={submit}>
-            {({ isSubmitting }) => (
+          <Formik 
+            initialValues={initialValues} 
+            validationSchema={schema}
+            enableReinitialize
+            validateOnMount={false}
+            validateOnChange={true}
+            validateOnBlur={true}
+            onSubmit={submit}
+          >
+            {({ errors, touched, isSubmitting }) => (
               <Form className="space-y-6">
                 <Grid2>
-                  {Object.keys(initial).map((key) => (
-                    <UIField key={key} label={key.replace(/([A-Z])/g, " $1")} name={key}>
-                      <Field name={key} as={Input} />
-                    </UIField>
-                  ))}
+                  {fields.map((field) => {
+                    const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
+                    return (
+                      <UIField 
+                        key={field.name} 
+                        label={field.label} 
+                        name={field.name} 
+                        required={field.required}
+                        hint={field.hint}
+                        className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                        error={errorMsg}
+                      >
+                        {field.type === "select" ? (
+                          <Field name={field.name} as={Select}>
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </Field>
+                        ) : field.type === "textarea" ? (
+                          <Field name={field.name} as={Textarea} placeholder={field.placeholder} />
+                        ) : field.type === "datetime" ? (
+                          <Field name={field.name} type="datetime-local" as={Input} />
+                        ) : (
+                          <Field name={field.name} type={field.type} as={Input} placeholder={field.placeholder} />
+                        )}
+                      </UIField>
+                    );
+                  })}
                 </Grid2>
-                <div className="pt-4 border-t border-[color:var(--line)]">
-                  <Button type="submit" variant="primary" loading={isSubmitting}>Save</Button>
+                <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+                  <Button type="submit" variant="primary" loading={isSubmitting || createSample.isPending || createTest.isPending || updateSample.isPending || updateTest.isPending}>
+                    Save {isSample ? "Sample" : "Test"}
+                  </Button>
+                  <Link href={`/${kind}`}>
+                    <Button type="button" variant="ghost">Cancel</Button>
+                  </Link>
+                  {!isNew && isAdmin && (
+                    <Button 
+                      type="button" 
+                      variant="danger-outline"
+                      className="ml-auto"
+                      onClick={() => setConfirmDeleteId(id)}
+                    >
+                      Delete {isSample ? "Sample" : "Test"}
+                    </Button>
+                  )}
                 </div>
               </Form>
             )}
@@ -132,14 +456,35 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     <div className="space-y-6 max-w-5xl mx-auto">
       <PageHeader 
         title={item && ("accession" in item ? item.accession : item.name) || "Loading..."} 
-        description="Linked laboratory record."
+        description="Linked laboratory diagnostic record."
+        action={
+          <div className="flex items-center gap-2">
+            <Link href={`/${kind}`}>
+              <Button variant="ghost">← Back to {isSample ? "samples" : "tests"}</Button>
+            </Link>
+            {isAdmin && (
+              <>
+                <Link href={`/${kind}/${id}/edit`}>
+                  <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {isSample ? "Sample" : "Test"}</Button>
+                </Link>
+                <Button 
+                  variant="danger-outline" 
+                  leftIcon={<Trash2 size={15} />}
+                  onClick={() => setConfirmDeleteId(id)}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
+        }
       />
       {item && (
         <Card padding={false} className="overflow-hidden">
           <dl className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[color:var(--line)]">
             {Object.entries(item).filter(([key]) => key !== "id").map(([key, value], i) => (
               <div className={cn("p-4", i > 1 && "sm:border-t border-[color:var(--line)]")} key={key}>
-                <dt className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted)]">{key}</dt>
+                <dt className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
                 <dd className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{String(value || "—")}</dd>
               </div>
             ))}
@@ -151,6 +496,38 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           <ResultSection title="Results">
             <ResultTable results={(results.data ?? []).filter((result) => result.testId === path[0])} />
           </ResultSection>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal in Detail View */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                <p className="text-xs text-[color:var(--muted)]">This will delete the record from database.</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+              Are you sure you want to permanently delete this {isSample ? "sample" : "test"}?
+            </p>
+            <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+              <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="danger" 
+                loading={isSample ? deleteSample.isPending : deleteTest.isPending} 
+                onClick={handleDelete}
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

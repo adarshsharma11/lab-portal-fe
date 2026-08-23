@@ -1,22 +1,34 @@
 "use client";
 import React, { useMemo } from "react";
 import { Form, Formik, Field } from "formik";
+import * as Yup from "yup";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, Mail, MessageCircle, Printer, QrCode, Share2 } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PageHeader, StatusBadge, Button, Input, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
+import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { ResultTable } from "@/components/laboratory/result-engine";
 import { useResults } from "@/features/laboratory/hooks";
 import { useCreateTemplate, useReport, useReportActions, useReports, useReportTemplates } from "@/features/reports/hooks";
 import type { Report, ReportTemplate } from "@/types/domain";
 
+const templateSchema = Yup.object({
+  name: Yup.string().trim().required("Template name is required (e.g. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
+  department: Yup.string().required("Please select a laboratory department"),
+  tests: Yup.string().trim().required("Included test codes are required (e.g. CBC, ESR, Hemoglobin)"),
+  header: Yup.string().trim().required("Report header title is required (e.g. BLDignostics Clinical Laboratory)"),
+  footer: Yup.string().trim().required("Report footer disclaimer is required"),
+  signatory: Yup.string().trim().required("Signatory pathologist name is required (e.g. Dr. Ananya Rao, MD)"),
+  referenceRanges: Yup.string().trim(),
+  notes: Yup.string().trim(),
+});
+
 export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) {
   const router = useRouter();
   const reports = useReports();
   const templates = useReportTemplates();
-  const report = useReport(path[0] ?? "");
+  const report = useReport(path[0] && path[0] !== "new" && path[0] !== "templates" ? path[0] : "");
   const results = useResults();
   const actions = useReportActions();
   const createTemplate = useCreateTemplate();
@@ -116,29 +128,65 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
 
   if (path[0] === "templates") {
     if (path[1] === "new") {
-      const initial = { name: "", department: "Hematology", tests: "CBC", header: "BLDignostics LIMS", footer: "Electronic report", referenceRanges: "", notes: "", signatory: "Dr. Ananya Rao", active: true };
+      const initial = { name: "", department: "", tests: "", header: "BLDignostics LIMS", footer: "This is a computer-generated medical report verified by authorized pathologists.", referenceRanges: "", notes: "", signatory: "", active: true };
       return (
         <div className="space-y-6 max-w-4xl mx-auto">
           <PageHeader
             title="New report template"
-            description="Configure reusable departmental report content."
+            description="Configure reusable departmental report layout, test inclusions, and signatory settings."
+            action={
+              <Link href="/reports/templates">
+                <Button variant="ghost">← Back to templates</Button>
+              </Link>
+            }
           />
           <Card>
             <Formik
               initialValues={initial}
-              onSubmit={(values) => createTemplate.mutateAsync({ ...values, tests: values.tests.split(",") }).then(() => router.push("/reports/templates"))}
+              validationSchema={templateSchema}
+              validateOnMount={false}
+              validateOnChange={true}
+              validateOnBlur={true}
+              onSubmit={(values) => createTemplate.mutateAsync({ ...values, tests: values.tests.split(",").map(t => t.trim()) }).then(() => router.push("/reports/templates"))}
             >
-              {({ isSubmitting }) => (
+              {({ errors, touched, isSubmitting }) => (
                 <Form className="space-y-6">
                   <Grid2>
-                    {Object.keys(initial).filter((key) => key !== "active").map((key) => (
-                      <UIField key={key} label={key.replace(/([A-Z])/g, " $1")} name={key}>
-                        <Field name={key} as={Input} />
-                      </UIField>
-                    ))}
+                    <UIField label="Template Name" name="name" required error={touched.name ? errors.name : undefined}>
+                      <Field name="name" as={Input} placeholder="e.g. Routine Hematology & Differential Report" />
+                    </UIField>
+                    <UIField label="Department" name="department" required error={touched.department ? errors.department : undefined}>
+                      <Field name="department" as={Select}>
+                        <option value="" disabled>Select department</option>
+                        {["Hematology", "Biochemistry", "Microbiology", "Immunology", "Pathology", "Histopathology", "Urine Analysis", "Electrolytes", "Other"].map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </Field>
+                    </UIField>
+                    <UIField label="Included Test Codes (comma separated)" name="tests" required error={touched.tests ? errors.tests : undefined} hint="e.g. CBC, ESR, WBC">
+                      <Field name="tests" as={Input} placeholder="CBC, ESR, Hemoglobin" />
+                    </UIField>
+                    <UIField label="Authorized Signatory Pathologist" name="signatory" required error={touched.signatory ? errors.signatory : undefined}>
+                      <Field name="signatory" as={Input} placeholder="e.g. Dr. Ananya Rao, MD (Pathology)" />
+                    </UIField>
+                    <UIField label="Report Header Title" name="header" required error={touched.header ? errors.header : undefined}>
+                      <Field name="header" as={Input} placeholder="e.g. BLDignostics Clinical Laboratory" />
+                    </UIField>
+                    <UIField label="Report Footer / Disclaimer" name="footer" required error={touched.footer ? errors.footer : undefined}>
+                      <Field name="footer" as={Input} placeholder="e.g. Electronic validated diagnostic laboratory report" />
+                    </UIField>
+                    <UIField label="Default Reference Range Notes" name="referenceRanges" className="sm:col-span-2">
+                      <Field name="referenceRanges" as={Textarea} placeholder="e.g. Standard reference values based on adult male & female reference populations." />
+                    </UIField>
+                    <UIField label="Standard Report Notes / Instructions" name="notes" className="sm:col-span-2">
+                      <Field name="notes" as={Textarea} placeholder="e.g. Clinical correlation is recommended. Values exceeding reference limits are flagged." />
+                    </UIField>
                   </Grid2>
-                  <div className="pt-4 border-t border-[color:var(--line)]">
-                    <Button type="submit" variant="primary" loading={isSubmitting}>Save template</Button>
+                  <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+                    <Button type="submit" variant="primary" loading={isSubmitting || createTemplate.isPending}>Save template</Button>
+                    <Link href="/reports/templates">
+                      <Button type="button" variant="ghost">Cancel</Button>
+                    </Link>
                   </div>
                 </Form>
               )}

@@ -21,7 +21,7 @@ export const useQCParameter = (id: string) => useQuery<ApiResponse<QCParameter |
   queryKey: [...queryKeys.qc.parameters(), id],
   queryFn: () => qcApi.getParameter(id),
   select: (r) => r.data,
-  enabled: !!id,
+  enabled: Boolean(id && id !== "new"),
 });
 
 export const useQCParameters = () => useQuery<ApiResponse<readonly QCParameter[]>, Error, readonly QCParameter[]>({
@@ -51,5 +51,5 @@ export const useQCChartData = (parameterId: string) => useQuery<ApiResponse<read
   queryKey: queryKeys.qc.chart(parameterId),
   queryFn: () => qcApi.getChartData(parameterId),
   select: (r) => r.data,
-  enabled: !!parameterId,
+  enabled: Boolean(parameterId && parameterId !== "new"),
 });
