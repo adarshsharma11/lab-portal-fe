@@ -1,18 +1,20 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
-import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Grid4, Card } from "@/components/ui/index";
+import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid4, Card } from "@/components/ui/index";
 import { useCreateInventory, useDeleteInventory, useInventory } from "@/features/operations/hooks";
+import { useEntityList } from "@/features/crud/hooks";
+import type { Franchise } from "@/types/domain";
 
 const inventorySchema = Yup.object({
-  medicine: Yup.string().trim().required("Item / consumable name is required (e.g. Vacutainer EDTA Tubes 3ml)").min(2, "Name must be at least 2 characters"),
+  medicine: Yup.string().trim().required("Item / consumable name is required (. Vacutainer EDTA Tubes 3ml)").min(2, "Name must be at least 2 characters"),
   stockQuantity: Yup.number().typeError("Quantity must be a valid number").required("Stock quantity is required").min(0, "Quantity cannot be negative"),
   purchasePrice: Yup.number().typeError("Purchase price must be a valid number").required("Purchase price is required").min(0, "Price cannot be negative"),
   salePrice: Yup.number().typeError("Sale price must be a valid number").required("Sale price is required").min(0, "Price cannot be negative"),
   stockHolder: Yup.string().required("Please select a storage location / holder"),
-  batchNumber: Yup.string().trim().required("Batch number is required (e.g. LOT-2026-08)").min(2, "Batch number must be at least 2 characters"),
+  batchNumber: Yup.string().trim().required("Batch number is required (. LOT-2026-08)").min(2, "Batch number must be at least 2 characters"),
   expiryDate: Yup.string().required("Expiry date is required"),
   reorderLevel: Yup.number().typeError("Reorder level must be a valid number").required("Reorder alert level is required").min(0, "Reorder level cannot be negative"),
 });
@@ -28,19 +30,31 @@ const initialStockValues = {
   reorderLevel: "",
 };
 
-const stockHolderOptions = [
-  { label: "Select storage location", value: "" },
-  { label: "Central Store - Main Inventory", value: "Central Store" },
-  { label: "Hematology Lab - Reagent Storage", value: "Hematology Lab" },
-  { label: "Biochemistry Lab - Reagent Storage", value: "Biochemistry Lab" },
-  { label: "Microbiology Lab", value: "Microbiology Lab" },
-  { label: "Emergency / Phlebotomy Stock", value: "Emergency Stock" },
-];
-
 export default function InventoryPage() {
   const inventory = useInventory();
   const create = useCreateInventory();
   const remove = useDeleteInventory();
+
+  const franchiseList = useEntityList<Franchise>("franchises");
+  const franchises = franchiseList.data ?? [];
+
+  const dynamicStorageOptions = useMemo(() => {
+    const defaultOptions = [
+      { label: "Select storage location", value: "" },
+      { label: "Central Store - Main Inventory (HQ)", value: "Central Store" },
+      { label: "Hematology Lab - Reagent Storage", value: "Hematology Lab" },
+      { label: "Biochemistry Lab - Reagent Storage", value: "Biochemistry Lab" },
+      { label: "Microbiology Lab", value: "Microbiology Lab" },
+      { label: "Emergency / Phlebotomy Stock", value: "Emergency Stock" },
+    ];
+
+    const franchiseOptions = franchises.map((f) => ({
+      label: `Franchise Hub - ${f.name} (${f.code} · ${f.city})`,
+      value: `Franchise: ${f.name} (${f.code})`,
+    }));
+
+    return [...defaultOptions, ...franchiseOptions];
+  }, [franchises]);
 
   const lowStockCount = (inventory.data ?? []).filter((item) => item.stockQuantity <= item.reorderLevel).length;
 
@@ -48,7 +62,7 @@ export default function InventoryPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader 
         title="Laboratory Inventory" 
-        description="Monitor consumables, reagents, vacutainers, and stock reorder thresholds." 
+        description="Monitor consumables, reagents, vacutainers, and stock across headquarters and franchise hubs." 
         action={
           <Button 
             variant="primary" 
@@ -79,11 +93,11 @@ export default function InventoryPage() {
                 <th className="pb-3 font-semibold text-center">In Stock</th>
                 <th className="pb-3 font-semibold text-right">Purchase Price</th>
                 <th className="pb-3 font-semibold text-right">Sale Price</th>
-                <th className="pb-3 font-semibold">Location</th>
+                <th className="pb-3 font-semibold">Storage Location / Hub</th>
                 <th className="pb-3 font-semibold">Batch</th>
                 <th className="pb-3 font-semibold">Expiry Date</th>
                 <th className="pb-3 font-semibold">Status</th>
-                <th className="pb-3 text-right font-semibold">Action</th>
+                <th className="pb-3 text-center font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -95,7 +109,7 @@ export default function InventoryPage() {
                     <td className="py-3.5 text-center font-bold">{item.stockQuantity}</td>
                     <td className="py-3.5 text-right font-mono">₹{item.purchasePrice}</td>
                     <td className="py-3.5 text-right font-mono">₹{item.salePrice}</td>
-                    <td className="py-3.5 text-xs text-[color:var(--muted)]">{item.stockHolder}</td>
+                    <td className="py-3.5 text-xs font-medium text-[color:var(--foreground)]">{item.stockHolder}</td>
                     <td className="py-3.5 text-xs font-mono">{item.batchNumber}</td>
                     <td className="py-3.5 text-xs font-mono">{item.expiryDate}</td>
                     <td className="py-3.5">
@@ -103,7 +117,7 @@ export default function InventoryPage() {
                         {isLow ? "Low Stock" : "In Stock"}
                       </StatusBadge>
                     </td>
-                    <td className="py-3.5 text-right">
+                    <td className="py-3.5 text-center">
                       <button 
                         onClick={() => remove.mutate(item.id)} 
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--danger)] hover:underline"
@@ -132,7 +146,7 @@ export default function InventoryPage() {
         <Card>
           <div className="mb-4">
             <h3 className="text-base font-semibold text-[color:var(--foreground)]">Add New Stock / Reagent Item</h3>
-            <p className="mt-1 text-xs text-[color:var(--muted)]">Enter reagent, consumable, or medical inventory specifications below. All required fields are validated.</p>
+            <p className="mt-1 text-xs text-[color:var(--muted)]">Enter reagent, consumable, or medical inventory specifications below. Storage location includes all registered franchise hubs.</p>
           </div>
           <Formik 
             initialValues={initialStockValues} 
@@ -159,11 +173,11 @@ export default function InventoryPage() {
               <Form className="space-y-5">
                 <Grid4>
                   <UIField label="Item / Consumable Name" name="medicine" required error={touched.medicine ? errors.medicine : undefined} className="sm:col-span-2">
-                    <Field name="medicine" as={Input} placeholder="e.g. Vacutainer K3 EDTA 3ml Tubes (Pack of 100)" />
+                    <Field name="medicine" as={Input} placeholder="Vacutainer K3 EDTA 3ml Tubes (Pack of 100)" />
                   </UIField>
-                  <UIField label="Storage Location / Holder" name="stockHolder" required error={touched.stockHolder ? errors.stockHolder : undefined} className="sm:col-span-2">
+                  <UIField label="Storage Location / Franchise Hub" name="stockHolder" required error={touched.stockHolder ? errors.stockHolder : undefined} className="sm:col-span-2">
                     <Field name="stockHolder" as={Select}>
-                      {stockHolderOptions.map((opt) => (
+                      {dynamicStorageOptions.map((opt) => (
                         <option key={opt.value} value={opt.value} disabled={opt.value === ""}>
                           {opt.label}
                         </option>
@@ -171,19 +185,19 @@ export default function InventoryPage() {
                     </Field>
                   </UIField>
                   <UIField label="Initial Quantity (Units)" name="stockQuantity" required error={touched.stockQuantity ? errors.stockQuantity : undefined}>
-                    <Field name="stockQuantity" type="number" as={Input} placeholder="e.g. 200" />
+                    <Field name="stockQuantity" type="number" as={Input} placeholder="200" />
                   </UIField>
                   <UIField label="Purchase Price per Unit (₹)" name="purchasePrice" required error={touched.purchasePrice ? errors.purchasePrice : undefined}>
-                    <Field name="purchasePrice" type="number" step="any" as={Input} placeholder="e.g. 15.50" />
+                    <Field name="purchasePrice" type="number" step="any" as={Input} placeholder="15.50" />
                   </UIField>
                   <UIField label="Sale / Billing Price (₹)" name="salePrice" required error={touched.salePrice ? errors.salePrice : undefined}>
-                    <Field name="salePrice" type="number" step="any" as={Input} placeholder="e.g. 25.00" />
+                    <Field name="salePrice" type="number" step="any" as={Input} placeholder="25.00" />
                   </UIField>
                   <UIField label="Reorder Threshold Level" name="reorderLevel" required hint="Alert triggered when stock falls to this amount" error={touched.reorderLevel ? errors.reorderLevel : undefined}>
-                    <Field name="reorderLevel" type="number" as={Input} placeholder="e.g. 25" />
+                    <Field name="reorderLevel" type="number" as={Input} placeholder="25" />
                   </UIField>
                   <UIField label="Batch / Lot Number" name="batchNumber" required error={touched.batchNumber ? errors.batchNumber : undefined} className="sm:col-span-2">
-                    <Field name="batchNumber" as={Input} placeholder="e.g. BATCH-2026-08-01" />
+                    <Field name="batchNumber" as={Input} placeholder="BATCH-2026-08-01" />
                   </UIField>
                   <UIField label="Expiry Date" name="expiryDate" required error={touched.expiryDate ? errors.expiryDate : undefined} className="sm:col-span-2">
                     <Field name="expiryDate" type="date" as={Input} />

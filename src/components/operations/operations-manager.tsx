@@ -22,8 +22,8 @@ interface FormFieldDef {
 }
 
 const appointmentFields: readonly FormFieldDef[] = [
-  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "e.g. pat-01 or PT-10023", required: true, hint: "Enter registered patient code" },
-  { name: "doctorId", label: "Consulting Doctor", type: "text", placeholder: "e.g. doc-01 or Dr. Verma", required: true },
+  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "pat-01 or PT-10023", required: true, hint: "Enter registered patient code" },
+  { name: "doctorId", label: "Consulting Doctor", type: "text", placeholder: "doc-01 or Dr. Verma", required: true },
   { name: "date", label: "Appointment Date", type: "date", required: true },
   { name: "time", label: "Appointment Time", type: "time", required: true },
   {
@@ -53,21 +53,21 @@ const appointmentFields: readonly FormFieldDef[] = [
       { label: "Cancelled (Patient/Doctor cancelled)", value: "Cancelled" },
     ],
   },
-  { name: "appointmentLink", label: "Telehealth / Virtual Link", type: "text", placeholder: "e.g. https://meet.google.com/xyz-abc", colSpan: 2 },
-  { name: "createdBy", label: "Created By (Staff Name)", type: "text", placeholder: "e.g. Reception Desk / Dr. Ananya Rao", required: true, colSpan: 2 },
+  { name: "appointmentLink", label: "Telehealth / Virtual Link", type: "text", placeholder: "https://meet.google.com/xyz-abc", colSpan: 2 },
+  { name: "createdBy", label: "Created By (Staff Name)", type: "text", placeholder: "Reception Desk / Dr. Ananya Rao", required: true, colSpan: 2 },
 ];
 
 const invoiceFields: readonly FormFieldDef[] = [
-  { name: "billNumber", label: "Bill / Invoice Number", type: "text", placeholder: "e.g. INV-100452 (auto-generated if empty)" },
-  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "e.g. pat-01 or PT-10023", required: true },
-  { name: "doctorId", label: "Referring Doctor", type: "text", placeholder: "e.g. doc-01 or Dr. Rajesh Verma", required: true },
+  { name: "billNumber", label: "Bill / Invoice Number", type: "text", placeholder: "INV-100452 (auto-generated if empty)" },
+  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "pat-01 or PT-10023", required: true },
+  { name: "doctorId", label: "Referring Doctor", type: "text", placeholder: "doc-01 or Dr. Rajesh Verma", required: true },
   { name: "billDate", label: "Invoice Date", type: "date", required: true },
-  { name: "itemDescription", label: "Test / Item Description", type: "text", placeholder: "e.g. Complete Blood Count (CBC) + Lipid Profile", required: true, colSpan: 2 },
+  { name: "itemDescription", label: "Test / Item Description", type: "text", placeholder: "Complete Blood Count (CBC) + Lipid Profile", required: true, colSpan: 2 },
   { name: "itemQuantity", label: "Quantity", type: "number", placeholder: "1", required: true },
-  { name: "itemMrp", label: "Item Price (₹)", type: "number", placeholder: "e.g. 850", required: true },
-  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "e.g. 50" },
-  { name: "sgst", label: "SGST (₹)", type: "number", placeholder: "e.g. 22.5" },
-  { name: "cgst", label: "CGST (₹)", type: "number", placeholder: "e.g. 22.5" },
+  { name: "itemMrp", label: "Item Price (₹)", type: "number", placeholder: "850", required: true },
+  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "50" },
+  { name: "sgst", label: "SGST (₹)", type: "number", placeholder: "22.5" },
+  { name: "cgst", label: "CGST (₹)", type: "number", placeholder: "22.5" },
   {
     name: "paymentStatus",
     label: "Payment Status",
@@ -81,23 +81,23 @@ const invoiceFields: readonly FormFieldDef[] = [
       { label: "Cancelled", value: "Cancelled" },
     ],
   },
-  { name: "addedBy", label: "Biller / Staff Name", type: "text", placeholder: "e.g. Finance Desk / Dr. Ananya Rao", required: true },
+  { name: "addedBy", label: "Biller / Staff Name", type: "text", placeholder: "Finance Desk / Dr. Ananya Rao", required: true },
 ];
 
 const appointmentSchema = Yup.object({
-  patientId: Yup.string().trim().required("Patient ID is required (e.g. pat-01)"),
+  patientId: Yup.string().trim().required("Patient ID is required (. pat-01)"),
   doctorId: Yup.string().trim().required("Doctor identifier is required"),
   date: Yup.string().required("Appointment date is required"),
   time: Yup.string().required("Appointment time is required"),
   type: Yup.string().required("Please select an appointment type"),
   status: Yup.string().required("Please select an appointment status").oneOf(["Upcoming", "Completed", "Cancelled", "In-Progress"], "Invalid status"),
-  appointmentLink: Yup.string().trim().url("Please enter a valid URL (e.g. https://meet.google.com/...)"),
+  appointmentLink: Yup.string().trim().url("Please enter a valid URL (. https://meet.google.com/...)"),
   createdBy: Yup.string().trim().required("Staff / Creator name is required"),
 });
 
 const invoiceSchema = Yup.object({
   billNumber: Yup.string().trim(),
-  patientId: Yup.string().trim().required("Patient ID is required (e.g. pat-01)"),
+  patientId: Yup.string().trim().required("Patient ID is required (. pat-01)"),
   doctorId: Yup.string().trim().required("Referring doctor is required"),
   billDate: Yup.string().required("Invoice date is required"),
   itemDescription: Yup.string().trim().required("Test or item description is required"),
@@ -174,7 +174,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                 <th className="pb-3">{isAppointment ? "Patient" : "Bill number"}</th>
                 <th className="pb-3">{isAppointment ? "Date / time" : "Patient"}</th>
                 <th className="pb-3">Status</th>
-                <th className="pb-3 text-right">Actions</th>
+                <th className="pb-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -187,8 +187,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                       {"paymentStatus" in row ? row.paymentStatus : row.status}
                     </StatusBadge>
                   </td>
-                  <td className="py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
+                  <td className="py-3.5 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
                       <Link href={`/${kind}/${row.id}`}>
                         <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>View</Button>
                       </Link>

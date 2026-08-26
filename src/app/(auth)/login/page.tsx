@@ -92,7 +92,7 @@ export default function LoginPage() {
                     <Field
                       name="email"
                       type="email"
-                      placeholder="e.g. yourname@domain.com"
+                      placeholder="yourname@domain.com"
                       className="w-full rounded-xl border border-[color:var(--line)] bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#176b87] focus:ring-1 focus:ring-[#176b87]"
                     />
                   </div>

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { authService } from "@/lib/auth/auth-service";
 import { canAccessRoute } from "@/lib/auth/rbac";
 import { Header, Sidebar } from "@/components/navigation/navigation";
+import { FranchiseProvider } from "@/lib/context/franchise-context";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/components/ui";
 
@@ -53,31 +54,33 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   }
 
   return (
-    <div className={cn("min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)] sidebar-layout")}>
-      <Sidebar
-        mobileOpen={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-        role={session.role}
-        userInitials={session.initials}
-        userName={session.name}
-        collapsed={collapsed}
-      />
-
-      <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]")}>
-        <Header
-          onToggleMobile={() => setMobileOpen(true)}
-          onToggleSidebar={() => setCollapsed((v) => !v)}
-          dark={dark}
-          onToggleDark={() => setDark((v) => !v)}
-          userName={session.name}
-          userRole={session.role}
+    <FranchiseProvider>
+      <div className={cn("min-h-screen bg-[color:var(--background)] text-[color:var(--foreground)] sidebar-layout")}>
+        <Sidebar
+          mobileOpen={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          role={session.role}
           userInitials={session.initials}
+          userName={session.name}
           collapsed={collapsed}
         />
-        <main className="px-4 py-6 lg:px-8 lg:py-8 no-print-children">
-          {children}
-        </main>
+
+        <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]")}>
+          <Header
+            onToggleMobile={() => setMobileOpen(true)}
+            onToggleSidebar={() => setCollapsed((v) => !v)}
+            dark={dark}
+            onToggleDark={() => setDark((v) => !v)}
+            userName={session.name}
+            userRole={session.role}
+            userInitials={session.initials}
+            collapsed={collapsed}
+          />
+          <main className="px-4 py-6 lg:px-8 lg:py-8 no-print-children">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </FranchiseProvider>
   );
 }

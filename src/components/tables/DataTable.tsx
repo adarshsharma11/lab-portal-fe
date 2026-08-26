@@ -152,19 +152,22 @@ export function DataTable<TData>({
               <tr key={headerGroup.id} className="border-b bg-[color:var(--surface-2)]">
                 {headerGroup.headers.map((header) => {
                   const canSort = header.column.getCanSort();
+                  const colId = header.column.id.toLowerCase();
+                  const isAction = colId === "action" || colId === "actions" || colId.endsWith("_action") || colId.endsWith("_actions");
                   return (
                     <th
                       key={header.id}
                       className={cn(
                         "whitespace-nowrap px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]",
+                        isAction ? "text-center" : "text-left",
                         canSort && "cursor-pointer select-none hover:text-[color:var(--foreground)]",
                       )}
                       onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      <div className="inline-flex items-center gap-1.5">
+                      <div className={cn("flex items-center gap-1.5", isAction ? "justify-center text-center" : "justify-start text-left")}>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort && (
-                          <ArrowUpDown size={12} className="text-[color:var(--muted-2)]" />
+                          <ArrowUpDown size={12} className="text-[color:var(--muted-2)] shrink-0" />
                         )}
                       </div>
                     </th>
@@ -201,11 +204,21 @@ export function DataTable<TData>({
             ) : (
               rows.map((row) => (
                 <tr key={row.id} className="border-b last:border-0 transition-colors hover:bg-[color:var(--surface-2)]/60">
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-middle text-[color:var(--foreground)]">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const colId = cell.column.id.toLowerCase();
+                    const isAction = colId === "action" || colId === "actions" || colId.endsWith("_action") || colId.endsWith("_actions");
+                    return (
+                      <td
+                        key={cell.id}
+                        className={cn(
+                          "px-4 py-3 align-middle text-[color:var(--foreground)]",
+                          isAction && "text-center"
+                        )}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             )}

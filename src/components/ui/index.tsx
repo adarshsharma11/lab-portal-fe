@@ -187,17 +187,17 @@ export function Button({ children, variant = "primary", size = "md", loading, fu
 
 const baseField = "w-full rounded-[var(--radius)] border border-[color:var(--line)] bg-[color:var(--surface)] px-3.5 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--muted-2)] transition-colors focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-500)]/30 focus:border-[color:var(--brand-600)] disabled:opacity-50 disabled:cursor-not-allowed";
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(baseField, "h-10", className)} {...rest} />;
+export function Input({ className, value, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cn(baseField, "h-10", className)} value={value ?? ""} {...rest} />;
 }
 
-export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(baseField, "min-h-[88px] py-2.5 resize-y", className)} {...rest} />;
+export function Textarea({ className, value, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={cn(baseField, "min-h-[88px] py-2.5 resize-y", className)} value={value ?? ""} {...rest} />;
 }
 
-export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ className, children, value, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn(baseField, "h-10 pr-8", className)} {...rest}>
+    <select className={cn(baseField, "h-10 pr-8", className)} value={value ?? ""} {...rest}>
       {children}
     </select>
   );

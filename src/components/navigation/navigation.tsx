@@ -1,7 +1,7 @@
 "use client";
 import {
-  Activity, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Cpu, Droplets, FileBarChart, FlaskConical,
-  Gauge, IndianRupee, LayoutDashboard, LogOut, Package, ReceiptText, Search, Settings as SettingsIcon,
+  Activity, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, Cpu, Droplets, FileBarChart, FlaskConical,
+  Gauge, IndianRupee, LayoutDashboard, LogOut, Microscope, Package, Plus, ReceiptText, Search, Settings as SettingsIcon,
   ShieldCheck, Stethoscope, TestTube2, User, UserCog, Users, X
 } from "lucide-react";
 import Link from "next/link";
@@ -9,13 +9,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { authService } from "@/lib/auth/auth-service";
+import { useFranchise } from "@/lib/context/franchise-context";
 import type { UserRole } from "@/types/domain";
 import { getFilteredNavigation, type NavItem } from "@/lib/auth/rbac";
 import { Avatar, Breadcrumb, cn, Dot, StatusBadge } from "@/components/ui";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Users, TestTube2, ClipboardList, Droplets, FlaskConical, Activity, Gauge,
-  FileBarChart, ReceiptText, CalendarDays, IndianRupee, Package, ShieldCheck, Cpu, Stethoscope, UserCog, Settings: SettingsIcon,
+  FileBarChart, ReceiptText, CalendarDays, IndianRupee, Package, ShieldCheck, Cpu, Stethoscope, UserCog, Microscope, Building2, Settings: SettingsIcon,
 };
 
 export function Sidebar({
@@ -35,12 +36,7 @@ export function Sidebar({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const nav = useMemo(() => getFilteredNavigation(role), [role]);
-
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname === href || pathname.startsWith(`${href}/`);
-  };
+  const navigation = useMemo(() => getFilteredNavigation(role), [role]);
 
   const logout = () => {
     authService.logout();
@@ -50,49 +46,60 @@ export function Sidebar({
   return (
     <>
       <button
+        type="button"
         onClick={onClose}
-        className={cn("fixed inset-0 z-30 bg-slate-950/40 backdrop-blur-sm transition-opacity lg:hidden", mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none")}
+        className={cn(
+          "fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
         aria-label="Close navigation"
       />
+
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex flex-col border-r border-[color:var(--line)] bg-[color:var(--surface)] transition-all duration-200",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[color:var(--line)] bg-[color:var(--surface)] transition-all duration-200",
           collapsed ? "w-[72px]" : "w-[260px]",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
-          "lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className={cn("flex items-center border-b border-[color:var(--line)] px-4", collapsed ? "h-16 justify-center" : "h-16 justify-between")}>
-          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 min-w-0">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[color:var(--brand-600)] to-[color:var(--brand)] text-white shadow-[var(--shadow)]">
+        <div className="flex h-16 items-center justify-between px-4 border-b border-[color:var(--line)]">
+          <Link href="/dashboard" className="flex items-center gap-3 min-w-0" onClick={onClose}>
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[color:var(--brand-600)] text-white shadow-sm">
               <FlaskConical size={18} />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">BLDignostics LIMS</p>
-                <p className="truncate text-[11px] text-[color:var(--muted)]">Laboratory workspace</p>
+                <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">
+                  BLDignostics LIMS
+                </p>
+                <p className="truncate text-[11px] font-medium text-[color:var(--muted)]">
+                  Diagnostic Platform
+                </p>
               </div>
             )}
           </Link>
-          {!collapsed && (
-            <button className="rounded-lg p-1.5 text-[color:var(--muted)] hover:bg-[color:var(--surface-2)] lg:hidden" onClick={onClose}>
-              <X size={18} />
-            </button>
-          )}
+          <button
+            type="button"
+            className="p-1.5 text-[color:var(--muted)] hover:text-[color:var(--foreground)] lg:hidden"
+            onClick={onClose}
+            aria-label="Close sidebar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-2 py-4">
-          {nav.map((group) => (
-            <div key={group.label} className="mb-5 last:mb-0">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Main Navigation">
+          {navigation.map((group) => (
+            <div key={group.label}>
               {!collapsed && (
-                <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+                <p className="px-3 mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[color:var(--muted)]">
                   {group.label}
                 </p>
               )}
               <ul className="space-y-0.5">
-                {group.items.map((item: NavItem) => {
-                  const Icon = iconMap[item.icon] ?? LayoutDashboard;
-                  const active = isActive(item.href);
+                {group.items.map((item) => {
+                  const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  const Icon = iconMap[item.icon] ?? Activity;
                   return (
                     <li key={item.href}>
                       <Link
@@ -100,11 +107,11 @@ export function Sidebar({
                         onClick={onClose}
                         title={collapsed ? item.label : undefined}
                         className={cn(
-                          "group relative flex items-center gap-3 rounded-[10px] text-sm transition-colors",
-                          collapsed ? "h-10 w-10 justify-center mx-auto" : "px-3 h-10",
+                          "group relative flex items-center gap-3 rounded-[10px] px-3 h-9 text-xs font-medium transition-colors",
                           active
-                            ? "bg-[color:var(--brand-50)] text-[color:var(--brand-600)] font-semibold"
+                            ? "bg-[color:var(--brand-50)] text-[color:var(--brand-700)] font-semibold shadow-xs"
                             : "text-[color:var(--muted)] hover:bg-[color:var(--surface-2)] hover:text-[color:var(--foreground)]",
+                          collapsed && "justify-center px-0",
                         )}
                       >
                         {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-[color:var(--brand-600)] hidden" />}
@@ -158,7 +165,7 @@ const crumbTitles: Readonly<Record<string, string>> = {
   hematology: "Hematology", biochemistry: "Biochemistry", "urine-analysis": "Urine Analysis", electrolytes: "Electrolytes",
   results: "Results", reports: "Reports", appointments: "Appointments", billing: "Billing",
   inventory: "Inventory", suppliers: "Suppliers", "quality-control": "Quality Control", instruments: "Instruments",
-  doctors: "Doctors", users: "Users", settings: "Settings", profile: "Profile",
+  doctors: "Doctors", franchises: "Franchises", users: "Users", settings: "Settings", profile: "Profile",
 };
 
 function buildCrumbs(pathname: string): readonly Readonly<{ label: string; href?: string }>[] {
@@ -198,8 +205,12 @@ export function Header({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [franchiseDropdownOpen, setFranchiseDropdownOpen] = useState(false);
   const [cmdKOpen, setCmdKOpen] = useState(false);
   const [search, setSearch] = useState("");
+
+  const { selectedFranchiseId, selectedFranchise, franchises, setSelectedFranchiseId, isFranchiseUser, activeFranchiseName } = useFranchise();
+
   const nav = useMemo(() => getFilteredNavigation(userRole), [userRole]);
   const items = useMemo(() => nav.flatMap((g) => g.items), [nav]);
   const filtered = useMemo(() => {
@@ -222,6 +233,8 @@ export function Header({
 
   const logout = () => { authService.logout(); router.replace("/login"); };
 
+  const isAdmin = userRole === "Admin" || userRole === "Administrator";
+
   return (
     <>
       <header className="sticky top-0 z-20 h-16 border-b border-[color:var(--line)] bg-[color:var(--surface)]/90 backdrop-blur-md">
@@ -234,7 +247,7 @@ export function Header({
               aria-label="Open navigation"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
             <button
@@ -254,21 +267,111 @@ export function Header({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            {/* Franchise Selector Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => !isFranchiseUser && setFranchiseDropdownOpen((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-2 h-9 px-3 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--surface)] text-xs font-semibold transition-colors shadow-xs",
+                  isFranchiseUser ? "cursor-default text-[#176b87] bg-[#e8f4f7]" : "hover:bg-[color:var(--surface-2)] text-[color:var(--foreground)]"
+                )}
+                title={isFranchiseUser ? "Franchise Locked Context" : "Switch active franchise view"}
+              >
+                <Building2 size={15} className="text-[#176b87] shrink-0" />
+                <span className="max-w-[150px] sm:max-w-[200px] truncate">
+                  {selectedFranchise ? selectedFranchise.name : (isFranchiseUser ? activeFranchiseName : "All Franchises (HQ)")}
+                </span>
+                {!isFranchiseUser && <ChevronDown size={13} className="text-[color:var(--muted)] shrink-0" />}
+              </button>
+
+              {franchiseDropdownOpen && !isFranchiseUser && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setFranchiseDropdownOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-[var(--radius-lg)] border border-[color:var(--line)] bg-[color:var(--surface)] py-2 shadow-[var(--shadow-lg)]">
+                    <div className="px-3 py-2 border-b border-[color:var(--line)]">
+                      <p className="text-xs font-bold text-[color:var(--foreground)] uppercase tracking-wider">Select Active Franchise</p>
+                      <p className="text-[11px] text-[color:var(--muted)] mt-0.5">Filter all reports, samples & dashboard data</p>
+                    </div>
+
+                    <div className="py-1 max-h-60 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFranchiseId("all");
+                          setFranchiseDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-left hover:bg-[color:var(--surface-2)] transition-colors",
+                          selectedFranchiseId === "all" ? "bg-[color:var(--brand-50)] text-[color:var(--brand-700)] font-semibold" : "text-[color:var(--foreground)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">🌐</span>
+                          <span>All Franchises (Global HQ)</span>
+                        </div>
+                        {selectedFranchiseId === "all" && <span className="size-1.5 rounded-full bg-[color:var(--brand-600)]" />}
+                      </button>
+
+                      {franchises.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFranchiseId(f.id);
+                            setFranchiseDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-left hover:bg-[color:var(--surface-2)] transition-colors",
+                            selectedFranchiseId === f.id ? "bg-[color:var(--brand-50)] text-[color:var(--brand-700)] font-semibold" : "text-[color:var(--foreground)]"
+                          )}
+                        >
+                          <div>
+                            <p className="font-semibold">{f.name}</p>
+                            <p className="text-[10px] text-[color:var(--muted)]">{f.code} · {f.city}</p>
+                          </div>
+                          {selectedFranchiseId === f.id && <span className="size-1.5 rounded-full bg-[color:var(--brand-600)]" />}
+                        </button>
+                      ))}
+
+                      {franchises.length === 0 && (
+                        <p className="px-3 py-3 text-center text-xs text-[color:var(--muted)]">No franchises registered yet.</p>
+                      )}
+                    </div>
+
+                    {isAdmin && (
+                      <div className="border-t border-[color:var(--line)] pt-1 px-1">
+                        <Link
+                          href="/franchises/new"
+                          onClick={() => setFranchiseDropdownOpen(false)}
+                          className="flex items-center justify-center gap-1.5 w-full rounded-md px-3 py-1.5 text-xs font-semibold text-[#176b87] hover:bg-[#e8f4f7] transition-colors"
+                        >
+                          <Plus size={13} />
+                          Register New Franchise
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Quick Search Button in Header */}
             <button
               type="button"
               onClick={() => setCmdKOpen(true)}
-              className="hidden md:inline-flex h-9 w-72 items-center gap-2 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--surface-2)]/60 px-3 text-xs text-[color:var(--muted)] hover:bg-[color:var(--surface-2)] transition-colors"
+              className="hidden md:inline-flex h-9 w-44 lg:w-52 items-center gap-2 rounded-[10px] border border-[color:var(--line)] bg-[color:var(--surface-2)]/60 px-3 text-xs text-[color:var(--muted)] hover:bg-[color:var(--surface-2)] transition-colors"
             >
-              <Search size={14} />
-              <span className="flex-1 text-left">Search modules, actions…</span>
-              <kbd className="rounded border border-[color:var(--line)] bg-[color:var(--surface)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--muted)]">⌘K</kbd>
+              <Search size={14} className="shrink-0" />
+              <span className="flex-1 text-left truncate">Search…</span>
+              <kbd className="rounded border border-[color:var(--line)] bg-[color:var(--surface)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--muted)] shrink-0">⌘K</kbd>
             </button>
             <button
               type="button"
               className="inline-flex md:hidden h-9 w-9 items-center justify-center rounded-[10px] text-[color:var(--muted)] hover:bg-[color:var(--surface-2)]"
               onClick={() => setCmdKOpen(true)}
-              aria-label="Open command palette"
+              aria-label="Open search palette"
             ><Search size={16} /></button>
 
             <button
@@ -286,13 +389,6 @@ export function Header({
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                 </svg>
               )}
-            </button>
-
-            <button type="button" className="relative inline-flex h-9 w-9 items-center justify-center rounded-[10px] text-[color:var(--muted)] hover:bg-[color:var(--surface-2)]" aria-label="Notifications">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              <span className="absolute right-2 top-2 size-2 rounded-full bg-[color:var(--danger)] ring-2 ring-[color:var(--surface)]" />
             </button>
 
             <div className="relative">
@@ -318,13 +414,13 @@ export function Header({
                       <p className="text-xs text-[color:var(--muted)] mt-0.5">{userRole}</p>
                     </div>
                     <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-3 h-9 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--surface-2)]">
-                      <User size={15} /> Profile
+                      <User size={15} /> Profile & Settings
                     </Link>
-                    <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-3 h-9 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--surface-2)]">
-                      <SettingsIcon size={15} /> Settings
-                    </Link>
-                    <div className="my-1 h-px bg-[color:var(--line)]" />
-                    <button type="button" onClick={logout} className="flex w-full items-center gap-2.5 px-3 h-9 text-sm text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]">
+                    <button
+                      type="button"
+                      onClick={logout}
+                      className="flex w-full items-center gap-2.5 px-3 h-9 text-sm text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
+                    >
                       <LogOut size={15} /> Log out
                     </button>
                   </div>
@@ -335,46 +431,56 @@ export function Header({
         </div>
       </header>
 
+      {/* Command Palette / Search Modal */}
       {cmdKOpen && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-900/40 backdrop-blur-sm p-4 pt-[15vh]" onClick={() => setCmdKOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setCmdKOpen(false)}
+        >
           <div
-            className="w-full max-w-xl rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] shadow-[var(--shadow-lg)] overflow-hidden"
+            className="relative w-full max-w-lg rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] shadow-[var(--shadow-lg)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 border-b border-[color:var(--line)] px-4 h-14">
-              <Search size={17} className="text-[color:var(--muted)]" />
+            <div className="flex items-center gap-2.5 px-4 border-b border-[color:var(--line)]">
+              <Search size={16} className="text-[color:var(--muted)] shrink-0" />
               <input
+                type="text"
                 autoFocus
+                placeholder="Search modules or actions…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search menu items or type to go to a page…"
-                className="flex-1 bg-transparent text-sm outline-none text-[color:var(--foreground)] placeholder:text-[color:var(--muted-2)]"
+                className="w-full h-12 bg-transparent text-sm text-[color:var(--foreground)] placeholder-[color:var(--muted)] outline-none"
               />
-              <kbd className="rounded border border-[color:var(--line)] bg-[color:var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[color:var(--muted)]">Esc</kbd>
+              <kbd className="hidden sm:inline-block rounded border border-[color:var(--line)] bg-[color:var(--surface-2)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--muted)]">ESC</kbd>
+              <button
+                type="button"
+                onClick={() => setCmdKOpen(false)}
+                className="grid size-7 place-items-center rounded-lg text-[color:var(--muted)] hover:bg-[color:var(--surface-2)] hover:text-[color:var(--foreground)] transition-colors shrink-0"
+                aria-label="Close search"
+                title="Close (ESC)"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <ul className="max-h-80 overflow-y-auto py-2">
-              {filtered.length === 0 ? (
-                <li className="px-4 py-10 text-center text-sm text-[color:var(--muted)]">No matches for "{search}".</li>
-              ) : filtered.map((item) => {
+            <div className="p-2 max-h-72 overflow-y-auto">
+              <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[color:var(--muted)]">Navigation</p>
+              {filtered.map((item) => {
                 const Icon = iconMap[item.icon] ?? Activity;
                 return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={() => { setCmdKOpen(false); setSearch(""); }}
-                      className="flex items-center gap-3 px-4 h-10 text-sm hover:bg-[color:var(--brand-50)] hover:text-[color:var(--brand-600)] transition-colors"
-                    >
-                      <Icon size={15} className="text-[color:var(--muted)]" />
-                      <span className="flex-1">{item.label}</span>
-                      <span className="text-xs text-[color:var(--muted)]">{item.href}</span>
-                    </Link>
-                  </li>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setCmdKOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--surface-2)]"
+                  >
+                    <Icon size={16} className="text-[color:var(--muted)] shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
                 );
               })}
-            </ul>
-            <div className="flex items-center justify-between border-t border-[color:var(--line)] px-4 h-9 text-[11px] text-[color:var(--muted)] bg-[color:var(--surface-2)]/60">
-              <span className="inline-flex items-center gap-1.5"><Dot tone="success" /> Connected to mock workspace</span>
-              <span>Navigate · ↑/↓ · Enter to open</span>
+              {filtered.length === 0 && (
+                <p className="px-3 py-6 text-center text-xs text-[color:var(--muted)]">No matching modules found.</p>
+              )}
             </div>
           </div>
         </div>

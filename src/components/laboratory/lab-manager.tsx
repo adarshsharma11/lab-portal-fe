@@ -28,9 +28,9 @@ interface FormFieldDef {
 }
 
 const sampleFields: readonly FormFieldDef[] = [
-  { name: "accession", label: "Accession Number", type: "text", placeholder: "e.g. LIS-240822 (auto-generated if empty)" },
-  { name: "barcode", label: "Barcode ID", type: "text", placeholder: "e.g. BC902188 (auto-generated if empty)" },
-  { name: "patientId", label: "Patient Code / ID", type: "text", placeholder: "e.g. pat-01 or PT-24018", required: true, hint: "Enter patient reference code" },
+  { name: "accession", label: "Accession Number", type: "text", placeholder: "LIS-240822 (auto-generated if empty)" },
+  { name: "barcode", label: "Barcode ID", type: "text", placeholder: "BC902188 (auto-generated if empty)" },
+  { name: "patientId", label: "Patient Code / ID", type: "text", placeholder: "pat-01 or PT-24018", required: true, hint: "Enter patient reference code" },
   {
     name: "sampleType",
     label: "Specimen Type",
@@ -74,12 +74,12 @@ const sampleFields: readonly FormFieldDef[] = [
       { label: "Rejected (Hemolyzed/Clotted)", value: "Rejected" },
     ],
   },
-  { name: "notes", label: "Phlebotomy / Clinical Notes", type: "textarea", placeholder: "e.g. Fasting sample, collected without hemolysis, stored at 2-8°C", colSpan: 2 },
+  { name: "notes", label: "Phlebotomy / Clinical Notes", type: "textarea", placeholder: "Fasting sample, collected without hemolysis, stored at 2-8°C", colSpan: 2 },
 ];
 
 const testFields: readonly FormFieldDef[] = [
-  { name: "code", label: "Test Code", type: "text", placeholder: "e.g. CBC, LFT, KFT, HBA1C", required: true },
-  { name: "name", label: "Test Full Name", type: "text", placeholder: "e.g. Complete Blood Count with 5-Part Diff", required: true },
+  { name: "code", label: "Test Code", type: "text", placeholder: "CBC, LFT, KFT, HBA1C", required: true },
+  { name: "name", label: "Test Full Name", type: "text", placeholder: "Complete Blood Count with 5-Part Diff", required: true },
   {
     name: "department",
     label: "Laboratory Department",
@@ -111,10 +111,10 @@ const testFields: readonly FormFieldDef[] = [
       { label: "Other / Swab", value: "Other" },
     ],
   },
-  { name: "price", label: "Test Price (₹)", type: "number", placeholder: "e.g. 450", required: true },
-  { name: "turnaroundHours", label: "Standard Turnaround Time (Hours)", type: "number", placeholder: "e.g. 4", required: true },
-  { name: "referenceRange", label: "Default Reference Range", type: "text", placeholder: "e.g. 13.0 - 17.0 g/dL" },
-  { name: "unit", label: "Measurement Unit", type: "text", placeholder: "e.g. g/dL, mg/dL, mmol/L" },
+  { name: "price", label: "Test Price (₹)", type: "number", placeholder: "450", required: true },
+  { name: "turnaroundHours", label: "Standard Turnaround Time (Hours)", type: "number", placeholder: "4", required: true },
+  { name: "referenceRange", label: "Default Reference Range", type: "text", placeholder: "13.0 - 17.0 g/dL" },
+  { name: "unit", label: "Measurement Unit", type: "text", placeholder: "g/dL, mg/dL, mmol/L" },
   {
     name: "status",
     label: "Catalog Status",
@@ -129,7 +129,7 @@ const testFields: readonly FormFieldDef[] = [
 ];
 
 const sampleSchema = Yup.object({
-  patientId: Yup.string().trim().required("Patient ID is required (e.g. pat-01 or PT-24018)"),
+  patientId: Yup.string().trim().required("Patient ID is required (. pat-01 or PT-24018)"),
   sampleType: Yup.string().required("Please select specimen type").oneOf(["Blood", "Serum", "Plasma", "Urine", "CSF", "Fluid", "Other"], "Invalid specimen type"),
   accession: Yup.string().trim(),
   barcode: Yup.string().trim(),
@@ -140,8 +140,8 @@ const sampleSchema = Yup.object({
 });
 
 const testSchema = Yup.object({
-  code: Yup.string().trim().required("Test code is required e.g. CBC").min(2, "Test code must be at least 2 characters"),
-  name: Yup.string().trim().required("Test name is required e.g. Complete Blood Count").min(2, "Name must be at least 2 characters"),
+  code: Yup.string().trim().required("Test code is required . CBC").min(2, "Test code must be at least 2 characters"),
+  name: Yup.string().trim().required("Test name is required . Complete Blood Count").min(2, "Name must be at least 2 characters"),
   department: Yup.string().required("Please select a department"),
   sampleType: Yup.string().required("Please select required specimen type"),
   price: Yup.number().typeError("Price must be a valid number").required("Price is required").min(0, "Price cannot be negative"),
@@ -209,9 +209,9 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       }),
       h.display({
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: "Actions",
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-center gap-1.5">
             <Link href={`/${kind}/${row.original.id}`}>
               <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
                 View

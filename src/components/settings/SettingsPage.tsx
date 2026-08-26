@@ -38,22 +38,22 @@ const reportSchema = Yup.object({
 });
 
 const rangeSchema = Yup.object({
-  testCode: Yup.string().trim().required("Test code is required (e.g. CBC)"),
-  testName: Yup.string().trim().required("Test name is required (e.g. Complete Blood Count)"),
-  parameter: Yup.string().trim().required("Parameter name is required (e.g. Hemoglobin)"),
+  testCode: Yup.string().trim().required("Test code is required (. CBC)"),
+  testName: Yup.string().trim().required("Test name is required (. Complete Blood Count)"),
+  parameter: Yup.string().trim().required("Parameter name is required (. Hemoglobin)"),
   gender: Yup.string().required("Please select gender option").oneOf(["Both", "Male", "Female"], "Invalid option"),
   ageMin: Yup.number().typeError("Min age must be a number").min(0, "Age cannot be negative"),
   ageMax: Yup.number().typeError("Max age must be a number").min(0, "Age cannot be negative"),
   minimum: Yup.number().typeError("Minimum reference value is required").required("Minimum value is required"),
   maximum: Yup.number().typeError("Maximum reference value is required").required("Maximum value is required"),
-  unit: Yup.string().trim().required("Unit is required (e.g. g/dL)"),
+  unit: Yup.string().trim().required("Unit is required (. g/dL)"),
   criticalLow: Yup.number().typeError("Must be a number").nullable(),
   criticalHigh: Yup.number().typeError("Must be a number").nullable(),
 });
 
 const unitSchema = Yup.object({
-  code: Yup.string().trim().required("Unit code is required (e.g. mg/dL)"),
-  name: Yup.string().trim().required("Full unit name is required (e.g. milligrams per deciliter)"),
+  code: Yup.string().trim().required("Unit code is required (. mg/dL)"),
+  name: Yup.string().trim().required("Full unit name is required (. milligrams per deciliter)"),
   category: Yup.string().required("Please select category"),
   conversionFactor: Yup.number().typeError("Conversion factor must be a number").required("Conversion factor is required"),
   baseUnit: Yup.string().trim(),
@@ -99,9 +99,9 @@ export function SettingsPage() {
       }),
       h.display({
         id: "actions",
-        header: "",
+        header: "Actions",
         cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
+          <div className="flex items-center justify-center gap-1">
             <Button size="sm" variant="ghost" onClick={() => setRangeForm({ open: true, id: row.original.id, default: { ...row.original } })}>Edit</Button>
             <Button size="sm" variant="ghost" className="text-[color:var(--danger)]" onClick={() => rangeMut.remove.mutate(row.original.id)}>Delete</Button>
           </div>
@@ -120,9 +120,9 @@ export function SettingsPage() {
       h.accessor("conversionFactor", { header: "Factor", cell: ({ getValue }) => getValue() ?? "—" }),
       h.display({
         id: "actions",
-        header: "",
+        header: "Actions",
         cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
+          <div className="flex items-center justify-center gap-1">
             <Button size="sm" variant="ghost" onClick={() => setUnitForm({ open: true, id: row.original.id, default: { ...row.original } })}>Edit</Button>
             <Button size="sm" variant="ghost" className="text-[color:var(--danger)]" onClick={() => unitMut.remove.mutate(row.original.id)}>Delete</Button>
           </div>
@@ -177,7 +177,7 @@ export function SettingsPage() {
                       <Field name="name" as={Input} />
                     </UIField>
                     <UIField label="Accreditation / Certification" name="accreditation">
-                      <Field name="accreditation" as={Input} placeholder="e.g. NABL, CAP, ISO 15189" />
+                      <Field name="accreditation" as={Input} placeholder="NABL, CAP, ISO 15189" />
                     </UIField>
                     <UIField label="License Number" name="licenseNumber">
                       <Field name="licenseNumber" as={Input} />
@@ -465,13 +465,13 @@ export function SettingsPage() {
                 <Form className="space-y-4">
                   <Grid2>
                     <UIField label="Test Code" name="testCode" required error={touched.testCode ? errors.testCode as string : undefined}>
-                      <Field name="testCode" as={Input} placeholder="e.g. CBC" />
+                      <Field name="testCode" as={Input} placeholder="CBC" />
                     </UIField>
                     <UIField label="Test Name" name="testName" required error={touched.testName ? errors.testName as string : undefined}>
-                      <Field name="testName" as={Input} placeholder="e.g. Complete Blood Count" />
+                      <Field name="testName" as={Input} placeholder="Complete Blood Count" />
                     </UIField>
                     <UIField label="Parameter" name="parameter" required error={touched.parameter ? errors.parameter as string : undefined}>
-                      <Field name="parameter" as={Input} placeholder="e.g. Hemoglobin" />
+                      <Field name="parameter" as={Input} placeholder="Hemoglobin" />
                     </UIField>
                     <UIField label="Gender" name="gender" required error={touched.gender ? errors.gender as string : undefined}>
                       <Field name="gender" as={Select}>
@@ -481,26 +481,26 @@ export function SettingsPage() {
                       </Field>
                     </UIField>
                     <UIField label="Minimum Age (Years)" name="ageMin" error={touched.ageMin ? errors.ageMin as string : undefined}>
-                      <Field name="ageMin" as={Input} type="number" placeholder="e.g. 18" />
+                      <Field name="ageMin" as={Input} type="number" placeholder="18" />
                     </UIField>
                     <UIField label="Maximum Age (Years)" name="ageMax" error={touched.ageMax ? errors.ageMax as string : undefined}>
-                      <Field name="ageMax" as={Input} type="number" placeholder="e.g. 65" />
+                      <Field name="ageMax" as={Input} type="number" placeholder="65" />
                     </UIField>
                     <UIField label="Minimum Value" name="minimum" required error={touched.minimum ? errors.minimum as string : undefined}>
-                      <Field name="minimum" as={Input} type="number" step="any" placeholder="e.g. 13.0" />
+                      <Field name="minimum" as={Input} type="number" step="any" placeholder="13.0" />
                     </UIField>
                     <UIField label="Maximum Value" name="maximum" required error={touched.maximum ? errors.maximum as string : undefined}>
-                      <Field name="maximum" as={Input} type="number" step="any" placeholder="e.g. 17.0" />
+                      <Field name="maximum" as={Input} type="number" step="any" placeholder="17.0" />
                     </UIField>
                     <UIField label="Unit" name="unit" required error={touched.unit ? errors.unit as string : undefined}>
-                      <Field name="unit" as={Input} placeholder="e.g. g/dL" />
+                      <Field name="unit" as={Input} placeholder="g/dL" />
                     </UIField>
                     <UIField label="Critical Low (Alert)" name="criticalLow" error={touched.criticalLow ? errors.criticalLow as string : undefined}>
-                      <Field name="criticalLow" as={Input} type="number" step="any" placeholder="e.g. 7.0" />
+                      <Field name="criticalLow" as={Input} type="number" step="any" placeholder="7.0" />
                     </UIField>
                   </Grid2>
                   <UIField label="Critical High (Alert)" name="criticalHigh" error={touched.criticalHigh ? errors.criticalHigh as string : undefined}>
-                    <Field name="criticalHigh" as={Input} type="number" step="any" placeholder="e.g. 20.0" />
+                    <Field name="criticalHigh" as={Input} type="number" step="any" placeholder="20.0" />
                   </UIField>
                   <div className="flex justify-end gap-2 pt-2 border-t border-[color:var(--line)]">
                     <Button type="button" variant="ghost" onClick={() => setRangeForm({ open: false })}>Cancel</Button>
@@ -540,11 +540,11 @@ export function SettingsPage() {
               {({ errors, touched, isSubmitting }) => (
                 <Form className="space-y-4">
                   <Grid2>
-                    <UIField label="Unit Code" name="code" required hint="Short identifier (e.g. mg/dL)" error={touched.code ? errors.code as string : undefined}>
-                      <Field name="code" as={Input} placeholder="e.g. mg/dL" />
+                    <UIField label="Unit Code" name="code" required hint="Short identifier (. mg/dL)" error={touched.code ? errors.code as string : undefined}>
+                      <Field name="code" as={Input} placeholder="mg/dL" />
                     </UIField>
                     <UIField label="Full Name" name="name" required error={touched.name ? errors.name as string : undefined}>
-                      <Field name="name" as={Input} placeholder="e.g. milligrams per deciliter" />
+                      <Field name="name" as={Input} placeholder="milligrams per deciliter" />
                     </UIField>
                     <UIField label="Category" name="category" required error={touched.category ? errors.category as string : undefined}>
                       <Field name="category" as={Select}>
@@ -555,8 +555,8 @@ export function SettingsPage() {
                       <Field name="conversionFactor" as={Input} type="number" step="any" placeholder="1" />
                     </UIField>
                   </Grid2>
-                  <UIField label="Base Unit" name="baseUnit" hint="e.g. mmol/L for conversion reference">
-                    <Field name="baseUnit" as={Input} placeholder="e.g. mmol/L" />
+                  <UIField label="Base Unit" name="baseUnit" hint=". mmol/L for conversion reference">
+                    <Field name="baseUnit" as={Input} placeholder="mmol/L" />
                   </UIField>
                   <div className="flex justify-end gap-2 pt-2 border-t border-[color:var(--line)]">
                     <Button type="button" variant="ghost" onClick={() => setUnitForm({ open: false })}>Cancel</Button>

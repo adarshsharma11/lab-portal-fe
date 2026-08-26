@@ -12,15 +12,12 @@ export type NavItem = Readonly<{
   roles: readonly UserRole[];
 }>;
 
-const ALL: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor", "Receptionist"] as const;
+const ALL: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor", "Receptionist", "Franchise"] as const;
 const ADMIN: readonly UserRole[] = ["Administrator", "Admin"] as const;
-const TECH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Technician"] as const;
+const TECH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Franchise"] as const;
 const PATH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist"] as const;
-const DOCTOR_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor"] as const;
-const CLINICAL_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor", "Pathologist", "Receptionist"] as const;
-const LAB_PROCESS: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist"] as const;
-const REPORT_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Doctor", "Technician"] as const;
-const OPS_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Doctor", "Receptionist"] as const;
+const LAB_PROCESS: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist", "Franchise"] as const;
+const REPORT_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Doctor", "Technician", "Franchise"] as const;
 
 export const NAVIGATION: readonly NavGroup[] = [
   {
@@ -32,7 +29,7 @@ export const NAVIGATION: readonly NavGroup[] = [
   {
     label: "Laboratory & Testing",
     items: [
-      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist"] },
+      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist", "Franchise"] },
       { label: "Samples", href: "/samples", icon: "TestTube2", roles: LAB_PROCESS },
       { label: "Tests Master", href: "/tests", icon: "ClipboardList", roles: LAB_PROCESS },
       { label: "Hematology", href: "/hematology", icon: "Droplets", roles: TECH_ROLES },
@@ -45,16 +42,16 @@ export const NAVIGATION: readonly NavGroup[] = [
     label: "Diagnostic Reports",
     items: [
       { label: "Test Results", href: "/results", icon: "FileBarChart", roles: REPORT_ROLES },
-      { label: "Reports Workflow", href: "/reports", icon: "ReceiptText", roles: ["Administrator", "Admin", "Pathologist", "Doctor"] },
+      { label: "Reports Workflow", href: "/reports", icon: "ReceiptText", roles: ["Administrator", "Admin", "Pathologist", "Doctor", "Franchise"] },
     ],
   },
   {
     label: "Clinical & Operations",
     items: [
-      { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: ["Administrator", "Admin", "Doctor", "Receptionist"] },
-      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist"] },
-      { label: "Inventory Stock", href: "/inventory", icon: "Package", roles: ADMIN },
-      { label: "Suppliers", href: "/suppliers", icon: "Truck", roles: ADMIN },
+      { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise"] },
+      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise"] },
+      { label: "Inventory Stock", href: "/inventory", icon: "Package", roles: ["Administrator", "Admin", "Franchise"] },
+      { label: "Suppliers", href: "/suppliers", icon: "Package", roles: ADMIN },
     ],
   },
   {
@@ -67,7 +64,10 @@ export const NAVIGATION: readonly NavGroup[] = [
   {
     label: "Administration",
     items: [
+      { label: "Franchises", href: "/franchises", icon: "Building2", roles: ADMIN },
       { label: "Doctors Directory", href: "/doctors", icon: "Stethoscope", roles: ["Administrator", "Admin", "Doctor"] },
+      { label: "Pathologist", href: "/pathologists", icon: "Microscope", roles: ADMIN },
+      { label: "Technician", href: "/technicians", icon: "TestTube2", roles: ADMIN },
       { label: "User Management", href: "/users", icon: "UserCog", roles: ADMIN },
       { label: "System Settings", href: "/settings", icon: "Settings", roles: ADMIN },
     ],

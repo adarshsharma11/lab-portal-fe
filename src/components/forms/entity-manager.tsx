@@ -1,39 +1,40 @@
 "use client";
 import React, { useMemo, useState, useEffect } from "react";
-import { Field, Form, Formik } from "formik";
+import { Field, Form, Formik, type FormikHelpers } from "formik";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AlertTriangle, Edit3, Trash2, Eye, Plus, Shield } from "lucide-react";
-import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, Tabs, cn } from "@/components/ui/index";
+import { AlertTriangle, Edit3, Trash2, Eye, Plus, Building2 } from "lucide-react";
+import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
-import { useEntity, useEntityList, useEntityMutations } from "@/features/crud/hooks";
+import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Doctor, Patient, Supplier, User, UserRole } from "@/types/domain";
+import type { Doctor, Franchise, Patient, Supplier, User, UserRole } from "@/types/domain";
 
-type Kind = "patients" | "doctors" | "suppliers" | "users";
-type Entity = Patient | Doctor | Supplier | User;
+type Entity = Patient | Doctor | Franchise | Supplier | User;
 
 interface FieldConfig {
   name: string;
   label: string;
-  type: "text" | "select" | "date" | "number" | "textarea";
+  type: "text" | "select" | "date" | "number" | "textarea" | "password";
   placeholder?: string;
   options?: readonly { label: string; value: string }[];
   colSpan?: 1 | 2;
   required?: boolean;
   hint?: string;
+  section?: string;
 }
 
 const patientFields: readonly FieldConfig[] = [
-  { name: "name", label: "Full Name", type: "text", placeholder: "e.g. Maya Sharma", required: true },
-  { name: "patientCode", label: "Patient Code", type: "text", placeholder: "e.g. PT-82910 (auto-generated if left blank)" },
+  { name: "name", label: "Full Name", type: "text", placeholder: "Maya Sharma", required: true, section: "Personal Details" },
+  { name: "patientCode", label: "Patient Code", type: "text", placeholder: "PT-82910 (auto-generated if left blank)", section: "Personal Details" },
   {
     name: "sex",
     label: "Gender",
     type: "select",
     required: true,
+    section: "Personal Details",
     options: [
       { label: "Select gender", value: "" },
       { label: "Female", value: "Female" },
@@ -41,12 +42,13 @@ const patientFields: readonly FieldConfig[] = [
       { label: "Other", value: "Other" },
     ],
   },
-  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD" },
-  { name: "age", label: "Age", type: "number", placeholder: "e.g. 32", required: true },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
+  { name: "age", label: "Age", type: "number", placeholder: "32", required: true, section: "Personal Details" },
   {
     name: "bloodGroup",
     label: "Blood Group",
     type: "select",
+    section: "Personal Details",
     options: [
       { label: "Select blood group (optional)", value: "" },
       { label: "A+", value: "A+" },
@@ -59,32 +61,33 @@ const patientFields: readonly FieldConfig[] = [
       { label: "O-", value: "O-" },
     ],
   },
-  { name: "phone", label: "Phone Number", type: "text", placeholder: "e.g. +91 9876543210", required: true },
-  { name: "email", label: "Email Address", type: "text", placeholder: "e.g. maya.sharma@example.com" },
-  { name: "city", label: "City", type: "text", placeholder: "e.g. Bangalore" },
-  { name: "state", label: "State", type: "text", placeholder: "e.g. Karnataka" },
-  { name: "pincode", label: "Pincode", type: "text", placeholder: "e.g. 560001" },
-  { name: "emergencyContact", label: "Emergency Contact Phone", type: "text", placeholder: "e.g. +91 9811122334" },
-  { name: "referringDoctorId", label: "Referring Doctor Code / ID", type: "text", placeholder: "e.g. doc-01 or Dr. Menon" },
+  { name: "phone", label: "Phone Number", type: "text", placeholder: "+91 9876543210", required: true, section: "Contact Details" },
+  { name: "email", label: "Email Address", type: "text", placeholder: "maya.sharma@example.com", section: "Contact Details" },
+  { name: "emergencyContact", label: "Emergency Contact Phone", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
+  { name: "city", label: "City", type: "text", placeholder: "Bangalore", section: "Contact Details" },
+  { name: "state", label: "State", type: "text", placeholder: "Karnataka", section: "Contact Details" },
+  { name: "pincode", label: "Pincode", type: "text", placeholder: "560001", section: "Contact Details" },
+  { name: "address", label: "Residential Address", type: "textarea", placeholder: "#42, 3rd Cross, Indiranagar", colSpan: 2, section: "Contact Details" },
+  { name: "referringDoctorId", label: "Referring Doctor Code / ID", type: "text", placeholder: "doc-01 or Dr. Menon", section: "Clinical Information" },
   {
     name: "status",
     label: "Patient Status",
     type: "select",
+    section: "Clinical Information",
     options: [
       { label: "Active", value: "Active" },
       { label: "Inactive", value: "Inactive" },
     ],
   },
-  { name: "address", label: "Residential Address", type: "textarea", placeholder: "e.g. #42, 3rd Cross, Indiranagar", colSpan: 2 },
 ];
 
 const doctorFields: readonly FieldConfig[] = [
-  { name: "name", label: "Doctor Full Name", type: "text", placeholder: "e.g. Dr. Rajesh Verma", required: true },
-  { name: "specialty", label: "Specialty / Department", type: "text", placeholder: "e.g. Pathology, Hematology, Internal Medicine", required: true },
+  { name: "name", label: "Doctor Full Name", type: "text", placeholder: "Dr. Rajesh Verma", required: true, section: "Personal Details" },
   {
     name: "gender",
     label: "Gender",
     type: "select",
+    section: "Personal Details",
     options: [
       { label: "Select gender (optional)", value: "" },
       { label: "Female", value: "Female" },
@@ -92,23 +95,191 @@ const doctorFields: readonly FieldConfig[] = [
       { label: "Other", value: "Other" },
     ],
   },
-  { name: "phone", label: "Phone Number", type: "text", placeholder: "e.g. +91 9822012345", required: true },
-  { name: "email", label: "Email Address", type: "text", placeholder: "e.g. dr.verma@hospital.org", required: true },
-  { name: "city", label: "City / Hospital Branch", type: "text", placeholder: "e.g. Bangalore" },
-  { name: "experience", label: "Years of Experience", type: "text", placeholder: "e.g. 12 years" },
-  { name: "dateOfJoining", label: "Date of Joining", type: "date", placeholder: "YYYY-MM-DD" },
-  { name: "description", label: "Professional Notes & Affiliations", type: "textarea", placeholder: "e.g. Head of Diagnostic Services, MBBS MD (Pathology)", colSpan: 2 },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
+  { name: "phone", label: "Contact Phone Number", type: "text", placeholder: "+91 9822012345", required: true, section: "Contact Details" },
+  { name: "emergencyContact", label: "Emergency Contact (optional)", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
+  { name: "country", label: "Country", type: "text", placeholder: "India", section: "Contact Details" },
+  { name: "state", label: "State / Province", type: "text", placeholder: "Karnataka", section: "Contact Details" },
+  { name: "city", label: "City / Hospital Branch", type: "text", placeholder: "Bangalore", section: "Contact Details" },
+  { name: "pincode", label: "Pin Code", type: "text", placeholder: "560001", section: "Contact Details" },
+  { name: "address", label: "Office / Clinic Address", type: "textarea", placeholder: "Suite 402, Apollo Medical Center, Indiranagar", colSpan: 2, section: "Contact Details" },
+  { name: "email", label: "Official Email Address", type: "text", placeholder: "dr.verma@hospital.org", required: true, section: "Login Details (Used for login)" },
+  { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Used for login)", hint: "Used to authenticate when the doctor signs in." },
+  { name: "specialty", label: "Specialist / Clinical Department", type: "text", placeholder: "Pathology, Hematology, Internal Medicine", required: true, section: "Doctor & Professional Details" },
+  { name: "experience", label: "Work Experience", type: "text", placeholder: "12 years", section: "Doctor & Professional Details" },
+  { name: "dateOfJoining", label: "Date of Joining", type: "date", placeholder: "YYYY-MM-DD", section: "Doctor & Professional Details" },
+  {
+    name: "status",
+    label: "Account Status",
+    type: "select",
+    section: "Doctor & Professional Details",
+    options: [
+      { label: "Active (Permitted)", value: "Active" },
+      { label: "Inactive (Disabled)", value: "Inactive" },
+    ],
+  },
+  { name: "description", label: "Professional Notes & Affiliations", type: "textarea", placeholder: "Head of Diagnostic Services, MBBS MD (Pathology)", colSpan: 2, section: "Doctor & Professional Details" },
+];
+
+const franchiseFields: readonly FieldConfig[] = [
+  { name: "name", label: "Franchise Name", type: "text", placeholder: "BLDignostics Hub - Indiranagar", required: true, section: "Franchise Identification" },
+  { name: "code", label: "Franchise Code", type: "text", placeholder: "FR-BLR-01 (Auto-generated if left blank)", section: "Franchise Identification" },
+  { name: "licenseNumber", label: "License / Accr. Number", type: "text", placeholder: "KAR-FR-2026-9081", section: "Franchise Identification" },
+  { name: "gstNumber", label: "GSTIN Number", type: "text", placeholder: "29AAAAA0000A1Z5", section: "Franchise Identification" },
+  
+  { name: "ownerName", label: "Franchise Owner / In-charge Name", type: "text", placeholder: "Dr. Suresh Varma", required: true, section: "Owner & Contact Details" },
+  { name: "phone", label: "Primary Contact Phone", type: "text", placeholder: "+91 98450 12345", required: true, section: "Owner & Contact Details" },
+  { name: "emergencyPhone", label: "Emergency / Support Phone", type: "text", placeholder: "+91 98000 11223", section: "Owner & Contact Details" },
+
+  { name: "email", label: "Official Franchise Email", type: "text", placeholder: "blr.indiranagar@lis.local", required: true, section: "Login Details (Used for login)", hint: "Used by the franchise owner to sign in to the portal." },
+  { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Used for login)", hint: "Used to authenticate when the franchise logs in." },
+
+  {
+    name: "country",
+    label: "Country",
+    type: "select",
+    section: "Location Details",
+    options: [
+      { label: "India", value: "India" },
+      { label: "United States", value: "United States" },
+      { label: "United Kingdom", value: "United Kingdom" },
+      { label: "Other", value: "Other" },
+    ],
+  },
+  { name: "state", label: "State / Province", type: "text", placeholder: "Karnataka", section: "Location Details" },
+  { name: "city", label: "City", type: "text", placeholder: "Bengaluru", required: true, section: "Location Details" },
+  { name: "pincode", label: "Pin Code", type: "text", placeholder: "560038", section: "Location Details" },
+  { name: "address", label: "Complete Address", type: "textarea", placeholder: "#102, 100ft Road, Indiranagar, Bengaluru", colSpan: 2, section: "Location Details" },
+
+  { name: "revenueShare", label: "Revenue Share (%)", type: "number", placeholder: "15", section: "Business & Financial Terms" },
+  {
+    name: "status",
+    label: "Franchise Status",
+    type: "select",
+    section: "Business & Financial Terms",
+    options: [
+      { label: "Active (Operational)", value: "Active" },
+      { label: "Inactive (Paused)", value: "Inactive" },
+      { label: "Suspended", value: "Suspended" },
+    ],
+  },
+  { name: "notes", label: "Operational Notes & Agreement Terms", type: "textarea", placeholder: "Phlebotomy collection hub with automated analyzer sync.", colSpan: 2, section: "Business & Financial Terms" },
+];
+
+const pathologistFields: readonly FieldConfig[] = [
+  { name: "name", label: "Pathologist Full Name", type: "text", placeholder: "Dr. Ananya Rao", required: true, section: "Personal Details" },
+  {
+    name: "gender",
+    label: "Gender",
+    type: "select",
+    section: "Personal Details",
+    options: [
+      { label: "Select gender (optional)", value: "" },
+      { label: "Female", value: "Female" },
+      { label: "Male", value: "Male" },
+      { label: "Other", value: "Other" },
+    ],
+  },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
+  { name: "mobile", label: "Contact Phone Number", type: "text", placeholder: "+91 98450 11223", required: true, section: "Contact Details" },
+  { name: "emergencyContact", label: "Emergency Contact (optional)", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
+  { name: "country", label: "Country", type: "text", placeholder: "India", section: "Contact Details" },
+  { name: "state", label: "State / Province", type: "text", placeholder: "Karnataka", section: "Contact Details" },
+  { name: "location", label: "Assigned Facility / Lab Location", type: "text", placeholder: "Central Processing & Histopathology Lab", section: "Contact Details" },
+  { name: "pincode", label: "Pin Code", type: "text", placeholder: "560001", section: "Contact Details" },
+  { name: "address", label: "Address", type: "textarea", placeholder: "Flat 304, Green Meadows, Bengaluru", colSpan: 2, section: "Contact Details" },
+  { name: "email", label: "Official Email Address", type: "text", placeholder: "ananya.rao@hospital.org", required: true, section: "Login Details (Used for login)" },
+  { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Used for login)", hint: "Used to authenticate when the pathologist signs in." },
+  {
+    name: "permissions",
+    label: "Permissions Scope",
+    type: "select",
+    required: true,
+    section: "Role & Permission Details",
+    options: [
+      { label: "Reports & QC Sign-off (reports:approve, results:write, qc:manage)", value: "reports:approve,results:write,qc:manage" },
+      { label: "All Permissions (*)", value: "*" },
+      { label: "Read Only (reports:read, samples:read)", value: "read:all" },
+    ],
+  },
+  { name: "specialty", label: "Sub-Specialization", type: "text", placeholder: "Histopathology, Hematopathology, Molecular Diagnostics", section: "Role & Permission Details" },
+  { name: "experience", label: "Years of Experience", type: "text", placeholder: "8 years", section: "Role & Permission Details" },
+  { name: "dateOfJoining", label: "Date of Joining", type: "date", placeholder: "YYYY-MM-DD", section: "Role & Permission Details" },
+  {
+    name: "status",
+    label: "Account Status",
+    type: "select",
+    section: "Role & Permission Details",
+    options: [
+      { label: "Active (Permitted)", value: "Active" },
+      { label: "Inactive (Disabled)", value: "Inactive" },
+    ],
+  },
+  { name: "description", label: "Medical Registration / Council Notes", type: "textarea", placeholder: "Reg No. KMC-2015-8942 · Consultant Pathologist", colSpan: 2, section: "Role & Permission Details" },
+];
+
+const technicianFields: readonly FieldConfig[] = [
+  { name: "name", label: "Technician Full Name", type: "text", placeholder: "Vikram Mehta", required: true, section: "Personal Details" },
+  {
+    name: "gender",
+    label: "Gender",
+    type: "select",
+    section: "Personal Details",
+    options: [
+      { label: "Select gender (optional)", value: "" },
+      { label: "Male", value: "Male" },
+      { label: "Female", value: "Female" },
+      { label: "Other", value: "Other" },
+    ],
+  },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
+  { name: "mobile", label: "Contact Phone Number", type: "text", placeholder: "+91 98765 43210", required: true, section: "Contact Details" },
+  { name: "emergencyContact", label: "Emergency Contact (optional)", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
+  { name: "country", label: "Country", type: "text", placeholder: "India", section: "Contact Details" },
+  { name: "state", label: "State / Province", type: "text", placeholder: "Karnataka", section: "Contact Details" },
+  { name: "location", label: "Assigned Laboratory Section / Room", type: "text", placeholder: "Hematology & Biochemistry Lab, Room 102", section: "Contact Details" },
+  { name: "pincode", label: "Pin Code", type: "text", placeholder: "560001", section: "Contact Details" },
+  { name: "address", label: "Address", type: "textarea", placeholder: "12, 4th Main Road, Indiranagar", colSpan: 2, section: "Contact Details" },
+  { name: "email", label: "Official Email Address", type: "text", placeholder: "vikram.mehta@lis.local", required: true, section: "Login Details (Used for login)" },
+  { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Used for login)", hint: "Used to authenticate when the technician signs in." },
+  {
+    name: "permissions",
+    label: "Permissions Scope",
+    type: "select",
+    required: true,
+    section: "Role & Permission Details",
+    options: [
+      { label: "Lab Processing & Instruments (samples:write, results:write, instruments:manage)", value: "samples:write,results:write,instruments:manage" },
+      { label: "All Permissions (*)", value: "*" },
+      { label: "Read Only (reports:read, samples:read)", value: "read:all" },
+    ],
+  },
+  { name: "specialty", label: "Assigned Bench / Workstation", type: "text", placeholder: "Automated Analyzers & Phlebotomy", section: "Role & Permission Details" },
+  { name: "experience", label: "Work Experience", type: "text", placeholder: "5 years", section: "Role & Permission Details" },
+  { name: "dateOfJoining", label: "Date of Joining", type: "date", placeholder: "YYYY-MM-DD", section: "Role & Permission Details" },
+  {
+    name: "status",
+    label: "Account Status",
+    type: "select",
+    section: "Role & Permission Details",
+    options: [
+      { label: "Active (Permitted)", value: "Active" },
+      { label: "Inactive (Disabled)", value: "Inactive" },
+    ],
+  },
+  { name: "description", label: "Certifications & Equipment Clearance", type: "textarea", placeholder: "Certified DMLT, Sysmex & Roche Certified Operator", colSpan: 2, section: "Role & Permission Details" },
 ];
 
 const supplierFields: readonly FieldConfig[] = [
-  { name: "name", label: "Supplier / Company Name", type: "text", placeholder: "e.g. Roche Diagnostics India", required: true },
-  { name: "phone", label: "Contact Phone", type: "text", placeholder: "e.g. +91 22 67890000", required: true },
-  { name: "emergencyContact", label: "Support / Emergency Line", type: "text", placeholder: "e.g. +91 1800 200 4000" },
+  { name: "name", label: "Supplier / Company Name", type: "text", placeholder: "Roche Diagnostics India", required: true, section: "Company Details" },
+  { name: "phone", label: "Contact Phone", type: "text", placeholder: "+91 22 67890000", required: true, section: "Contact Details" },
+  { name: "emergencyContact", label: "Support / Emergency Line", type: "text", placeholder: "+91 1800 200 4000", section: "Contact Details" },
   {
     name: "country",
     label: "Country",
     type: "select",
     required: true,
+    section: "Location Details",
     options: [
       { label: "Select country", value: "" },
       { label: "India", value: "India" },
@@ -119,29 +290,48 @@ const supplierFields: readonly FieldConfig[] = [
       { label: "Other", value: "Other" },
     ],
   },
-  { name: "city", label: "City", type: "text", placeholder: "e.g. Pune", required: true },
-  { name: "state", label: "State / Province", type: "text", placeholder: "e.g. Maharashtra" },
-  { name: "pincode", label: "Pincode / Postal Code", type: "text", placeholder: "e.g. 411001" },
-  { name: "address", label: "Office Address", type: "textarea", placeholder: "e.g. Plot 14, MIDC Industrial Area", colSpan: 2 },
-  { name: "description", label: "Supply Categories & Delivery Terms", type: "textarea", placeholder: "e.g. Primary vendor for hematology reagents and control serums", colSpan: 2 },
+  { name: "city", label: "City", type: "text", placeholder: "Pune", required: true, section: "Location Details" },
+  { name: "state", label: "State / Province", type: "text", placeholder: "Maharashtra", section: "Location Details" },
+  { name: "pincode", label: "Pincode / Postal Code", type: "text", placeholder: "411001", section: "Location Details" },
+  { name: "address", label: "Office Address", type: "textarea", placeholder: "Plot 14, MIDC Industrial Area", colSpan: 2, section: "Location Details" },
+  { name: "description", label: "Supply Categories & Delivery Terms", type: "textarea", placeholder: "Primary vendor for hematology reagents and control serums", colSpan: 2, section: "Vendor Information" },
 ];
 
 const userFields: readonly FieldConfig[] = [
-  { name: "name", label: "Staff Full Name", type: "text", placeholder: "e.g. Priya Nair", required: true },
-  { name: "email", label: "Official Email Address", type: "text", placeholder: "e.g. priya.nair@lis.local", required: true },
+  { name: "name", label: "Staff Full Name", type: "text", placeholder: "Priya Nair", required: true, section: "Personal Details" },
+  {
+    name: "gender",
+    label: "Gender",
+    type: "select",
+    section: "Personal Details",
+    options: [
+      { label: "Select gender (optional)", value: "" },
+      { label: "Female", value: "Female" },
+      { label: "Male", value: "Male" },
+      { label: "Other", value: "Other" },
+    ],
+  },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
+  { name: "mobile", label: "Contact Phone Number", type: "text", placeholder: "+91 98450 33445", section: "Contact Details" },
+  { name: "location", label: "Assigned Facility / Lab Location", type: "text", placeholder: "Main Central Laboratory, Bengaluru", section: "Contact Details" },
+  { name: "email", label: "Official Email Address", type: "text", placeholder: "priya.nair@lis.local", required: true, section: "Login Details (Used for login)" },
+  { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Used for login)", hint: "Used to authenticate when this staff member signs in." },
   {
     name: "role",
     label: "System Role",
     type: "select",
     required: true,
+    section: "System Role & Permissions Scope",
     options: [
       { label: "Select user role", value: "" },
       { label: "Admin - Full System Access", value: "Admin" },
       { label: "Pathologist - Sign-off & Reports", value: "Pathologist" },
       { label: "Technician - Samples & Results", value: "Technician" },
       { label: "Doctor - Clinical Review & Referrals", value: "Doctor" },
+      { label: "Franchise - Hub & Operations", value: "Franchise" },
       { label: "Receptionist - Patient Registration", value: "Receptionist" },
       { label: "Billing Staff - Invoices & Payments", value: "Billing" },
+      { label: "Other - Custom Role", value: "Other" },
     ],
   },
   {
@@ -149,12 +339,12 @@ const userFields: readonly FieldConfig[] = [
     label: "Permissions Scope",
     type: "select",
     required: true,
+    section: "System Role & Permissions Scope",
     options: [
-      { label: "Select permission scope", value: "" },
       { label: "All Permissions (*)", value: "*" },
       { label: "Laboratory & Samples (samples:write, results:write)", value: "samples:write,results:write" },
+      { label: "Reports & QC Sign-off (reports:approve, qc:manage)", value: "reports:approve,qc:manage" },
       { label: "Patient Management (patients:write)", value: "patients:write" },
-      { label: "Reports & Approval (reports:approve)", value: "reports:approve" },
       { label: "Billing & Operations (billing:write)", value: "billing:write" },
       { label: "Read Only (reports:read, samples:read)", value: "read:all" },
     ],
@@ -163,13 +353,12 @@ const userFields: readonly FieldConfig[] = [
     name: "status",
     label: "Account Status",
     type: "select",
+    section: "System Role & Permissions Scope",
     options: [
       { label: "Active (Permitted)", value: "Active" },
       { label: "Inactive (Disabled)", value: "Inactive" },
     ],
   },
-  { name: "mobile", label: "Mobile Number", type: "text", placeholder: "e.g. +91 98450 33445" },
-  { name: "location", label: "Assigned Facility / Lab Location", type: "text", placeholder: "e.g. Main Central Laboratory, Bengaluru" },
 ];
 
 const patientSchema = Yup.object({
@@ -190,14 +379,66 @@ const patientSchema = Yup.object({
 
 const doctorSchema = Yup.object({
   name: Yup.string().trim().required("Doctor name is required").min(2, "Name must be at least 2 characters"),
-  specialty: Yup.string().trim().required("Specialty is required (e.g. Pathology, Hematology)"),
+  specialty: Yup.string().trim().required("Specialty is required"),
   phone: Yup.string().trim().required("Phone number is required"),
-  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required"),
+  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required for login"),
+  password: Yup.string().trim(),
   city: Yup.string().trim(),
   gender: Yup.string(),
   experience: Yup.string().trim(),
   dateOfJoining: Yup.string(),
   description: Yup.string().trim(),
+  status: Yup.string(),
+});
+
+const franchiseSchema = Yup.object({
+  name: Yup.string().trim().required("Franchise name is required").min(2, "Name must be at least 2 characters"),
+  ownerName: Yup.string().trim().required("Owner name is required").min(2, "Name must be at least 2 characters"),
+  email: Yup.string().trim().email("Please enter a valid email address").required("Official email is required for login"),
+  phone: Yup.string().trim().required("Phone number is required"),
+  city: Yup.string().trim().required("City is required"),
+  code: Yup.string().trim(),
+  password: Yup.string().trim(),
+  status: Yup.string(),
+  state: Yup.string().trim(),
+  country: Yup.string().trim(),
+  pincode: Yup.string().trim(),
+  address: Yup.string().trim(),
+  licenseNumber: Yup.string().trim(),
+  gstNumber: Yup.string().trim(),
+  notes: Yup.string().trim(),
+});
+
+const pathologistSchema = Yup.object({
+  name: Yup.string().trim().required("Pathologist name is required").min(2, "Name must be at least 2 characters"),
+  mobile: Yup.string().trim().required("Phone number is required"),
+  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required for login"),
+  password: Yup.string().trim(),
+  permissions: Yup.string().required("Please select permission scope"),
+  gender: Yup.string(),
+  dateOfBirth: Yup.string(),
+  location: Yup.string().trim(),
+  specialty: Yup.string().trim(),
+  experience: Yup.string().trim(),
+  dateOfJoining: Yup.string(),
+  description: Yup.string().trim(),
+  status: Yup.string(),
+});
+
+const technicianSchema = Yup.object({
+  name: Yup.string().trim().required("Technician name is required").min(2, "Name must be at least 2 characters"),
+  mobile: Yup.string().trim().required("Phone number is required"),
+  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required for login"),
+  password: Yup.string().trim(),
+  permissions: Yup.string().required("Please select permission scope"),
+  gender: Yup.string(),
+  dateOfBirth: Yup.string(),
+  location: Yup.string().trim(),
+  specialty: Yup.string().trim(),
+  experience: Yup.string().trim(),
+  dateOfJoining: Yup.string(),
+  description: Yup.string().trim(),
+  status: Yup.string(),
 });
 
 const supplierSchema = Yup.object({
@@ -214,33 +455,45 @@ const supplierSchema = Yup.object({
 
 const userSchema = Yup.object({
   name: Yup.string().trim().required("Staff name is required").min(2, "Name must be at least 2 characters"),
-  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required"),
-  role: Yup.string().required("Please select a system role").oneOf(["Admin", "Pathologist", "Technician", "Doctor", "Receptionist", "Billing", "Other"], "Invalid role"),
+  email: Yup.string().trim().email("Please enter a valid email address").required("Email is required for login"),
+  password: Yup.string().trim(),
+  role: Yup.string().required("Please select a system role").oneOf(["Admin", "Pathologist", "Technician", "Doctor", "Franchise", "Receptionist", "Billing", "Other"], "Invalid role"),
   permissions: Yup.string().required("Please select permission scope"),
   status: Yup.string(),
   mobile: Yup.string().trim(),
   location: Yup.string().trim(),
+  gender: Yup.string(),
+  dateOfBirth: Yup.string(),
 });
 
 const schemas = {
   patients: patientSchema,
   doctors: doctorSchema,
+  franchises: franchiseSchema,
+  pathologists: pathologistSchema,
+  technicians: technicianSchema,
   suppliers: supplierSchema,
   users: userSchema,
 };
 
 const emptyInitialValues = {
-  patients: { patientCode: "", name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", status: "Active" },
-  doctors: { name: "", specialty: "", gender: "", phone: "", email: "", city: "", experience: "", dateOfJoining: "", description: "" },
-  suppliers: { name: "", phone: "", emergencyContact: "", country: "", address: "", state: "", city: "", pincode: "", description: "" },
-  users: { name: "", email: "", role: "", permissions: "", status: "Active", mobile: "", location: "" },
+  patients: { patientCode: "", name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", referringDoctorId: "", status: "Active" },
+  doctors: { name: "", specialty: "", gender: "", dateOfBirth: "", phone: "", emergencyContact: "", country: "India", state: "", city: "", pincode: "", address: "", email: "", password: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
+  franchises: { name: "", code: "", ownerName: "", email: "", password: "", phone: "", emergencyPhone: "", country: "India", state: "Karnataka", city: "Bengaluru", pincode: "", address: "", licenseNumber: "", gstNumber: "", revenueShare: 0, status: "Active", notes: "" },
+  pathologists: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "reports:approve,results:write,qc:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
+  technicians: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "samples:write,results:write,instruments:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
+  suppliers: { name: "", phone: "", emergencyContact: "", country: "India", address: "", state: "", city: "", pincode: "", description: "" },
+  users: { name: "", gender: "", dateOfBirth: "", email: "", password: "", role: "", permissions: "*", status: "Active", mobile: "", location: "" },
 };
 
 const configs = {
-  patients: { singular: "Patient", fields: patientFields },
-  doctors: { singular: "Doctor", fields: doctorFields },
-  suppliers: { singular: "Supplier", fields: supplierFields },
-  users: { singular: "User", fields: userFields },
+  patients: { singular: "Patient", plural: "Patients", fields: patientFields },
+  doctors: { singular: "Doctor", plural: "Doctors", fields: doctorFields },
+  franchises: { singular: "Franchise", plural: "Franchises", fields: franchiseFields },
+  pathologists: { singular: "Pathologist", plural: "Pathologists", fields: pathologistFields },
+  technicians: { singular: "Technician", plural: "Technicians", fields: technicianFields },
+  suppliers: { singular: "Supplier", plural: "Suppliers", fields: supplierFields },
+  users: { singular: "User", plural: "Users", fields: userFields },
 } as const;
 
 export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: readonly string[] }>) {
@@ -248,11 +501,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const schema = schemas[kind];
   const router = useRouter();
   const isNew = path[0] === "new";
-  const id = isNew ? "" : path[0];
+  const id = isNew ? "" : (path[0] ?? "");
   const edit = path[1] === "edit";
+  const editable = isNew || edit;
 
+  // ALL HOOKS MUST BE UNCONDITIONALLY CALLED AT THE TOP LEVEL
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     const s = authService.getSession();
@@ -267,48 +523,261 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Entity>();
+
+    if (kind === "patients") {
+      const p = h as ReturnType<typeof createColumnHelper<Patient>>;
+      return [
+        p.accessor("patientCode", {
+          header: "Patient Code",
+          cell: ({ getValue }) => <span className="font-mono text-xs font-semibold text-[#176b87]">{getValue()}</span>,
+        }),
+        p.accessor("name", {
+          header: "Full Name",
+          cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>,
+        }),
+        p.accessor("sex", { header: "Gender" }),
+        p.accessor("age", { header: "Age" }),
+        p.accessor("phone", { header: "Phone Number" }),
+        p.accessor("status", {
+          header: "Status",
+          cell: ({ getValue }) => {
+            const val = getValue();
+            return <StatusBadge tone={val === "Active" ? "success" : "neutral"} size="sm">{val}</StatusBadge>;
+          },
+        }),
+        p.display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <div className="flex items-center justify-center gap-1.5">
+              <Link href={`/${kind}/${row.original.id}`}>
+                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                  View
+                </Button>
+              </Link>
+              {isAdmin && (
+                <>
+                  <Link href={`/${kind}/${row.original.id}/edit`}>
+                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="danger-outline"
+                    leftIcon={<Trash2 size={13} />}
+                    onClick={() => setConfirmDeleteId(row.original.id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          ),
+        }),
+      ];
+    }
+
+    if (kind === "franchises") {
+      const f = h as ReturnType<typeof createColumnHelper<Franchise>>;
+      return [
+        f.accessor("name", {
+          header: "Franchise Name",
+          cell: ({ getValue, row }) => (
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-8 place-items-center rounded-lg bg-[#e8f4f7] text-xs font-bold text-[#176b87]">
+                <Building2 size={16} />
+              </div>
+              <div>
+                <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
+                <p className="font-mono text-[11px] text-[color:var(--muted)]">{row.original.code}</p>
+              </div>
+            </div>
+          ),
+        }),
+        f.accessor("city", {
+          header: "Location",
+          cell: ({ getValue, row }) => <span>{getValue()}{row.original.state ? `, ${row.original.state}` : ""}</span>,
+        }),
+        f.accessor("ownerName", { header: "Owner / Lead" }),
+        f.accessor("email", {
+          header: "Login Email",
+          cell: ({ getValue }) => <span className="font-mono text-xs text-[color:var(--muted)]">{getValue()}</span>,
+        }),
+        f.accessor("phone", { header: "Contact Phone" }),
+        f.accessor("status", {
+          header: "Status",
+          cell: ({ getValue }) => {
+            const val = getValue();
+            return <StatusBadge tone={val === "Active" ? "success" : val === "Suspended" ? "danger" : "warning"} size="sm">{val}</StatusBadge>;
+          },
+        }),
+        f.display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <div className="flex items-center justify-center gap-1.5">
+              <Link href={`/${kind}/${row.original.id}`}>
+                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                  View
+                </Button>
+              </Link>
+              {isAdmin && (
+                <>
+                  <Link href={`/${kind}/${row.original.id}/edit`}>
+                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="danger-outline"
+                    leftIcon={<Trash2 size={13} />}
+                    onClick={() => setConfirmDeleteId(row.original.id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          ),
+        }),
+      ];
+    }
+
+    if (kind === "doctors") {
+      const d = h as ReturnType<typeof createColumnHelper<Doctor>>;
+      return [
+        d.accessor("name", {
+          header: "Doctor Name",
+          cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>,
+        }),
+        d.accessor("specialty", { header: "Specialty / Department" }),
+        d.accessor("phone", { header: "Contact Phone" }),
+        d.accessor("email", {
+          header: "Login Email",
+          cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "—"}</span>,
+        }),
+        d.accessor("city", { header: "Branch / City" }),
+        d.display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <div className="flex items-center justify-center gap-1.5">
+              <Link href={`/${kind}/${row.original.id}`}>
+                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                  View
+                </Button>
+              </Link>
+              {isAdmin && (
+                <>
+                  <Link href={`/${kind}/${row.original.id}/edit`}>
+                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="danger-outline"
+                    leftIcon={<Trash2 size={13} />}
+                    onClick={() => setConfirmDeleteId(row.original.id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          ),
+        }),
+      ];
+    }
+
+    if (kind === "pathologists" || kind === "technicians" || kind === "users") {
+      const u = h as ReturnType<typeof createColumnHelper<User>>;
+      return [
+        u.accessor("name", {
+          header: "Staff Name",
+          cell: ({ getValue, row }) => (
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-7 place-items-center rounded-lg bg-[#e8f4f7] text-xs font-bold text-[#176b87]">
+                {row.original.initials || "ST"}
+              </div>
+              <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
+            </div>
+          ),
+        }),
+        u.accessor("role", {
+          header: "Role",
+          cell: ({ getValue }) => <span className="text-xs font-semibold text-[#176b87]">{getValue()}</span>,
+        }),
+        u.accessor("email", {
+          header: "Login Email",
+          cell: ({ getValue }) => <span className="font-mono text-xs text-[color:var(--muted)]">{getValue()}</span>,
+        }),
+        u.accessor("mobile", {
+          header: "Contact",
+          cell: ({ getValue }) => <span>{getValue() || "—"}</span>,
+        }),
+        u.accessor("location", {
+          header: "Lab Location",
+          cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "—"}</span>,
+        }),
+        u.accessor("active", {
+          header: "Status",
+          cell: ({ getValue }) => (
+            <StatusBadge tone={getValue() ? "success" : "neutral"} size="sm">
+              {getValue() ? "Active" : "Inactive"}
+            </StatusBadge>
+          ),
+        }),
+        u.display({
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => (
+            <div className="flex items-center justify-center gap-1.5">
+              <Link href={`/${kind}/${row.original.id}`}>
+                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                  View
+                </Button>
+              </Link>
+              {isAdmin && (
+                <>
+                  <Link href={`/${kind}/${row.original.id}/edit`}>
+                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="danger-outline"
+                    leftIcon={<Trash2 size={13} />}
+                    onClick={() => setConfirmDeleteId(row.original.id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          ),
+        }),
+      ];
+    }
+
+    // Default Suppliers
+    const s = h as ReturnType<typeof createColumnHelper<Supplier>>;
     return [
-      h.accessor(row => ("name" in row ? row.name : "—"), {
-        id: "name",
-        header: "Name",
-        cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
+      s.accessor("name", {
+        header: "Company Name",
+        cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>,
       }),
-      h.accessor(row => ("email" in row && row.email ? row.email : "phone" in row ? row.phone : "—"), {
-        id: "contact",
-        header: "Contact",
-        cell: ({ getValue }) => <span className="text-[color:var(--muted)] text-xs">{getValue()}</span>
-      }),
-      h.accessor(row => {
-        if ("role" in row && row.role) return row.role;
-        if ("specialty" in row && row.specialty) return row.specialty;
-        if ("city" in row && row.city) return row.city;
-        if ("patientCode" in row && row.patientCode) return row.patientCode;
-        return "—";
-      }, {
-        id: "location_role",
-        header: kind === "users" ? "Role" : kind === "doctors" ? "Specialty" : kind === "patients" ? "Patient Code" : "Location",
-        cell: ({ getValue }) => {
-          const val = getValue();
-          if (kind === "users") {
-            const roleTone = val === "Admin" ? "danger" : val === "Pathologist" ? "info" : val === "Technician" ? "warning" : "success";
-            return <StatusBadge tone={roleTone} size="sm">{val}</StatusBadge>;
-          }
-          return <span className="text-xs font-medium">{val}</span>;
-        }
-      }),
-      h.accessor(row => ("status" in row && row.status) || (("active" in row && row.active === false) ? "Inactive" : "Active"), {
-        id: "status",
-        header: "Status",
-        cell: ({ getValue }) => {
-          const val = getValue() as string;
-          return <StatusBadge tone={val === "Inactive" ? "warning" : "success"} size="sm">{val}</StatusBadge>;
-        }
-      }),
-      h.display({
+      s.accessor("phone", { header: "Contact Phone" }),
+      s.accessor("city", { header: "City" }),
+      s.accessor("country", { header: "Country" }),
+      s.display({
         id: "actions",
-        header: () => <div className="text-right">Actions</div>,
+        header: "Actions",
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-center gap-1.5">
             <Link href={`/${kind}/${row.original.id}`}>
               <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
                 View
@@ -321,9 +790,9 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                     Edit
                   </Button>
                 </Link>
-                <Button 
-                  size="sm" 
-                  variant="danger-outline" 
+                <Button
+                  size="sm"
+                  variant="danger-outline"
                   leftIcon={<Trash2 size={13} />}
                   onClick={() => setConfirmDeleteId(row.original.id)}
                 >
@@ -332,125 +801,147 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
               </>
             )}
           </div>
-        )
-      })
+        ),
+      }),
     ];
   }, [kind, isAdmin]);
 
+  const formInitialValues = useMemo(() => {
+    const base = { ...emptyInitialValues[kind] };
+    if (!isNew && detail.data) {
+      const data = detail.data as unknown as Record<string, unknown>;
+      const merged: Record<string, unknown> = { ...base };
+      for (const field of config.fields) {
+        const val = data[field.name];
+        if (field.name === "password") {
+          merged[field.name] = "";
+        } else if (val === null || val === undefined) {
+          merged[field.name] = "";
+        } else if (field.name === "permissions" && Array.isArray(val)) {
+          if (val.length === 0) merged[field.name] = "read:all";
+          else if (val.includes("billing:manage") || (val.includes("patients:write") && val.includes("qc:manage"))) merged[field.name] = "*";
+          else if (val.includes("samples:write") || val.includes("results:write")) merged[field.name] = "samples:write,results:write";
+          else if (val.includes("reports:approve")) merged[field.name] = "reports:approve,results:write,qc:manage";
+          else if (val.includes("patients:write")) merged[field.name] = "patients:write";
+          else merged[field.name] = "read:all";
+        } else {
+          merged[field.name] = val;
+        }
+      }
+      if (kind === "users" || kind === "pathologists" || kind === "technicians") {
+        merged.status = (detail.data as User).active === false ? "Inactive" : "Active";
+      }
+      return merged;
+    }
+    return base;
+  }, [kind, isNew, detail.data, config.fields]);
+
+  // Group fields by section for clean rendering
+  const sections = useMemo(() => {
+    const map = new Map<string, FieldConfig[]>();
+    for (const field of config.fields) {
+      const sec = field.section || "General Information";
+      if (!map.has(sec)) map.set(sec, []);
+      map.get(sec)!.push(field);
+    }
+    return Array.from(map.entries());
+  }, [config.fields]);
+
   const handleDelete = async () => {
     if (!confirmDeleteId) return;
-    await mutations.remove.mutateAsync(confirmDeleteId);
-    setConfirmDeleteId(null);
-    if (id && !isNew) {
-      router.push(`/${kind}`);
+    try {
+      await mutations.remove.mutateAsync(confirmDeleteId);
+      setConfirmDeleteId(null);
+      if (id) {
+        router.push(`/${kind}`);
+      }
+    } catch (err: any) {
+      alert(err?.message || "Failed to delete record.");
     }
   };
 
+  const handleFormSubmit = async (
+    values: Record<string, unknown>,
+    { setSubmitting, setErrors }: FormikHelpers<Record<string, unknown>>
+  ) => {
+    setFormError(null);
+    try {
+      const input: Record<string, unknown> = { ...values };
+
+      if (kind === "users" || kind === "pathologists" || kind === "technicians") {
+        input.initials = String(values.name ?? "").split(" ").map((part) => part[0]).join("").toUpperCase();
+        input.active = values.status !== "Inactive";
+      }
+      if (kind === "pathologists") {
+        input.role = "Pathologist";
+      }
+      if (kind === "technicians") {
+        input.role = "Technician";
+      }
+      if (kind === "patients" && values.age !== undefined && values.age !== "") {
+        input.age = Number(values.age);
+      }
+      if (kind === "franchises" && values.revenueShare !== undefined && values.revenueShare !== "") {
+        input.revenueShare = Number(values.revenueShare);
+      }
+
+      // If updating and password field was left blank, do not send empty password string
+      if (!isNew && (!input.password || String(input.password).trim() === "")) {
+        delete input.password;
+      }
+
+      if (isNew) {
+        await mutations.create.mutateAsync(input as never);
+      } else {
+        await mutations.update.mutateAsync({ id, input: input as never });
+      }
+      router.push(`/${kind}`);
+    } catch (err: any) {
+      const msg = err?.message || "Failed to save record. Please check the inputs.";
+      setFormError(msg);
+      if (msg.toLowerCase().includes("email")) {
+        setErrors({ email: msg });
+      }
+      if (msg.toLowerCase().includes("code")) {
+        setErrors({ code: msg });
+      }
+      if (msg.toLowerCase().includes("patient code") || msg.toLowerCase().includes("patientcode")) {
+        setErrors({ patientCode: msg });
+      }
+      if (msg.toLowerCase().includes("phone")) {
+        setErrors({ phone: msg });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 1. LIST VIEW
   if (!path.length) {
     return (
       <div className="space-y-6">
-        <PageHeader 
-          title={config.singular + "s"} 
-          description={kind === "users" ? "Manage user accounts, credentials, permissions, and role-based access." : `Manage laboratory ${kind}.`} 
+        <PageHeader
+          title={config.plural}
+          description={`Manage registered ${config.plural.toLowerCase()}, credentials, roles, and profiles.`}
           action={
-            isAdmin ? (
+            isAdmin && (
               <Link href={`/${kind}/new`}>
-                <Button variant="primary" leftIcon={<Plus size={16} />}>Add {config.singular}</Button>
+                <Button variant="primary" leftIcon={<Plus size={16} />}>
+                  Add {config.singular}
+                </Button>
               </Link>
-            ) : undefined
-          } 
+            )
+          }
         />
-
         <DataTable
-          columns={columns}
-          data={list.data}
+          columns={columns as any}
+          data={list.data as any}
           isLoading={list.isLoading}
           isError={list.isError}
           searchable
-          searchPlaceholder={`Search ${kind}...`}
-          emptyTitle={`No ${kind} found`}
+          searchPlaceholder={`Search ${config.plural.toLowerCase()}...`}
         />
 
-        {/* Delete Confirmation Modal */}
-        {confirmDeleteId && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
-              <div className="flex items-center gap-3 text-rose-600">
-                <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
-                  <AlertTriangle size={20} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
-                  <p className="text-xs text-[color:var(--muted)]">This action will delete the record from database.</p>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
-                Are you sure you want to permanently delete this {config.singular.toLowerCase()}? All associated records will be removed and this operation cannot be undone.
-              </p>
-              <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
-                <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
-                  Cancel
-                </Button>
-                <Button variant="danger" loading={mutations.remove.isPending} onClick={handleDelete}>
-                  Confirm Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const record = isNew ? emptyInitialValues[kind] : detail.data;
-  const editable = isNew || edit;
-
-  if (!record && !isNew) return <p className="text-sm text-[color:var(--muted)]">Loading record…</p>;
-
-  if (!editable && record) {
-    const raw = record as Record<string, unknown>;
-    return (
-      <div className="space-y-6 max-w-5xl mx-auto">
-        <PageHeader 
-          title={(record as { name?: string }).name ?? config.singular} 
-          description={`${config.singular} record details and history.`} 
-          action={
-            <div className="flex items-center gap-2">
-              <Link href={`/${kind}`}>
-                <Button variant="ghost">← Back to {config.singular}s</Button>
-              </Link>
-              {isAdmin && (
-                <>
-                  <Link href={`/${kind}/${id}/edit`}>
-                    <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
-                  </Link>
-                  <Button 
-                    variant="danger-outline" 
-                    leftIcon={<Trash2 size={15} />}
-                    onClick={() => setConfirmDeleteId(id)}
-                  >
-                    Delete
-                  </Button>
-                </>
-              )}
-            </div>
-          } 
-        />
-        
-        <Card padding={false} className="overflow-hidden">
-          <dl className="grid gap-px bg-[color:var(--line)] sm:grid-cols-2">
-            {Object.entries(raw).filter(([key]) => key !== "id" && key !== "passwordHash").map(([key, value]) => (
-              <div className="bg-[color:var(--surface)] p-4" key={key}>
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-
-        {/* Delete Confirmation Modal in Detail View */}
         {confirmDeleteId && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
@@ -481,97 +972,190 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
     );
   }
 
-  // Edit or Create Form
+  // 2. LOADING STATE FOR DETAIL/EDIT
+  const record = isNew ? emptyInitialValues[kind] : detail.data;
+  if (!record && !isNew) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center text-sm text-[color:var(--muted)]">
+        Loading {config.singular.toLowerCase()} record…
+      </div>
+    );
+  }
+
+  // 3. DETAIL VIEW
+  if (!editable && record) {
+    const raw = record as Record<string, unknown>;
+    return (
+      <div className="space-y-6 max-w-5xl mx-auto">
+        <PageHeader
+          title={(record as { name?: string }).name ?? config.singular}
+          description={`${config.singular} record details, credentials, and profile history.`}
+          action={
+            <div className="flex items-center gap-2">
+              <Link href={`/${kind}`}>
+                <Button variant="ghost">← Back to {config.plural}</Button>
+              </Link>
+              {isAdmin && (
+                <>
+                  <Link href={`/${kind}/${id}/edit`}>
+                    <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
+                  </Link>
+                  <Button
+                    variant="danger-outline"
+                    leftIcon={<Trash2 size={15} />}
+                    onClick={() => setConfirmDeleteId(id)}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
+          }
+        />
+
+        <Card padding={false} className="overflow-hidden">
+          <dl className="grid gap-px bg-[color:var(--line)] sm:grid-cols-2">
+            {Object.entries(raw).filter(([key]) => key !== "id" && key !== "passwordHash" && key !== "password").map(([key, value]) => (
+              <div className="bg-[color:var(--surface)] p-4" key={key}>
+                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
+                <dd className="mt-1 text-sm font-medium">
+                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+
+        {confirmDeleteId && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                  <p className="text-xs text-[color:var(--muted)]">This action will delete the record from database.</p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+                Are you sure you want to permanently delete this {config.singular.toLowerCase()}?
+              </p>
+              <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+                <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                  Cancel
+                </Button>
+                <Button variant="danger" loading={mutations.remove.isPending} onClick={handleDelete}>
+                  Confirm Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 4. CREATE / EDIT FORM VIEW
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <PageHeader 
-        title={isNew ? `Register new ${config.singular.toLowerCase()}` : `Edit ${config.singular.toLowerCase()}`} 
-        description={`Complete all required fields below. Validation is performed before saving.`} 
+      <PageHeader
+        title={isNew ? `Add New ${config.singular}` : `Edit ${config.singular}`}
+        description={isNew ? `Fill out franchise identification, owner details, and login credentials below. Login credentials will be created immediately.` : `Update franchise identification, credentials, and profile settings below.`}
         action={
           <Link href={`/${kind}`}>
-            <Button variant="ghost">← Back to {config.singular}s</Button>
+            <Button variant="ghost">← Back to {config.plural}</Button>
           </Link>
         }
       />
+
+      {formError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 flex items-center gap-3 shadow-sm">
+          <AlertTriangle size={20} className="shrink-0 text-rose-600" />
+          <div>
+            <p className="font-semibold">Unable to save record</p>
+            <p className="text-xs text-rose-600 mt-0.5">{formError}</p>
+          </div>
+        </div>
+      )}
+
       <Card>
-        <Formik 
-          initialValues={record as Record<string, unknown>} 
-          validationSchema={schema} 
+        <Formik
+          initialValues={formInitialValues}
+          validationSchema={schema}
           enableReinitialize
           validateOnMount={false}
           validateOnChange={true}
           validateOnBlur={true}
-          onSubmit={async (values) => {
-            const input = { ...values };
-            if (kind === "users") {
-              input.initials = String(values.name ?? "").split(" ").map((part) => part[0]).join("").toUpperCase();
-              input.active = values.status !== "Inactive";
-            }
-            if (kind === "patients" && values.age) {
-              input.age = Number(values.age);
-            }
-            
-            if (isNew) {
-              await mutations.create.mutateAsync(input as never);
-            } else {
-              await mutations.update.mutateAsync({ id, input });
-            }
-            router.push(`/${kind}`);
-          }}
+          onSubmit={handleFormSubmit}
         >
           {({ errors, touched, isSubmitting }) => (
-            <Form className="space-y-6">
-              <Grid2>
-                {config.fields.map((field) => {
-                  const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
-                  return (
-                    <UIField 
-                      key={field.name} 
-                      label={field.label} 
-                      name={field.name} 
-                      required={field.required}
-                      hint={field.hint}
-                      className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                      error={errorMsg}
-                    >
-                      {field.type === "select" ? (
-                        <Field name={field.name} as={Select}>
-                          {field.options?.map((opt) => (
-                            <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </Field>
-                      ) : field.type === "textarea" ? (
-                        <Field 
-                          name={field.name} 
-                          as={Textarea} 
-                          placeholder={field.placeholder} 
-                        />
-                      ) : (
-                        <Field 
-                          name={field.name} 
-                          type={field.type} 
-                          as={Input} 
-                          placeholder={field.placeholder} 
-                        />
-                      )}
-                    </UIField>
-                  );
-                })}
-              </Grid2>
-              <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+            <Form className="space-y-8">
+              {sections.map(([sectionTitle, fields]) => (
+                <div key={sectionTitle} className="space-y-4">
+                  <div className="border-b border-[color:var(--line)] pb-2">
+                    <h3 className="text-sm font-bold tracking-tight text-[color:var(--foreground)]">
+                      {sectionTitle}
+                    </h3>
+                  </div>
+                  <Grid2>
+                    {fields.map((field) => {
+                      const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
+                      const isPasswordField = field.type === "password";
+                      const placeholder = isPasswordField && !isNew ? "Leave blank to keep current password" : field.placeholder;
+
+                      return (
+                        <UIField
+                          key={field.name}
+                          label={field.label}
+                          name={field.name}
+                          required={field.required && (isNew || !isPasswordField)}
+                          hint={isPasswordField && !isNew ? "Leave blank to preserve existing password." : field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          {field.type === "select" ? (
+                            <Field name={field.name} as={Select}>
+                              {field.options?.map((opt) => (
+                                <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </Field>
+                          ) : field.type === "textarea" ? (
+                            <Field
+                              name={field.name}
+                              as={Textarea}
+                              placeholder={placeholder}
+                            />
+                          ) : (
+                            <Field
+                              name={field.name}
+                              type={field.type}
+                              as={Input}
+                              placeholder={placeholder}
+                            />
+                          )}
+                        </UIField>
+                      );
+                    })}
+                  </Grid2>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-3 pt-6 border-t border-[color:var(--line)]">
                 <Button type="submit" variant="primary" loading={isSubmitting || mutations.create.isPending || mutations.update.isPending}>
-                  Save {config.singular}
+                  {isNew ? `Create ${config.singular}` : `Update ${config.singular}`}
                 </Button>
                 <Link href={`/${kind}`}>
                   <Button type="button" variant="ghost">Cancel</Button>
                 </Link>
                 {!isNew && isAdmin && (
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     variant="danger-outline"
                     className="ml-auto"
+                    leftIcon={<Trash2 size={15} />}
                     onClick={() => setConfirmDeleteId(id)}
                   >
                     Delete {config.singular}
