@@ -10,8 +10,9 @@ import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIFi
 import { DataTable } from "@/components/tables/DataTable";
 import { ResultSection, ResultTable } from "@/components/laboratory/result-engine";
 import { useCreateSample, useCreateTest, useDeleteSample, useDeleteTest, useResults, useSample, useSamples, useTest, useTests, useUpdateSample, useUpdateTest } from "@/features/laboratory/hooks";
+import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Sample, Test, UserRole } from "@/types/domain";
+import type { Franchise, Sample, Test, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
 type Entity = Sample | Test;
@@ -162,6 +163,19 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   }, []);
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const franchisesList = useEntityList<Franchise>("franchises");
+
+  const franchiseOptions = useMemo(() => {
+    const franchises = (franchisesList.data ?? []) as Franchise[];
+    return [
+      { label: "Select Franchise (or leave empty for Central Lab)...", value: "" },
+      ...franchises.map((f) => ({
+        label: `${f.name} (${f.code || f.city || "Branch"})`,
+        value: f.id,
+      })),
+      { label: "+ Other / Add New Franchise", value: "__add_franchise__" },
+    ];
+  }, [franchisesList.data]);
 
   const sampleList = useSamples();
   const testList = useTests();
@@ -198,6 +212,19 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         header: isSample ? "Patient" : "Department",
         cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
       }),
+      ...(isAdmin
+        ? [
+            h.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
+              id: "franchise",
+              header: "Franchise",
+              cell: ({ getValue }) => (
+                <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                  {getValue()}
+                </span>
+              ),
+            }),
+          ]
+        : []),
       h.accessor(row => row.status ?? "Active", {
         id: "status",
         header: "Status",
@@ -314,8 +341,8 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     const rawRecord = detail.data as Record<string, any> | undefined;
     const initialValues = isNew
       ? isSample
-        ? { accession: "", barcode: "", patientId: "", sampleType: "", collectedAt: new Date().toISOString().slice(0, 16), priority: "", status: "", notes: "" }
-        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "", status: "" }
+        ? { accession: "", barcode: "", patientId: "", sampleType: "", collectedAt: new Date().toISOString().slice(0, 16), priority: "", status: "", notes: "", franchiseId: "" }
+        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "", status: "", franchiseId: "" }
       : isSample
       ? {
           accession: rawRecord?.accession ?? "",
@@ -326,6 +353,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           priority: rawRecord?.priority ?? "",
           status: rawRecord?.status ?? "",
           notes: rawRecord?.notes ?? "",
+          franchiseId: rawRecord?.franchiseId ?? "",
         }
       : {
           code: rawRecord?.code ?? "",
@@ -337,18 +365,39 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           unit: rawRecord?.unit ?? "",
           turnaroundHours: rawRecord?.turnaroundHours ?? "",
           status: rawRecord?.status ?? "",
+          franchiseId: rawRecord?.franchiseId ?? "",
         };
 
-    const fields = isSample ? sampleFields : testFields;
+    const baseFields = isSample ? sampleFields : testFields;
+    const fields: FormFieldDef[] = isAdmin
+      ? [
+          {
+            name: "franchiseId",
+            label: "Assign to Franchise",
+            type: "select",
+            options: franchiseOptions,
+            hint: "Assign this record to a Franchise branch.",
+            colSpan: 2,
+          },
+          ...baseFields,
+        ]
+      : [...baseFields];
+
     const schema = isSample ? sampleSchema : testSchema;
 
     const submit = async (values: typeof initialValues) => {
+      if (values.franchiseId === "__add_franchise__") {
+        router.push("/franchises/new");
+        return;
+      }
+
       if (isSample) {
         const payload = {
           ...values,
           accession: values.accession || `LIS-${Date.now().toString().slice(-6)}`,
           barcode: values.barcode || `BC${Date.now()}`,
           collectedAt: values.collectedAt || new Date().toISOString(),
+          franchiseId: values.franchiseId || undefined,
         };
         if (isNew) {
           await createSample.mutateAsync(payload as Omit<Sample, "id">);
@@ -360,6 +409,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           ...values,
           price: Number(values.price) || 0,
           turnaroundHours: Number(values.turnaroundHours) || 4,
+          franchiseId: values.franchiseId || undefined,
         };
         if (isNew) {
           await createTest.mutateAsync(payload as Omit<Test, "id">);
@@ -391,7 +441,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             validateOnBlur={true}
             onSubmit={submit}
           >
-            {({ errors, touched, isSubmitting }) => (
+            {({ errors, touched, isSubmitting, setFieldValue }) => (
               <Form className="space-y-6">
                 <Grid2>
                   {fields.map((field) => {
@@ -407,7 +457,18 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
                         error={errorMsg}
                       >
                         {field.type === "select" ? (
-                          <Field name={field.name} as={Select}>
+                          <Field 
+                            name={field.name} 
+                            as={Select}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                              const selected = e.target.value;
+                              if (field.name === "franchiseId" && selected === "__add_franchise__") {
+                                router.push("/franchises/new");
+                                return;
+                              }
+                              setFieldValue(field.name, selected);
+                            }}
+                          >
                             {field.options?.map((opt) => (
                               <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
                                 {opt.label}
@@ -485,7 +546,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             {Object.entries(item).filter(([key]) => key !== "id").map(([key, value], i) => (
               <div className={cn("p-4", i > 1 && "sm:border-t border-[color:var(--line)]")} key={key}>
                 <dt className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
-                <dd className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{String(value || "—")}</dd>
+                <dd className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{typeof value === "object" ? JSON.stringify(value) : String(value || "—")}</dd>
               </div>
             ))}
           </dl>

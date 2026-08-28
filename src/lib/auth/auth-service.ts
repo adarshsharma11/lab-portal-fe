@@ -18,7 +18,7 @@ export const authService = {
   async register(input: SignupInput): Promise<User> {
     const res = await apiClient.post<User & { token?: string }>("/auth/register", input);
     const user = res.data;
-    const token = (res as any).data?.token || (res as any).token || "demo-token";
+    const token = res.token || (res as any).data?.token || (res as any).jwt || "demo-token";
 
     if (!user) throw new Error("Unable to create account. Please try again.");
 
@@ -32,7 +32,7 @@ export const authService = {
   async login(input: LoginInput): Promise<User> {
     const res = await apiClient.post<User & { token?: string }>("/auth/login", input);
     const user = res.data;
-    const token = (res as any).data?.token || (res as any).token || "demo-token";
+    const token = res.token || (res as any).data?.token || (res as any).jwt || "demo-token";
 
     if (!user) throw new Error("Unable to sign in. Please check your credentials.");
 
@@ -47,6 +47,7 @@ export const authService = {
     if (typeof window !== "undefined") {
       localStorage.removeItem(sessionKey);
       localStorage.removeItem(tokenKey);
+      localStorage.removeItem("active_franchise_id");
     }
     apiClient.post("/auth/logout").catch(() => {});
   },

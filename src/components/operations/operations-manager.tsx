@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Field, Form, Formik } from "formik";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -7,8 +7,9 @@ import * as Yup from "yup";
 import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle } from "lucide-react";
 import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
 import { useAppointment, useAppointments, useCreateAppointment, useCreateInvoice, useDeleteAppointment, useDeleteInvoice, useInvoice, useInvoices, useUpdateAppointment, useUpdateInvoice } from "@/features/operations/hooks";
+import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Appointment, Invoice, UserRole } from "@/types/domain";
+import type { Appointment, Franchise, Invoice, UserRole } from "@/types/domain";
 
 interface FormFieldDef {
   name: string;
@@ -122,6 +123,19 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }, []);
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const franchisesList = useEntityList<Franchise>("franchises");
+
+  const franchiseOptions = useMemo(() => {
+    const franchises = (franchisesList.data ?? []) as Franchise[];
+    return [
+      { label: "Select Franchise (or leave empty for Central Lab)...", value: "" },
+      ...franchises.map((f) => ({
+        label: `${f.name} (${f.code || f.city || "Branch"})`,
+        value: f.id,
+      })),
+      { label: "+ Other / Add New Franchise", value: "__add_franchise__" },
+    ];
+  }, [franchisesList.data]);
 
   const appointments = useAppointments();
   const invoices = useInvoices();
@@ -173,15 +187,23 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               <tr>
                 <th className="pb-3">{isAppointment ? "Patient" : "Bill number"}</th>
                 <th className="pb-3">{isAppointment ? "Date / time" : "Patient"}</th>
+                {isAdmin && <th className="pb-3">Franchise</th>}
                 <th className="pb-3">Status</th>
                 <th className="pb-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {(list ?? []).map((row) => (
+              {(list ?? []).map((row: any) => (
                 <tr className="border-b border-[color:var(--line)] last:border-b-0 hover:bg-[color:var(--surface-2)]" key={row.id}>
-                  <td className="py-3.5 font-semibold">{"billNumber" in row ? row.billNumber : row.patientId === "pat-01" ? "Maya Srinivasan" : row.patientId}</td>
-                  <td className="py-3.5">{"billDate" in row ? row.patientId : `${row.date} · ${row.time}`}</td>
+                  <td className="py-3.5 font-semibold">{"billNumber" in row ? row.billNumber : row.patientId === "pat-01" ? "Maya Srinivasan" : row.patient?.name || row.patientId}</td>
+                  <td className="py-3.5">{"billDate" in row ? row.patient?.name || row.patientId : `${row.date} · ${row.time}`}</td>
+                  {isAdmin && (
+                    <td className="py-3.5">
+                      <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                        {row.franchise?.name || row.franchise?.code || "Central Lab"}
+                      </span>
+                    </td>
+                  )}
                   <td className="py-3.5">
                     <StatusBadge tone={("paymentStatus" in row ? row.paymentStatus === "Paid" : row.status === "Upcoming" || row.status === "Completed") ? "success" : "warning"}>
                       {"paymentStatus" in row ? row.paymentStatus : row.status}
@@ -254,8 +276,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     const rawRecord = (isAppointment ? appointment.data : invoice.data) as Record<string, any> | undefined;
     const initialValues = isNew
       ? isAppointment
-        ? { patientId: "", doctorId: "", date: "", time: "", type: "", status: "", appointmentLink: "", createdBy: "" }
-        : { billNumber: "", patientId: "", doctorId: "", billDate: "", itemDescription: "", itemQuantity: 1, itemMrp: "", discount: 0, sgst: 0, cgst: 0, paymentStatus: "", addedBy: "" }
+        ? { patientId: "", doctorId: "", date: "", time: "", type: "", status: "", appointmentLink: "", createdBy: "", franchiseId: "" }
+        : { billNumber: "", patientId: "", doctorId: "", billDate: "", itemDescription: "", itemQuantity: 1, itemMrp: "", discount: 0, sgst: 0, cgst: 0, paymentStatus: "", addedBy: "", franchiseId: "" }
       : isAppointment
       ? {
           patientId: rawRecord?.patientId ?? "",
@@ -266,6 +288,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           status: rawRecord?.status ?? "",
           appointmentLink: rawRecord?.appointmentLink ?? "",
           createdBy: rawRecord?.createdBy ?? "",
+          franchiseId: rawRecord?.franchiseId ?? "",
         }
       : {
           billNumber: rawRecord?.billNumber ?? "",
@@ -280,20 +303,49 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           cgst: rawRecord?.cgst ?? 0,
           paymentStatus: rawRecord?.paymentStatus ?? "",
           addedBy: rawRecord?.addedBy ?? "",
+          franchiseId: rawRecord?.franchiseId ?? "",
         };
 
-    const fields = isAppointment ? appointmentFields : invoiceFields;
+    const baseFields = isAppointment ? appointmentFields : invoiceFields;
+    const fields: FormFieldDef[] = isAdmin
+      ? [
+          {
+            name: "franchiseId",
+            label: "Assign to Franchise",
+            type: "select",
+            options: franchiseOptions,
+            hint: "Assign this record to a Franchise branch.",
+            colSpan: 2,
+          },
+          ...baseFields,
+        ]
+      : [...baseFields];
+
     const schema = isAppointment ? appointmentSchema : invoiceSchema;
 
     const submit = async (values: typeof initialValues) => {
+      if (values.franchiseId === "__add_franchise__") {
+        router.push("/franchises/new");
+        return;
+      }
+
       if (isAppointment) {
         if (isNew) {
-          await createAppointment.mutateAsync(values as unknown as Omit<Appointment, "id">);
+          await createAppointment.mutateAsync({
+            ...values,
+            franchiseId: values.franchiseId || undefined,
+          } as unknown as Omit<Appointment, "id">);
         } else {
-          await updateAppointment.mutateAsync({ id, input: values as Partial<Appointment> });
+          await updateAppointment.mutateAsync({ 
+            id, 
+            input: {
+              ...values,
+              franchiseId: values.franchiseId || undefined,
+            } as Partial<Appointment> 
+          });
         }
       } else {
-        const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity: number; itemMrp: number; discount: number; sgst: number; cgst: number; paymentStatus: string; addedBy: string };
+        const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity: number; itemMrp: number; discount: number; sgst: number; cgst: number; paymentStatus: string; addedBy: string; franchiseId?: string };
         const subtotal = (Number(v.itemQuantity) || 1) * (Number(v.itemMrp) || 0);
         const discountVal = Number(v.discount) || 0;
         const taxVal = (Number(v.sgst) || 0) + (Number(v.cgst) || 0);
@@ -303,6 +355,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           billNumber: v.billNumber || `INV-${Date.now().toString().slice(-6)}`,
           patientId: v.patientId,
           doctorId: v.doctorId,
+          franchiseId: v.franchiseId || undefined,
           billDate: v.billDate,
           items: [{ description: v.itemDescription, quantity: Number(v.itemQuantity) || 1, mrp: Number(v.itemMrp) || 0 }],
           discount: discountVal,
@@ -342,7 +395,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             validateOnBlur={true}
             onSubmit={submit}
           >
-            {({ errors, touched, isSubmitting }) => (
+            {({ errors, touched, isSubmitting, setFieldValue }) => (
               <Form className="space-y-6">
                 <Grid2>
                   {fields.map((field) => {
@@ -358,7 +411,18 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                         error={errorMsg}
                       >
                         {field.type === "select" ? (
-                          <Field name={field.name} as={Select}>
+                          <Field 
+                            name={field.name} 
+                            as={Select}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                              const selected = e.target.value;
+                              if (field.name === "franchiseId" && selected === "__add_franchise__") {
+                                router.push("/franchises/new");
+                                return;
+                              }
+                              setFieldValue(field.name, selected);
+                            }}
+                          >
                             {field.options?.map((opt) => (
                               <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
                                 {opt.label}
@@ -564,7 +628,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           {Object.entries(detail).filter(([key]) => key !== "id").map(([key, value]) => (
             <div className="bg-[color:var(--surface)] p-4" key={key}>
               <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
-              <dd className="mt-1 text-sm font-medium">{String(value || "—")}</dd>
+              <dd className="mt-1 text-sm font-medium">{typeof value === "object" ? JSON.stringify(value) : String(value || "—")}</dd>
             </div>
           ))}
         </dl>

@@ -5,7 +5,7 @@ import {
   Activity, AlertTriangle, ArrowRight, Building2, CalendarDays, CheckCircle2, 
   Clock3, Cpu, Droplets, FileCheck2, FileSignature, FileText, FlaskConical, 
   Gauge, IndianRupee, Plus, ShieldCheck, Stethoscope, TestTube2, UserCog, 
-  Users, Zap
+  UserPlus, Users, Zap
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { DataTable } from "@/components/tables/DataTable";
@@ -23,7 +23,7 @@ import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
 import { createColumnHelper } from "@tanstack/react-table";
-import type { Franchise, Patient, PendingWork, Report, Sample, UserRole } from "@/types/domain";
+import type { Doctor, Franchise, Patient, PendingWork, Report, Sample, User, UserRole } from "@/types/domain";
 
 const brandColor = "#2563eb";
 const brandPalette = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"];
@@ -369,48 +369,164 @@ function FranchiseDashboard() {
   const reports = useReports();
   const invoices = useInvoices();
   const patients = useEntityList<Patient>("patients");
+  const doctors = useEntityList<Doctor>("doctors");
+  const staff = useEntityList<User>("users");
+  const dashboardStats = useDashboardStats();
+  const revenue = useRevenue();
 
   const allSamples = samples.data ?? [];
   const allReports = reports.data ?? [];
   const allInvoices = invoices.data ?? [];
   const allPatients = patients.data ?? [];
+  const allDoctors = doctors.data ?? [];
+  const allStaff = staff.data ?? [];
 
   const pendingSamplesCount = allSamples.filter((s) => s.status === "Collected" || s.status === "Received" || s.status === "Processing").length;
   const approvedReportsCount = allReports.filter((r) => r.status === "Approved").length;
+  
+  // Real Financial Breakdown
   const totalRevenue = allInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const paidRevenue = allInvoices.filter(inv => inv.paymentStatus === "Paid").reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const pendingRevenue = totalRevenue - paidRevenue;
+  const revenueShareRate = selectedFranchise?.revenueShare || 20;
+  const franchiseNetPayout = Math.round((totalRevenue * revenueShareRate) / 100);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <PageHeader
-        eyebrow="Franchise Operations Center"
+        eyebrow="Franchise Hub Operations & Revenue Management"
         title={activeFranchiseName}
-        description="Monitor patient registration, sample collections, diagnostic reports, and invoices for this franchise."
+        description="Manage your patients, doctor network, laboratory staff, sample collections, diagnostic reports, and revenue share."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/patients/new">
-              <Button variant="primary" leftIcon={<Plus size={16} />}>Register Patient</Button>
+              <Button variant="primary" leftIcon={<Plus size={15} />}>Register Patient</Button>
+            </Link>
+            <Link href="/doctors/new">
+              <Button variant="outline" leftIcon={<Stethoscope size={15} />}>Add Doctor</Button>
+            </Link>
+            <Link href="/technicians/new">
+              <Button variant="outline" leftIcon={<UserPlus size={15} />}>Add Staff</Button>
             </Link>
             <Link href="/samples/new">
-              <Button variant="outline" leftIcon={<TestTube2 size={16} />}>Collect Sample</Button>
+              <Button variant="outline" leftIcon={<TestTube2 size={15} />}>Collect Sample</Button>
+            </Link>
+            <Link href="/reports/new">
+              <Button variant="secondary" leftIcon={<FileText size={15} />}>Generate Report</Button>
             </Link>
           </div>
         }
       />
 
+      {/* 1. TOP STATS CARDS */}
       <Grid4>
-        <KPICard label="Total Patients" value={allPatients.length} icon={Users} iconTone="info" supportingText="Registered in franchise" />
-        <KPICard label="Active Samples" value={pendingSamplesCount} icon={TestTube2} iconTone="warning" supportingText="In processing queue" />
-        <KPICard label="Verified Reports" value={approvedReportsCount} icon={FileCheck2} iconTone="success" supportingText="Signed off & ready" />
-        <KPICard label="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} icon={IndianRupee} iconTone="info" supportingText="Invoices generated" />
+        <KPICard 
+          label="Total Patients" 
+          value={allPatients.length} 
+          icon={Users} 
+          iconTone="info" 
+          supportingText="Registered in franchise" 
+        />
+        <KPICard 
+          label="Active Samples" 
+          value={pendingSamplesCount} 
+          icon={TestTube2} 
+          iconTone="warning" 
+          supportingText="In laboratory processing" 
+        />
+        <KPICard 
+          label="Diagnostic Reports" 
+          value={approvedReportsCount} 
+          icon={FileCheck2} 
+          iconTone="success" 
+          supportingText={`${allReports.length} total generated`} 
+        />
+        <KPICard 
+          label="Gross Revenue" 
+          value={`₹${totalRevenue.toLocaleString()}`} 
+          icon={IndianRupee} 
+          iconTone="info" 
+          supportingText={`${allInvoices.length} invoices recorded`} 
+        />
       </Grid4>
 
+      {/* 2. REVENUE & FINANCIAL ANALYTICS SECTION */}
+      <Card className="border border-[color:var(--line)] shadow-xs">
+        <div className="border-b border-[color:var(--line)] pb-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700 font-bold">
+              <IndianRupee size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">Franchise Revenue & Earnings Breakdown</h3>
+              <p className="text-xs text-[color:var(--muted)]">Track gross laboratory billings, payout share, and payment statuses.</p>
+            </div>
+          </div>
+          <Link href="/billing">
+            <Button size="sm" variant="outline">View All Invoices →</Button>
+          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-4 mb-6">
+          <div className="p-4 rounded-xl bg-slate-50 border border-[color:var(--line)]">
+            <span className="text-xs text-[color:var(--muted)] block">Total Invoiced Billing</span>
+            <p className="text-xl font-black text-[color:var(--foreground)] font-mono mt-1">₹{totalRevenue.toLocaleString()}</p>
+            <p className="text-[11px] text-[color:var(--muted)] mt-1">100% Gross Collections</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#e8f4f7] border border-[#176b87]/30">
+            <span className="text-xs text-[#176b87] font-semibold block">Franchise Net Payout ({revenueShareRate}%)</span>
+            <p className="text-xl font-black text-[#176b87] font-mono mt-1">₹{franchiseNetPayout.toLocaleString()}</p>
+            <p className="text-[11px] text-[#176b87]/80 mt-1">Contractual revenue share</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200">
+            <span className="text-xs text-emerald-700 font-semibold block">Paid Collections</span>
+            <p className="text-xl font-black text-emerald-800 font-mono mt-1">₹{paidRevenue.toLocaleString()}</p>
+            <p className="text-[11px] text-emerald-600 mt-1">Cleared invoices</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200">
+            <span className="text-xs text-amber-700 font-semibold block">Pending Receivables</span>
+            <p className="text-xl font-black text-amber-800 font-mono mt-1">₹{pendingRevenue.toLocaleString()}</p>
+            <p className="text-[11px] text-amber-600 mt-1">Awaiting settlement</p>
+          </div>
+        </div>
+
+        {/* Revenue Breakdown / Invoices List */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold text-[color:var(--muted)] uppercase tracking-wider pb-1">
+            <span>Recent Invoices</span>
+            <span>Amount / Status</span>
+          </div>
+          {allInvoices.slice(0, 4).map((inv) => (
+            <div key={inv.id} className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] hover:bg-slate-50 transition flex items-center justify-between text-xs">
+              <div>
+                <span className="font-mono font-bold text-[color:var(--foreground)]">{inv.billNumber}</span>
+                <p className="text-[11px] text-[color:var(--muted)] mt-0.5">{inv.billDate} · Patient ID: {inv.patientId}</p>
+              </div>
+              <div className="text-right flex items-center gap-3">
+                <span className="font-mono font-bold text-sm text-[color:var(--foreground)]">₹{inv.total}</span>
+                <StatusBadge tone={inv.paymentStatus === "Paid" ? "success" : "warning"} size="sm">
+                  {inv.paymentStatus}
+                </StatusBadge>
+              </div>
+            </div>
+          ))}
+          {allInvoices.length === 0 && (
+            <p className="text-center py-4 text-xs text-[color:var(--muted)]">No invoices generated yet for this franchise.</p>
+          )}
+        </div>
+      </Card>
+
+      {/* 3. OPERATIONAL WORKBENCH (SAMPLES & NETWORK) */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-semibold text-base">Recent Sample Collections</h3>
-                <p className="text-xs text-[color:var(--muted)]">Track status of specimens sent to central laboratory.</p>
+                <h3 className="font-semibold text-base">Recent Specimen Collections</h3>
+                <p className="text-xs text-[color:var(--muted)]">Track status of specimens processed for this franchise.</p>
               </div>
               <Link href="/samples">
                 <Button size="sm" variant="ghost">View All Samples →</Button>
@@ -438,12 +554,64 @@ function FranchiseDashboard() {
               )}
             </div>
           </Card>
+
+          {/* Clinical Staff & Doctor Directory */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Card>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm">Associated Doctors ({allDoctors.length})</h3>
+                <Link href="/doctors">
+                  <Button size="sm" variant="ghost">Manage →</Button>
+                </Link>
+              </div>
+              <div className="space-y-2 text-xs">
+                {allDoctors.slice(0, 3).map(d => (
+                  <div key={d.id} className="p-2.5 rounded-lg border border-[color:var(--line)] bg-slate-50 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-[color:var(--foreground)]">{d.name}</p>
+                      <p className="text-[10px] text-[color:var(--muted)]">{d.specialty}</p>
+                    </div>
+                    <span className="text-[11px] text-[color:var(--muted)] font-mono">{d.phone}</span>
+                  </div>
+                ))}
+                {allDoctors.length === 0 && (
+                  <p className="text-center py-3 text-xs text-[color:var(--muted)]">No doctors linked yet.</p>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm">Franchise Staff ({allStaff.length})</h3>
+                <Link href="/technicians">
+                  <Button size="sm" variant="ghost">Manage →</Button>
+                </Link>
+              </div>
+              <div className="space-y-2 text-xs">
+                {allStaff.slice(0, 3).map(u => (
+                  <div key={u.id} className="p-2.5 rounded-lg border border-[color:var(--line)] bg-slate-50 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-[color:var(--foreground)]">{u.name}</p>
+                      <p className="text-[10px] text-[#176b87]">{u.role}</p>
+                    </div>
+                    <StatusBadge tone={u.active ? "success" : "neutral"} size="sm">
+                      {u.active ? "Active" : "Inactive"}
+                    </StatusBadge>
+                  </div>
+                ))}
+                {allStaff.length === 0 && (
+                  <p className="text-center py-3 text-xs text-[color:var(--muted)]">No staff accounts created yet.</p>
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
 
+        {/* Right Sidebar Details */}
         <div className="space-y-6">
           <Card>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm">Franchise Details</h3>
+              <h3 className="font-semibold text-sm">Franchise Profile</h3>
               <span className="font-mono text-xs font-semibold text-[#176b87]">{selectedFranchise?.code}</span>
             </div>
             <div className="space-y-2.5 text-xs">
@@ -460,8 +628,12 @@ function FranchiseDashboard() {
                 <span className="font-medium">{selectedFranchise?.phone || "—"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[color:var(--line)]">
-                <span className="text-[color:var(--muted)]">Email</span>
+                <span className="text-[color:var(--muted)]">Official Email</span>
                 <span className="font-medium font-mono text-[11px]">{selectedFranchise?.email || "—"}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[color:var(--line)]">
+                <span className="text-[color:var(--muted)]">Revenue Share</span>
+                <span className="font-bold text-emerald-700">{revenueShareRate}% Payout</span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-[color:var(--muted)]">Status</span>
@@ -472,17 +644,23 @@ function FranchiseDashboard() {
 
           <Card>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm">Quick Links</h3>
+              <h3 className="font-semibold text-sm">Quick Module Actions</h3>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <Link href="/patients" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
-                Patients List
+                Patients Directory
               </Link>
               <Link href="/reports" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
-                Reports
+                Diagnostic Reports
+              </Link>
+              <Link href="/results" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
+                Test Results
               </Link>
               <Link href="/billing" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
-                Invoices
+                Invoices & Billing
+              </Link>
+              <Link href="/doctors" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
+                Doctor Network
               </Link>
               <Link href="/inventory" className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 hover:bg-[#e8f4f7] text-center font-medium transition">
                 Stock & Items

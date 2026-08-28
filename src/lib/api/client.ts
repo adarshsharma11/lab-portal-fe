@@ -1,4 +1,9 @@
-export type ApiResponse<T> = Readonly<{ data: T; message?: string }>;
+export type ApiResponse<T> = Readonly<{ 
+  data: T; 
+  token?: string; 
+  message?: string;
+  [key: string]: any;
+}>;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
 
@@ -41,7 +46,9 @@ async function fetchApi<T>(
 
   return {
     data: json.data !== undefined ? json.data : json,
+    token: json.token || (json.data && json.data.token) || undefined,
     message: json.message,
+    ...(typeof json === "object" && json !== null ? json : {}),
   };
 }
 

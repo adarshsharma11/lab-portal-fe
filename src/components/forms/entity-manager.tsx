@@ -48,9 +48,10 @@ const patientFields: readonly FieldConfig[] = [
     name: "bloodGroup",
     label: "Blood Group",
     type: "select",
+    required: true,
     section: "Personal Details",
     options: [
-      { label: "Select blood group (optional)", value: "" },
+      { label: "Select blood group", value: "" },
       { label: "A+", value: "A+" },
       { label: "A-", value: "A-" },
       { label: "B+", value: "B+" },
@@ -66,7 +67,7 @@ const patientFields: readonly FieldConfig[] = [
   { name: "emergencyContact", label: "Emergency Contact Phone", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
   { name: "city", label: "City", type: "text", placeholder: "Bangalore", section: "Contact Details" },
   { name: "state", label: "State", type: "text", placeholder: "Karnataka", section: "Contact Details" },
-  { name: "pincode", label: "Pincode", type: "text", placeholder: "560001", section: "Contact Details" },
+  { name: "pincode", label: "Pincode", type: "text", placeholder: "560001", required: true, section: "Contact Details" },
   { name: "address", label: "Residential Address", type: "textarea", placeholder: "#42, 3rd Cross, Indiranagar", colSpan: 2, section: "Contact Details" },
   { name: "referringDoctorId", label: "Referring Doctor Code / ID", type: "text", placeholder: "doc-01 or Dr. Menon", section: "Clinical Information" },
   {
@@ -366,13 +367,13 @@ const patientSchema = Yup.object({
   patientCode: Yup.string().trim(),
   sex: Yup.string().required("Please select gender").oneOf(["Female", "Male", "Other"], "Invalid gender option"),
   age: Yup.number().typeError("Age must be a valid number").required("Age is required").min(0, "Age cannot be negative").max(130, "Please enter a valid age"),
+  bloodGroup: Yup.string().trim().required("Blood group is required"),
   phone: Yup.string().trim().required("Phone number is required"),
   email: Yup.string().trim().email("Please enter a valid email address"),
   city: Yup.string().trim(),
   state: Yup.string().trim(),
-  pincode: Yup.string().trim(),
+  pincode: Yup.string().trim().required("Pincode is required"),
   emergencyContact: Yup.string().trim(),
-  bloodGroup: Yup.string(),
   status: Yup.string(),
   address: Yup.string().trim(),
 });
@@ -477,13 +478,13 @@ const schemas = {
 };
 
 const emptyInitialValues = {
-  patients: { patientCode: "", name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", referringDoctorId: "", status: "Active" },
-  doctors: { name: "", specialty: "", gender: "", dateOfBirth: "", phone: "", emergencyContact: "", country: "India", state: "", city: "", pincode: "", address: "", email: "", password: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
+  patients: { patientCode: "", name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", referringDoctorId: "", status: "Active", franchiseId: "" },
+  doctors: { name: "", specialty: "", gender: "", dateOfBirth: "", phone: "", emergencyContact: "", country: "India", state: "", city: "", pincode: "", address: "", email: "", password: "", experience: "", dateOfJoining: "", description: "", status: "Active", franchiseId: "" },
   franchises: { name: "", code: "", ownerName: "", email: "", password: "", phone: "", emergencyPhone: "", country: "India", state: "Karnataka", city: "Bengaluru", pincode: "", address: "", licenseNumber: "", gstNumber: "", revenueShare: 0, status: "Active", notes: "" },
-  pathologists: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "reports:approve,results:write,qc:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
-  technicians: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "samples:write,results:write,instruments:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active" },
+  pathologists: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "reports:approve,results:write,qc:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active", franchiseId: "" },
+  technicians: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "samples:write,results:write,instruments:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active", franchiseId: "" },
   suppliers: { name: "", phone: "", emergencyContact: "", country: "India", address: "", state: "", city: "", pincode: "", description: "" },
-  users: { name: "", gender: "", dateOfBirth: "", email: "", password: "", role: "", permissions: "*", status: "Active", mobile: "", location: "" },
+  users: { name: "", gender: "", dateOfBirth: "", email: "", password: "", role: "", permissions: "*", status: "Active", mobile: "", location: "", franchiseId: "" },
 };
 
 const configs = {
@@ -498,7 +499,6 @@ const configs = {
 
 export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: readonly string[] }>) {
   const config = configs[kind];
-  const schema = schemas[kind];
   const router = useRouter();
   const isNew = path[0] === "new";
   const id = isNew ? "" : (path[0] ?? "");
@@ -507,19 +507,68 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
   // ALL HOOKS MUST BE UNCONDITIONALLY CALLED AT THE TOP LEVEL
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+  const [currentSession, setCurrentSession] = useState<User | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     const s = authService.getSession();
-    if (s?.role) setCurrentRole(s.role);
+    if (s) {
+      setCurrentSession(s);
+      if (s.role) setCurrentRole(s.role);
+    }
   }, []);
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const canManage = isAdmin || isFranchise;
 
   const list = useEntityList<Entity>(kind);
   const detail = useEntity<Entity>(kind, id);
   const mutations = useEntityMutations<Entity>(kind);
+  const franchisesList = useEntityList<Franchise>("franchises");
+
+  // Dynamic franchise options for Admin assignment
+  const franchiseOptions = useMemo(() => {
+    const franchises = (franchisesList.data ?? []) as Franchise[];
+    return [
+      { label: "Select Franchise...", value: "" },
+      ...franchises.map((f) => ({
+        label: `${f.name} (${f.code || f.city || "Branch"})`,
+        value: f.id,
+      })),
+      { label: "+ Other / Add New Franchise", value: "__add_franchise__" },
+    ];
+  }, [franchisesList.data]);
+
+  // Dynamically inject Franchise selection field for Admin on franchise-managed entities
+  const effectiveFields = useMemo(() => {
+    const baseFields = [...config.fields];
+    if (isAdmin && kind !== "franchises" && kind !== "suppliers") {
+      const franchiseField: FieldConfig = {
+        name: "franchiseId",
+        label: "Assign to Franchise",
+        type: "select",
+        required: true,
+        section: "Franchise Assignment",
+        options: franchiseOptions,
+        hint: "Select which Franchise owns this record, or select '+ Other / Add New Franchise'.",
+      };
+      return [franchiseField, ...baseFields];
+    }
+    return baseFields;
+  }, [config.fields, isAdmin, kind, franchiseOptions]);
+
+  // Validation Schema
+  const effectiveSchema = useMemo(() => {
+    let base = schemas[kind];
+    if (isAdmin && kind !== "franchises" && kind !== "suppliers") {
+      base = base.shape({
+        franchiseId: Yup.string().required("Please assign this record to a Franchise (or create a new one)"),
+      });
+    }
+    return base;
+  }, [kind, isAdmin]);
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Entity>();
@@ -537,7 +586,28 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         }),
         p.accessor("sex", { header: "Gender" }),
         p.accessor("age", { header: "Age" }),
+        p.accessor("bloodGroup", {
+          header: "Blood Group",
+          cell: ({ getValue }) => <span className="font-semibold text-rose-600">{getValue() || "—"}</span>,
+        }),
         p.accessor("phone", { header: "Phone Number" }),
+        p.accessor("pincode", {
+          header: "Pincode",
+          cell: ({ getValue }) => <span className="font-mono text-xs">{getValue() || "—"}</span>,
+        }),
+        ...(isAdmin
+          ? [
+              p.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
+                id: "franchise",
+                header: "Franchise",
+                cell: ({ getValue }) => (
+                  <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                    {getValue()}
+                  </span>
+                ),
+              }),
+            ]
+          : []),
         p.accessor("status", {
           header: "Status",
           cell: ({ getValue }) => {
@@ -555,7 +625,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                   View
                 </Button>
               </Link>
-              {isAdmin && (
+              {canManage && (
                 <>
                   <Link href={`/${kind}/${row.original.id}/edit`}>
                     <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
@@ -659,6 +729,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "—"}</span>,
         }),
         d.accessor("city", { header: "Branch / City" }),
+        ...(isAdmin
+          ? [
+              d.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
+                id: "franchise",
+                header: "Franchise",
+                cell: ({ getValue }) => (
+                  <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                    {getValue()}
+                  </span>
+                ),
+              }),
+            ]
+          : []),
         d.display({
           id: "actions",
           header: "Actions",
@@ -669,7 +752,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                   View
                 </Button>
               </Link>
-              {isAdmin && (
+              {canManage && (
                 <>
                   <Link href={`/${kind}/${row.original.id}/edit`}>
                     <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
@@ -722,6 +805,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           header: "Lab Location",
           cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "—"}</span>,
         }),
+        ...(isAdmin
+          ? [
+              u.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
+                id: "franchise",
+                header: "Franchise",
+                cell: ({ getValue }) => (
+                  <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                    {getValue()}
+                  </span>
+                ),
+              }),
+            ]
+          : []),
         u.accessor("active", {
           header: "Status",
           cell: ({ getValue }) => (
@@ -740,7 +836,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                   View
                 </Button>
               </Link>
-              {isAdmin && (
+              {canManage && (
                 <>
                   <Link href={`/${kind}/${row.original.id}/edit`}>
                     <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
@@ -783,7 +879,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 View
               </Button>
             </Link>
-            {isAdmin && (
+            {canManage && (
               <>
                 <Link href={`/${kind}/${row.original.id}/edit`}>
                   <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
@@ -793,7 +889,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 <Button
                   size="sm"
                   variant="danger-outline"
-                  leftIcon={<Trash2 size={13} />}
+                  leftIcon={<Trash2 size={15} />}
                   onClick={() => setConfirmDeleteId(row.original.id)}
                 >
                   Delete
@@ -804,14 +900,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         ),
       }),
     ];
-  }, [kind, isAdmin]);
+  }, [kind, isAdmin, canManage]);
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };
     if (!isNew && detail.data) {
       const data = detail.data as unknown as Record<string, unknown>;
       const merged: Record<string, unknown> = { ...base };
-      for (const field of config.fields) {
+      for (const field of effectiveFields) {
         const val = data[field.name];
         if (field.name === "password") {
           merged[field.name] = "";
@@ -834,18 +930,18 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       return merged;
     }
     return base;
-  }, [kind, isNew, detail.data, config.fields]);
+  }, [kind, isNew, detail.data, effectiveFields]);
 
   // Group fields by section for clean rendering
   const sections = useMemo(() => {
     const map = new Map<string, FieldConfig[]>();
-    for (const field of config.fields) {
+    for (const field of effectiveFields) {
       const sec = field.section || "General Information";
       if (!map.has(sec)) map.set(sec, []);
       map.get(sec)!.push(field);
     }
     return Array.from(map.entries());
-  }, [config.fields]);
+  }, [effectiveFields]);
 
   const handleDelete = async () => {
     if (!confirmDeleteId) return;
@@ -865,8 +961,20 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
     { setSubmitting, setErrors }: FormikHelpers<Record<string, unknown>>
   ) => {
     setFormError(null);
+
+    // If Admin chose "+ Other / Add New Franchise", redirect to create franchise
+    if (values.franchiseId === "__add_franchise__") {
+      router.push("/franchises/new");
+      return;
+    }
+
     try {
       const input: Record<string, unknown> = { ...values };
+
+      // Multi-tenant assignment logic
+      if (isFranchise && currentSession?.franchiseId) {
+        input.franchiseId = currentSession.franchiseId;
+      }
 
       if (kind === "users" || kind === "pathologists" || kind === "technicians") {
         input.initials = String(values.name ?? "").split(" ").map((part) => part[0]).join("").toUpperCase();
@@ -924,7 +1032,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           title={config.plural}
           description={`Manage registered ${config.plural.toLowerCase()}, credentials, roles, and profiles.`}
           action={
-            isAdmin && (
+            (kind === "franchises" ? isAdmin : canManage) && (
               <Link href={`/${kind}/new`}>
                 <Button variant="primary" leftIcon={<Plus size={16} />}>
                   Add {config.singular}
@@ -995,7 +1103,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
               <Link href={`/${kind}`}>
                 <Button variant="ghost">← Back to {config.plural}</Button>
               </Link>
-              {isAdmin && (
+              {(kind === "franchises" ? isAdmin : canManage) && (
                 <>
                   <Link href={`/${kind}/${id}/edit`}>
                     <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
@@ -1061,7 +1169,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
     <div className="space-y-6 max-w-4xl mx-auto">
       <PageHeader
         title={isNew ? `Add New ${config.singular}` : `Edit ${config.singular}`}
-        description={isNew ? `Fill out franchise identification, owner details, and login credentials below. Login credentials will be created immediately.` : `Update franchise identification, credentials, and profile settings below.`}
+        description={isNew ? `Fill out the required information, credentials, and settings below.` : `Update details, credentials, and settings below.`}
         action={
           <Link href={`/${kind}`}>
             <Button variant="ghost">← Back to {config.plural}</Button>
@@ -1082,14 +1190,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       <Card>
         <Formik
           initialValues={formInitialValues}
-          validationSchema={schema}
+          validationSchema={effectiveSchema}
           enableReinitialize
           validateOnMount={false}
           validateOnChange={true}
           validateOnBlur={true}
           onSubmit={handleFormSubmit}
         >
-          {({ errors, touched, isSubmitting }) => (
+          {({ errors, touched, isSubmitting, values, setFieldValue }) => (
             <Form className="space-y-8">
               {sections.map(([sectionTitle, fields]) => (
                 <div key={sectionTitle} className="space-y-4">
@@ -1115,7 +1223,18 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                           error={errorMsg}
                         >
                           {field.type === "select" ? (
-                            <Field name={field.name} as={Select}>
+                            <Field 
+                              name={field.name} 
+                              as={Select}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                const selected = e.target.value;
+                                if (field.name === "franchiseId" && selected === "__add_franchise__") {
+                                  router.push("/franchises/new");
+                                  return;
+                                }
+                                setFieldValue(field.name, selected);
+                              }}
+                            >
                               {field.options?.map((opt) => (
                                 <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
                                   {opt.label}
