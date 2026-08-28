@@ -78,3 +78,11 @@ export function useEntityMutations<T extends Entity>(kind: Kind) {
     remove: useMutation({ mutationFn: service.delete, onSuccess: invalidate }),
   };
 }
+
+export const usePatients = () => useEntityList<Patient>("patients");
+export const useDoctors = () => useEntityList<Doctor>("doctors");
+export const useFranchises = () => useEntityList<Franchise>("franchises");
+export const usePathologists = () => useEntityList<User>("pathologists");
+export const useTechnicians = () => useEntityList<User>("technicians");
+export const useSuppliers = () => useEntityList<Supplier>("suppliers");
+export const useUsers = () => useEntityList<User>("users");
