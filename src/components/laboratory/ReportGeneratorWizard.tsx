@@ -6,9 +6,10 @@ import {
   AlertCircle, CheckCircle2, ChevronRight, ClipboardCheck, FileText, 
   FlaskConical, Sparkles, User, ArrowLeft, Plus, ShieldCheck, Microscope
 } from "lucide-react";
-import { PageHeader, Card, Button, Input, Select, Textarea, Field as UIField, StatusBadge, cn } from "@/components/ui/index";
+import { PageHeader, Card, Button, Input, Select, Textarea, Field as UIField, StatusBadge, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
 import { usePatients, useDoctors } from "@/features/crud/hooks";
 import { useSamples } from "@/features/laboratory/hooks";
+import { useTestMasters } from "@/features/test-masters/hooks";
 import { useReportTemplates } from "@/features/reports/hooks";
 import { reportApi } from "@/mocks/services/resources";
 import { 
@@ -18,7 +19,7 @@ import {
   type ParameterDefinition,
   type TestDefinition
 } from "@/lib/laboratory/test-parameter-definitions";
-import type { Patient, Sample, Doctor } from "@/types/domain";
+import type { Patient, Sample, Doctor, TestMaster } from "@/types/domain";
 
 export function ReportGeneratorWizard() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export function ReportGeneratorWizard() {
   const patientsQuery = usePatients();
   const doctorsQuery = useDoctors();
   const samplesQuery = useSamples();
+  const testMastersQuery = useTestMasters("", undefined, 500);
   const templatesQuery = useReportTemplates();
 
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
@@ -44,6 +46,44 @@ export function ReportGeneratorWizard() {
   const [comments, setComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Combobox options
+  const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const patients = (patientsQuery.data ?? []) as Patient[];
+    return patients.map((p) => ({
+      value: p.id,
+      label: p.name,
+      secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
+      badge: p.phone,
+      extra: p,
+    }));
+  }, [patientsQuery.data]);
+
+  const doctorComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const doctors = (doctorsQuery.data ?? []) as Doctor[];
+    return doctors.map((d) => ({
+      value: d.id,
+      label: d.name,
+      secondary: d.specialty || "Practitioner",
+      badge: d.phone,
+      extra: d,
+    }));
+  }, [doctorsQuery.data]);
+
+  const testMasterComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const dbTests = (testMastersQuery.data ?? []) as TestMaster[];
+    
+    // Combine standard schemas and all DB test masters
+    const dbOptions: ComboboxOption[] = dbTests.map((t) => ({
+      value: t.code || t.name,
+      label: t.name,
+      secondary: `Code: ${t.code} · Rate: ₹${t.rate} · MRP: ₹${t.mrp}`,
+      badge: t.department,
+      extra: t,
+    }));
+
+    return dbOptions;
+  }, [testMastersQuery.data]);
 
   // Current Patient
   const currentPatient = useMemo(() => {
@@ -158,7 +198,7 @@ export function ReportGeneratorWizard() {
       {/* Header */}
       <PageHeader
         title="Generate Diagnostic Report"
-        description="Select patient, load dynamic test parameters, enter technician values, and release verified diagnostic report."
+        description="Select patient, load dynamic test parameters from Master Database, enter technician values, and release verified diagnostic report."
         action={
           <Link href="/reports">
             <Button variant="ghost" leftIcon={<ArrowLeft size={16} />}>
@@ -185,7 +225,7 @@ export function ReportGeneratorWizard() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-[color:var(--foreground)]">Patient & Test Association</h3>
-                <p className="text-xs text-[color:var(--muted)]">Select registered patient and laboratory test to perform.</p>
+                <p className="text-xs text-[color:var(--muted)]">Search registered patient and select diagnostic test from Master Database.</p>
               </div>
             </div>
             {currentPatient && (
@@ -196,64 +236,44 @@ export function ReportGeneratorWizard() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-3">
-            <UIField label="Select Patient" name="patientId" required>
-              <Select
+            <UIField label="Select Registered Patient" name="patientId" required hint="Type name, patient code, phone">
+              <SearchableCombobox
+                options={patientComboboxOptions}
                 value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
-              >
-                <option value="" disabled>Select patient...</option>
-                {(patientsQuery.data ?? []).map((p: Patient) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.patientCode}) · {p.age}Y/{p.sex}
-                  </option>
-                ))}
-              </Select>
+                onChange={(val) => setSelectedPatientId(val)}
+                placeholder="Search patient..."
+                searchPlaceholder="Search by name, code, phone..."
+                loading={patientsQuery.isLoading}
+              />
             </UIField>
 
-            <UIField label="Select Diagnostic Test" name="testCode" required>
-              <Select
+            <UIField label="Diagnostic Test (Master Database)" name="testCode" required hint="Search 1,000+ tests by name or code">
+              <SearchableCombobox
+                options={testMasterComboboxOptions}
                 value={selectedTestName}
-                onChange={(e) => setSelectedTestName(e.target.value)}
-              >
-                <optgroup label="Standard Diagnostic Profiles">
-                  {STANDARD_TEST_CATALOG.map(t => (
-                    <option key={t.code} value={t.code}>
-                      {t.name} ({t.department})
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Custom / Other">
-                  <option value="CUSTOM">Other / Custom Lab Test</option>
-                </optgroup>
-              </Select>
+                onChange={(val, opt) => {
+                  setSelectedTestName(val);
+                  if (opt?.extra?.sampleType) {
+                    setSampleType(opt.extra.sampleType);
+                  }
+                }}
+                placeholder="Search test name or code..."
+                searchPlaceholder="Type test name (e.g. Calcium, CBC, Glucose)..."
+                loading={testMastersQuery.isLoading}
+              />
             </UIField>
 
-            <UIField label="Referring Doctor" name="doctorId">
-              <Select
+            <UIField label="Referring Doctor" name="doctorId" hint="Select practitioner">
+              <SearchableCombobox
+                options={doctorComboboxOptions}
                 value={selectedDoctorId}
-                onChange={(e) => setSelectedDoctorId(e.target.value)}
-              >
-                <option value="">Self / Clinical OPD</option>
-                {(doctorsQuery.data ?? []).map((d: Doctor) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.specialty})
-                  </option>
-                ))}
-              </Select>
+                onChange={(val) => setSelectedDoctorId(val)}
+                placeholder="Select consulting doctor..."
+                searchPlaceholder="Search doctor..."
+                loading={doctorsQuery.isLoading}
+              />
             </UIField>
           </div>
-
-          {selectedTestName === "CUSTOM" && (
-            <div className="mt-4 pt-4 border-t border-[color:var(--line)]">
-              <UIField label="Custom Test Name" name="customTestName" required>
-                <Input
-                  value={customTestName}
-                  onChange={(e) => setCustomTestName(e.target.value)}
-                  placeholder="e.g. Vitamin D-25 Hydroxy, Serum Ferritin, CRP Quantitative"
-                />
-              </UIField>
-            </div>
-          )}
 
           {/* Auto-populated Patient & Sample Overview Box */}
           {currentPatient && (
@@ -306,24 +326,22 @@ export function ReportGeneratorWizard() {
               type="button"
               variant="outline"
               size="sm"
-              leftIcon={<Sparkles size={14} />}
+              leftIcon={<Sparkles size={14} className="text-[#176b87]" />}
               onClick={handleQuickFillNormal}
-              title="Pre-fill normal physiological values for quick testing"
             >
-              Autofill Reference Normal
+              Fill Reference Normals
             </Button>
           </div>
 
-          <div className="overflow-x-auto -mx-6">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-[color:var(--surface-2)] text-[11px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted)]">
-                <tr>
-                  <th className="px-6 py-3">Parameter / Analyte</th>
-                  <th className="px-4 py-3">Observed Value</th>
-                  <th className="px-4 py-3">Unit</th>
-                  <th className="px-4 py-3">Biological Ref. Interval</th>
-                  <th className="px-4 py-3">Method & Instrument</th>
-                  <th className="px-6 py-3 text-center">Status / Flag</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[color:var(--line)] bg-[color:var(--surface-2)]/80 text-[color:var(--muted)] uppercase font-semibold">
+                  <th className="py-3 px-4">Test Parameter</th>
+                  <th className="py-3 px-4 w-44">Observed Value</th>
+                  <th className="py-3 px-4">Units</th>
+                  <th className="py-3 px-4">Biological Reference Interval</th>
+                  <th className="py-3 px-4">Flag / Evaluation</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--line)]">
@@ -332,51 +350,56 @@ export function ReportGeneratorWizard() {
                   const evalResult = evaluateParameterFlag(val, param);
 
                   return (
-                    <tr key={param.id} className="hover:bg-[color:var(--surface-2)]/50 transition-colors">
-                      <td className="px-6 py-3.5">
-                        <span className="font-semibold text-[color:var(--foreground)]">{param.name}</span>
-                      </td>
-                      <td className="px-4 py-3.5 w-44">
-                        {param.options ? (
-                          <Select
-                            value={val}
-                            onChange={(e) => handleValueChange(param.id, e.target.value)}
-                            className="h-9 text-sm"
-                          >
-                            {param.options.map(opt => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </Select>
-                        ) : (
-                          <Input
-                            type="text"
-                            value={val}
-                            onChange={(e) => handleValueChange(param.id, e.target.value)}
-                            placeholder="Enter value"
-                            className={cn(
-                              "h-9 font-mono font-medium",
-                              evalResult.flag === "Critical" && "border-rose-500 bg-rose-50 text-rose-900 focus:ring-rose-300",
-                              (evalResult.flag === "High" || evalResult.flag === "Low") && "border-amber-500 bg-amber-50 text-amber-900"
-                            )}
-                          />
+                    <tr 
+                      key={param.id} 
+                      className={cn(
+                        "hover:bg-[color:var(--surface-2)]/40 transition-colors",
+                        evalResult.isCritical && "bg-rose-50/50",
+                        evalResult.isAbnormal && !evalResult.isCritical && "bg-amber-50/40"
+                      )}
+                    >
+                      <td className="py-3.5 px-4 font-semibold text-[color:var(--foreground)]">
+                        <div>{param.name}</div>
+                        {param.method && (
+                          <span className="text-[10px] text-[color:var(--muted)]">
+                            {param.method}
+                          </span>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-[color:var(--muted)] font-mono">
+                      <td className="py-2.5 px-4">
+                        <Input
+                          value={val}
+                          onChange={(e) => handleValueChange(param.id, e.target.value)}
+                          placeholder="e.g. value..."
+                          className={cn(
+                            "h-8 text-xs font-mono font-medium",
+                            evalResult.isCritical && "border-rose-500 ring-1 ring-rose-500",
+                            evalResult.isAbnormal && !evalResult.isCritical && "border-amber-500"
+                          )}
+                        />
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-[color:var(--muted)]">
                         {param.unit || "—"}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-[color:var(--muted)]">
-                        <span className="font-medium text-[color:var(--foreground)]">{param.referenceRange}</span>
+                      <td className="py-3.5 px-4 text-[color:var(--muted)] font-mono">
+                        {param.referenceRange}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-[color:var(--muted)]">
-                        <p className="truncate max-w-[200px]">{param.method || "Standard Clinical Assay"}</p>
-                        {param.machine && (
-                          <p className="text-[10px] text-[color:var(--muted-2)] truncate max-w-[200px]">{param.machine}</p>
+                      <td className="py-3.5 px-4">
+                        {evalResult.isCritical ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded text-[11px]">
+                            <AlertCircle size={12} /> CRITICAL
+                          </span>
+                        ) : evalResult.isAbnormal ? (
+                          <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded text-[11px]">
+                            {evalResult.flag === "High" ? "↑ HIGH" : "↓ LOW"}
+                          </span>
+                        ) : val ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[11px] font-medium">
+                            <CheckCircle2 size={12} /> Normal
+                          </span>
+                        ) : (
+                          <span className="text-[color:var(--muted)] text-[11px]">Pending entry</span>
                         )}
-                      </td>
-                      <td className="px-6 py-3.5 text-center">
-                        <StatusBadge tone={evalResult.tone} size="sm">
-                          {evalResult.flag}
-                        </StatusBadge>
                       </td>
                     </tr>
                   );
@@ -386,78 +409,70 @@ export function ReportGeneratorWizard() {
           </div>
         </Card>
 
-        {/* Step 3: Clinical Interpretation & Signatory */}
+        {/* Step 3: Specimen & Clinical Impression */}
         <Card className="border border-[color:var(--line)] shadow-xs">
           <div className="border-b border-[color:var(--line)] pb-4 mb-6 flex items-center gap-2.5">
             <div className="grid size-8 place-items-center rounded-lg bg-[#e8f4f7] text-[#176b87] font-bold">
               3
             </div>
             <div>
-              <h3 className="text-base font-bold text-[color:var(--foreground)]">Clinical Interpretation & Authorization</h3>
-              <p className="text-xs text-[color:var(--muted)]">Diagnostic remarks, medical guidelines, and pathologist signatory.</p>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">Clinical Impression & Pathologist Release</h3>
+              <p className="text-xs text-[color:var(--muted)]">Enter doctor comments, specimen details, and signatory sign-off.</p>
             </div>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div className="space-y-4 sm:col-span-2">
-              <UIField 
-                label="Clinical Interpretation & Diagnostic Remarks" 
-                name="comments"
-                hint="Pre-filled according to international diagnostic guidelines (ADA, NCEP, ICSH, KDIGO). Editable for custom patient observations."
+          <div className="grid gap-6 sm:grid-cols-3">
+            <UIField label="Accession Number" name="accession" required>
+              <Input value={accession} onChange={(e) => setAccession(e.target.value)} />
+            </UIField>
+
+            <UIField label="Sample Specimen Type" name="sampleType" required>
+              <Input value={sampleType} onChange={(e) => setSampleType(e.target.value)} />
+            </UIField>
+
+            <UIField label="Release Status" name="reportStatus" required>
+              <Select
+                value={reportStatus}
+                onChange={(e: any) => setReportStatus(e.target.value)}
               >
-                <Textarea
-                  rows={4}
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  placeholder="Enter clinical observations, peripheral smear notes, or differential diagnosis..."
-                />
+                <option value="Draft">Draft (Technician Entry)</option>
+                <option value="Pending Review">Pending Review (Quality Check)</option>
+                <option value="Approved">Approved (Final Signed Report)</option>
+              </Select>
+            </UIField>
+
+            <div className="sm:col-span-3">
+              <UIField label="Signing Pathologist" name="pathologist" required>
+                <Input value={pathologist} onChange={(e) => setPathologist(e.target.value)} />
               </UIField>
             </div>
 
-            <UIField label="Authorized Signatory Pathologist" name="pathologist" required>
-              <Select
-                value={pathologist}
-                onChange={(e) => setPathologist(e.target.value)}
-              >
-                <option>Dr. Pranjali Sejwal, MBBS, MD Pathology</option>
-                <option>Dr. Ananya Rao, MBBS, MD Pathology, Consultant Pathologist</option>
-                <option>Dr. Preeti, MBBS, MD Biochemistry, Consultant Biochemist</option>
-                <option>Dr. K. Menon, MD Clinical Pathology</option>
-              </Select>
-            </UIField>
-
-            <UIField label="Report Release Status" name="reportStatus" required>
-              <Select
-                value={reportStatus}
-                onChange={(e) => setReportStatus(e.target.value as any)}
-              >
-                <option value="Pending Review">Pending Review (Draft for Pathologist)</option>
-                <option value="Approved">Approved & Released (Final Report)</option>
-                <option value="Draft">Draft</option>
-              </Select>
-            </UIField>
+            <div className="sm:col-span-3">
+              <UIField label="Clinical Interpretation & Pathological Comments" name="comments">
+                <Textarea
+                  rows={3}
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder="Enter medical notes, clinical correlation advice, or laboratory remarks..."
+                />
+              </UIField>
+            </div>
           </div>
 
-          {/* Submission Bar */}
-          <div className="mt-8 pt-6 border-t border-[color:var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-xs text-[color:var(--muted)]">
-              <ShieldCheck size={16} className="text-[#176b87]" />
-              <span>Report will be cryptographically registered in LIMS database with unique Barcode & Report Number.</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Link href="/reports">
-                <Button type="button" variant="ghost">Cancel</Button>
-              </Link>
-              <Button
-                type="submit"
-                variant="primary"
-                loading={isSubmitting}
-                leftIcon={<ClipboardCheck size={16} />}
-              >
-                Save & Generate Report
-              </Button>
-            </div>
+          {/* Action buttons */}
+          <div className="mt-8 pt-6 border-t border-[color:var(--line)] flex items-center justify-between">
+            <Link href="/reports">
+              <Button type="button" variant="ghost">Cancel</Button>
+            </Link>
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={isSubmitting}
+              leftIcon={<ShieldCheck size={18} />}
+            >
+              Generate & Save Diagnostic Report
+            </Button>
           </div>
         </Card>
       </form>

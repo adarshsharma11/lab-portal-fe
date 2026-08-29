@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/client";
-import type { Doctor, Franchise, Patient, Report, ReportTemplate, Result, Sample, Supplier, Test, User } from "@/types/domain";
+import type { Doctor, Franchise, Patient, Report, ReportTemplate, Result, Sample, Supplier, Test, TestMaster, User } from "@/types/domain";
 
 const apiCrud = <T extends { id: string }>(resource: string) => ({
   list: (params?: Record<string, any>) => apiClient.get<T[]>(`/${resource}`, params),
@@ -16,6 +16,7 @@ export const userApi = apiCrud<User>("users");
 export const supplierApi = apiCrud<Supplier>("suppliers");
 export const sampleApi = apiCrud<Sample>("samples");
 export const testApi = apiCrud<Test>("tests");
+export const testMasterApi = apiCrud<TestMaster>("test-masters");
 export const resultApi = apiCrud<Result>("results");
 export const reportApi = apiCrud<Report>("reports");
 

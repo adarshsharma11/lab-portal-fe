@@ -5,14 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AlertTriangle, Edit3, Eye, Plus, Trash2 } from "lucide-react";
-import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
+import { AlertTriangle, Edit3, Eye, Plus, Trash2, Sparkles } from "lucide-react";
+import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { ResultSection, ResultTable } from "@/components/laboratory/result-engine";
 import { useCreateSample, useCreateTest, useDeleteSample, useDeleteTest, useResults, useSample, useSamples, useTest, useTests, useUpdateSample, useUpdateTest } from "@/features/laboratory/hooks";
+import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Franchise, Sample, Test, UserRole } from "@/types/domain";
+import type { Franchise, Patient, Sample, Test, TestMaster, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
 type Entity = Sample | Test;
@@ -31,7 +32,7 @@ interface FormFieldDef {
 const sampleFields: readonly FormFieldDef[] = [
   { name: "accession", label: "Accession Number", type: "text", placeholder: "LIS-240822 (auto-generated if empty)" },
   { name: "barcode", label: "Barcode ID", type: "text", placeholder: "BC902188 (auto-generated if empty)" },
-  { name: "patientId", label: "Patient Code / ID", type: "text", placeholder: "pat-01 or PT-24018", required: true, hint: "Enter patient reference code" },
+  { name: "patientId", label: "Registered Patient", type: "text", placeholder: "Search patient by name, code, phone...", required: true, hint: "Select from registered patients list" },
   {
     name: "sampleType",
     label: "Specimen Type",
@@ -45,6 +46,7 @@ const sampleFields: readonly FormFieldDef[] = [
       { label: "Urine (Clean Catch/24h)", value: "Urine" },
       { label: "Cerebrospinal Fluid (CSF)", value: "CSF" },
       { label: "Synovial / Serous Fluid", value: "Fluid" },
+      { label: "Stool Sample", value: "Stool" },
       { label: "Other Biopsy / Swab", value: "Other" },
     ],
   },
@@ -79,8 +81,8 @@ const sampleFields: readonly FormFieldDef[] = [
 ];
 
 const testFields: readonly FormFieldDef[] = [
-  { name: "code", label: "Test Code", type: "text", placeholder: "CBC, LFT, KFT, HBA1C", required: true },
-  { name: "name", label: "Test Full Name", type: "text", placeholder: "Complete Blood Count with 5-Part Diff", required: true },
+  { name: "name", label: "Test Full Name (Master Database)", type: "text", placeholder: "Search by test name (e.g. Calcium, CBC, Bilirubin)...", required: true, hint: "Search test name from database catalog", colSpan: 2 },
+  { name: "code", label: "Test Code", type: "text", placeholder: "e.g. HM001, BC001, CBC", required: true, hint: "Auto-populated from test master or search by code" },
   {
     name: "department",
     label: "Laboratory Department",
@@ -88,14 +90,20 @@ const testFields: readonly FormFieldDef[] = [
     required: true,
     options: [
       { label: "Select department", value: "" },
-      { label: "Hematology & Coagulation", value: "Hematology" },
-      { label: "Clinical Biochemistry", value: "Biochemistry" },
-      { label: "Electrolyte Panel", value: "Electrolytes" },
-      { label: "Urine Analysis & Microscopy", value: "Urine Analysis" },
-      { label: "Immunology & Serology", value: "Serology" },
-      { label: "Molecular Diagnostics", value: "Molecular" },
-      { label: "Microbiology & Cultures", value: "Microbiology" },
+      { label: "Biochemistry", value: "Biochemistry" },
+      { label: "Clinical Pathology", value: "Clinical Pathology" },
+      { label: "Cytogenetics", value: "Cytogenetics" },
+      { label: "Cytology", value: "Cytology" },
+      { label: "Flow Cytometry", value: "Flow Cytometry" },
+      { label: "Hematology", value: "Hematology" },
       { label: "Histopathology", value: "Histopathology" },
+      { label: "Immunology", value: "Immunology" },
+      { label: "Maternal Marker", value: "Maternal Marker" },
+      { label: "Microbiology", value: "Microbiology" },
+      { label: "Molecular Biology", value: "Molecular Biology" },
+      { label: "OPD Package", value: "OPD Package" },
+      { label: "Serology", value: "Serology" },
+      { label: "Special Tests", value: "Special Tests" },
     ],
   },
   {
@@ -108,21 +116,22 @@ const testFields: readonly FormFieldDef[] = [
       { label: "Whole Blood (EDTA)", value: "Blood" },
       { label: "Serum", value: "Serum" },
       { label: "Plasma", value: "Plasma" },
-      { label: "Random Urine", value: "Urine" },
-      { label: "Other / Swab", value: "Other" },
+      { label: "Random / 24hr Urine", value: "Urine" },
+      { label: "Body Fluid / CSF", value: "Fluid" },
+      { label: "Stool Specimen", value: "Stool" },
+      { label: "Other / Swab / Biopsy", value: "Other" },
     ],
   },
-  { name: "price", label: "Test Price (₹)", type: "number", placeholder: "450", required: true },
-  { name: "turnaroundHours", label: "Standard Turnaround Time (Hours)", type: "number", placeholder: "4", required: true },
-  { name: "referenceRange", label: "Default Reference Range", type: "text", placeholder: "13.0 - 17.0 g/dL" },
-  { name: "unit", label: "Measurement Unit", type: "text", placeholder: "g/dL, mg/dL, mmol/L" },
+  { name: "price", label: "Test Price / MRP (₹)", type: "number", placeholder: "450", required: true, hint: "Auto-filled from test master MRP/Rate" },
+  { name: "turnaroundHours", label: "Standard Turnaround Time (Hours)", type: "number", placeholder: "24", required: true },
+  { name: "referenceRange", label: "Default Reference Range", type: "text", placeholder: "e.g. 13.0 - 17.0 g/dL" },
+  { name: "unit", label: "Measurement Unit", type: "text", placeholder: "e.g. g/dL, mg/dL, mmol/L" },
   {
     name: "status",
     label: "Catalog Status",
     type: "select",
     required: true,
     options: [
-      { label: "Select status", value: "" },
       { label: "Active (Available for order)", value: "Active" },
       { label: "Inactive (Discontinued)", value: "Inactive" },
     ],
@@ -130,8 +139,8 @@ const testFields: readonly FormFieldDef[] = [
 ];
 
 const sampleSchema = Yup.object({
-  patientId: Yup.string().trim().required("Patient ID is required (. pat-01 or PT-24018)"),
-  sampleType: Yup.string().required("Please select specimen type").oneOf(["Blood", "Serum", "Plasma", "Urine", "CSF", "Fluid", "Other"], "Invalid specimen type"),
+  patientId: Yup.string().trim().required("Registered patient selection is required"),
+  sampleType: Yup.string().required("Please select specimen type").oneOf(["Blood", "Serum", "Plasma", "Urine", "CSF", "Fluid", "Stool", "Other"], "Invalid specimen type"),
   accession: Yup.string().trim(),
   barcode: Yup.string().trim(),
   collectedAt: Yup.string().required("Collection date and time is required"),
@@ -141,8 +150,8 @@ const sampleSchema = Yup.object({
 });
 
 const testSchema = Yup.object({
-  code: Yup.string().trim().required("Test code is required . CBC").min(2, "Test code must be at least 2 characters"),
-  name: Yup.string().trim().required("Test name is required . Complete Blood Count").min(2, "Name must be at least 2 characters"),
+  code: Yup.string().trim().required("Test code is required").min(2, "Test code must be at least 2 characters"),
+  name: Yup.string().trim().required("Test full name is required from catalog").min(2, "Name must be at least 2 characters"),
   department: Yup.string().required("Please select a department"),
   sampleType: Yup.string().required("Please select required specimen type"),
   price: Yup.number().typeError("Price must be a valid number").required("Price is required").min(0, "Price cannot be negative"),
@@ -164,6 +173,8 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const franchisesList = useEntityList<Franchise>("franchises");
+  const patientsList = useEntityList<Patient>("patients");
+  const testMastersQuery = useTestMasters("", undefined, 500);
 
   const franchiseOptions = useMemo(() => {
     const franchises = (franchisesList.data ?? []) as Franchise[];
@@ -176,6 +187,39 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       { label: "+ Other / Add New Franchise", value: "__add_franchise__" },
     ];
   }, [franchisesList.data]);
+
+  const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const patients = (patientsList.data ?? []) as Patient[];
+    return patients.map((p) => ({
+      value: p.patientCode || p.id,
+      label: p.name,
+      secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
+      badge: p.phone,
+      extra: p,
+    }));
+  }, [patientsList.data]);
+
+  const testMasterNameOptions = useMemo<ComboboxOption[]>(() => {
+    const tests = testMastersQuery.data ?? [];
+    return tests.map((t) => ({
+      value: t.name,
+      label: t.name,
+      secondary: `Code: ${t.code} · Rate: ₹${t.rate} · MRP: ₹${t.mrp}`,
+      badge: t.department,
+      extra: t,
+    }));
+  }, [testMastersQuery.data]);
+
+  const testMasterCodeOptions = useMemo<ComboboxOption[]>(() => {
+    const tests = testMastersQuery.data ?? [];
+    return tests.map((t) => ({
+      value: t.code,
+      label: t.code,
+      secondary: t.name,
+      badge: `₹${t.mrp || t.rate}`,
+      extra: t,
+    }));
+  }, [testMastersQuery.data]);
 
   const sampleList = useSamples();
   const testList = useTests();
@@ -212,6 +256,13 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         header: isSample ? "Patient" : "Department",
         cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
       }),
+      ...(!isSample ? [
+        h.accessor((row: any) => `₹${row.price || 0}`, {
+          id: "price",
+          header: "Price / MRP",
+          cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
+        })
+      ] : []),
       ...(isAdmin
         ? [
             h.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
@@ -285,7 +336,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       <div className="space-y-6">
         <PageHeader 
           title={isSample ? "Samples" : "Tests Catalog"} 
-          description={isSample ? "Track specimen collection, receipt, and laboratory processing." : "Manage catalogued and assigned laboratory diagnostic tests."} 
+          description={isSample ? "Track specimen collection, receipt, and laboratory processing." : "Manage catalogued and assigned laboratory diagnostic tests from Master Database."} 
           action={
             <Link href={`/${kind}/new`}>
               <Button variant="primary" leftIcon={<Plus size={16} />}>New {isSample ? "sample" : "test"}</Button>
@@ -342,7 +393,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     const initialValues = isNew
       ? isSample
         ? { accession: "", barcode: "", patientId: "", sampleType: "", collectedAt: new Date().toISOString().slice(0, 16), priority: "", status: "", notes: "", franchiseId: "" }
-        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "", status: "", franchiseId: "" }
+        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "24", status: "Active", franchiseId: "" }
       : isSample
       ? {
           accession: rawRecord?.accession ?? "",
@@ -363,8 +414,8 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           price: rawRecord?.price ?? "",
           referenceRange: rawRecord?.referenceRange ?? "",
           unit: rawRecord?.unit ?? "",
-          turnaroundHours: rawRecord?.turnaroundHours ?? "",
-          status: rawRecord?.status ?? "",
+          turnaroundHours: rawRecord?.turnaroundHours ?? "24",
+          status: rawRecord?.status ?? "Active",
           franchiseId: rawRecord?.franchiseId ?? "",
         };
 
@@ -408,7 +459,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         const payload = {
           ...values,
           price: Number(values.price) || 0,
-          turnaroundHours: Number(values.turnaroundHours) || 4,
+          turnaroundHours: Number(values.turnaroundHours) || 24,
           franchiseId: values.franchiseId || undefined,
         };
         if (isNew) {
@@ -424,13 +475,27 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       <div className="space-y-6 max-w-4xl mx-auto">
         <PageHeader 
           title={isNew ? `New ${isSample ? "sample" : "test"}` : `Edit ${isSample ? "sample" : "test"}`} 
-          description="Complete the required fields below. All fields are validated before submission."
+          description={
+            !isSample 
+              ? "Select any test from the Master Database catalog. Details, codes, and rates auto-populate dynamically."
+              : "Complete the required fields below. Select registered patient to link diagnostic sample."
+          }
           action={
             <Link href={`/${kind}`}>
               <Button variant="ghost">← Back to {isSample ? "samples" : "tests"}</Button>
             </Link>
           }
         />
+
+        {!isSample && (
+          <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#176b87]/20 bg-[#e8f4f7]/60 p-3 text-xs text-[#176b87]">
+            <Sparkles size={16} className="shrink-0" />
+            <span>
+              <strong>Master Data Connected:</strong> Type test full name or code to autocomplete and auto-fetch official rates, MRP, and department from the database.
+            </span>
+          </div>
+        )}
+
         <Card>
           <Formik 
             initialValues={initialValues} 
@@ -441,11 +506,106 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             validateOnBlur={true}
             onSubmit={submit}
           >
-            {({ errors, touched, isSubmitting, setFieldValue }) => (
+            {({ errors, touched, values, isSubmitting, setFieldValue }) => (
               <Form className="space-y-6">
                 <Grid2>
                   {fields.map((field) => {
                     const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
+                    
+                    // 1. Patient selection for Sample Form (Searchable Autocomplete)
+                    if (isSample && field.name === "patientId") {
+                      return (
+                        <UIField 
+                          key={field.name} 
+                          label={field.label} 
+                          name={field.name} 
+                          required={field.required}
+                          hint={field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          <SearchableCombobox
+                            options={patientComboboxOptions}
+                            value={values.patientId}
+                            onChange={(val) => setFieldValue("patientId", val)}
+                            placeholder="Select registered patient (type name, code, phone)..."
+                            searchPlaceholder="Search by name, patient code, phone..."
+                            loading={patientsList.isLoading}
+                          />
+                        </UIField>
+                      );
+                    }
+
+                    // 2. Test Full Name selection from Master Database (Searchable Autocomplete)
+                    if (!isSample && field.name === "name") {
+                      return (
+                        <UIField 
+                          key={field.name} 
+                          label={field.label} 
+                          name={field.name} 
+                          required={field.required}
+                          hint={field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          <SearchableCombobox
+                            options={testMasterNameOptions}
+                            value={values.name}
+                            onChange={(val, opt) => {
+                              setFieldValue("name", val);
+                              if (opt?.extra) {
+                                const tm = opt.extra as TestMaster;
+                                setFieldValue("code", tm.code || "");
+                                setFieldValue("department", tm.department || "Biochemistry");
+                                setFieldValue("price", String(tm.mrp || tm.rate || 0));
+                                if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
+                                if (tm.unit) setFieldValue("unit", tm.unit);
+                                if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
+                              }
+                            }}
+                            placeholder="Search & select test name from database (e.g. Calcium, CBC, Bilirubin)..."
+                            searchPlaceholder="Type test name (e.g. Calcium, CBC, Blood Glucose)..."
+                            loading={testMastersQuery.isLoading}
+                          />
+                        </UIField>
+                      );
+                    }
+
+                    // 3. Test Code selection from Master Database (Searchable Autocomplete)
+                    if (!isSample && field.name === "code") {
+                      return (
+                        <UIField 
+                          key={field.name} 
+                          label={field.label} 
+                          name={field.name} 
+                          required={field.required}
+                          hint={field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          <SearchableCombobox
+                            options={testMasterCodeOptions}
+                            value={values.code}
+                            onChange={(val, opt) => {
+                              setFieldValue("code", val);
+                              if (opt?.extra) {
+                                const tm = opt.extra as TestMaster;
+                                setFieldValue("name", tm.name || "");
+                                setFieldValue("department", tm.department || "Biochemistry");
+                                setFieldValue("price", String(tm.mrp || tm.rate || 0));
+                                if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
+                                if (tm.unit) setFieldValue("unit", tm.unit);
+                                if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
+                              }
+                            }}
+                            placeholder="Search or enter test code (e.g. BC069, HM001)..."
+                            searchPlaceholder="Type code (e.g. HM001, BC001)..."
+                            loading={testMastersQuery.isLoading}
+                          />
+                        </UIField>
+                      );
+                    }
+
                     return (
                       <UIField 
                         key={field.name} 

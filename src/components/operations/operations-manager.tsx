@@ -4,12 +4,13 @@ import { Field, Form, Formik } from "formik";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Yup from "yup";
-import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle } from "lucide-react";
-import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
+import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle, Sparkles } from "lucide-react";
+import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Card, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
 import { useAppointment, useAppointments, useCreateAppointment, useCreateInvoice, useDeleteAppointment, useDeleteInvoice, useInvoice, useInvoices, useUpdateAppointment, useUpdateInvoice } from "@/features/operations/hooks";
+import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Appointment, Franchise, Invoice, UserRole } from "@/types/domain";
+import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
 interface FormFieldDef {
   name: string;
@@ -23,8 +24,8 @@ interface FormFieldDef {
 }
 
 const appointmentFields: readonly FormFieldDef[] = [
-  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "pat-01 or PT-10023", required: true, hint: "Enter registered patient code" },
-  { name: "doctorId", label: "Consulting Doctor", type: "text", placeholder: "doc-01 or Dr. Verma", required: true },
+  { name: "patientId", label: "Select Patient", type: "text", placeholder: "Search registered patient...", required: true, hint: "Search by patient name, code, phone" },
+  { name: "doctorId", label: "Consulting Doctor", type: "text", placeholder: "Select doctor...", required: true, hint: "Search consulting doctor" },
   { name: "date", label: "Appointment Date", type: "date", required: true },
   { name: "time", label: "Appointment Time", type: "time", required: true },
   {
@@ -60,15 +61,15 @@ const appointmentFields: readonly FormFieldDef[] = [
 
 const invoiceFields: readonly FormFieldDef[] = [
   { name: "billNumber", label: "Bill / Invoice Number", type: "text", placeholder: "INV-100452 (auto-generated if empty)" },
-  { name: "patientId", label: "Patient ID / Code", type: "text", placeholder: "pat-01 or PT-10023", required: true },
-  { name: "doctorId", label: "Referring Doctor", type: "text", placeholder: "doc-01 or Dr. Rajesh Verma", required: true },
   { name: "billDate", label: "Invoice Date", type: "date", required: true },
-  { name: "itemDescription", label: "Test / Item Description", type: "text", placeholder: "Complete Blood Count (CBC) + Lipid Profile", required: true, colSpan: 2 },
+  { name: "patientId", label: "Select Patient", type: "text", placeholder: "Search registered patient...", required: true, hint: "Patient details auto-fill on select" },
+  { name: "doctorId", label: "Referring Doctor", type: "text", placeholder: "Select doctor...", required: true },
+  { name: "itemDescription", label: "Diagnostic Test / Service (Master Database)", type: "text", placeholder: "Search test name from database...", required: true, hint: "Search test catalog to auto-populate rate and price", colSpan: 2 },
   { name: "itemQuantity", label: "Quantity", type: "number", placeholder: "1", required: true },
-  { name: "itemMrp", label: "Item Price (₹)", type: "number", placeholder: "850", required: true },
-  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "50" },
-  { name: "sgst", label: "SGST (₹)", type: "number", placeholder: "22.5" },
-  { name: "cgst", label: "CGST (₹)", type: "number", placeholder: "22.5" },
+  { name: "itemMrp", label: "Unit Rate / MRP (₹)", type: "number", placeholder: "850", required: true, hint: "Auto-filled from test master" },
+  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "0" },
+  { name: "sgst", label: "SGST (₹)", type: "number", placeholder: "0" },
+  { name: "cgst", label: "CGST (₹)", type: "number", placeholder: "0" },
   {
     name: "paymentStatus",
     label: "Payment Status",
@@ -86,8 +87,8 @@ const invoiceFields: readonly FormFieldDef[] = [
 ];
 
 const appointmentSchema = Yup.object({
-  patientId: Yup.string().trim().required("Patient ID is required (. pat-01)"),
-  doctorId: Yup.string().trim().required("Doctor identifier is required"),
+  patientId: Yup.string().trim().required("Patient selection is required"),
+  doctorId: Yup.string().trim().required("Doctor selection is required"),
   date: Yup.string().required("Appointment date is required"),
   time: Yup.string().required("Appointment time is required"),
   type: Yup.string().required("Please select an appointment type"),
@@ -98,7 +99,7 @@ const appointmentSchema = Yup.object({
 
 const invoiceSchema = Yup.object({
   billNumber: Yup.string().trim(),
-  patientId: Yup.string().trim().required("Patient ID is required (. pat-01)"),
+  patientId: Yup.string().trim().required("Patient selection is required"),
   doctorId: Yup.string().trim().required("Referring doctor is required"),
   billDate: Yup.string().required("Invoice date is required"),
   itemDescription: Yup.string().trim().required("Test or item description is required"),
@@ -124,6 +125,9 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const franchisesList = useEntityList<Franchise>("franchises");
+  const patientsList = useEntityList<Patient>("patients");
+  const doctorsList = useEntityList<Doctor>("doctors");
+  const testMastersQuery = useTestMasters("", undefined, 500);
 
   const franchiseOptions = useMemo(() => {
     const franchises = (franchisesList.data ?? []) as Franchise[];
@@ -136,6 +140,39 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
       { label: "+ Other / Add New Franchise", value: "__add_franchise__" },
     ];
   }, [franchisesList.data]);
+
+  const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const patients = (patientsList.data ?? []) as Patient[];
+    return patients.map((p) => ({
+      value: p.patientCode || p.id,
+      label: p.name,
+      secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
+      badge: p.phone,
+      extra: p,
+    }));
+  }, [patientsList.data]);
+
+  const doctorComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const doctors = (doctorsList.data ?? []) as Doctor[];
+    return doctors.map((d) => ({
+      value: d.name,
+      label: d.name,
+      secondary: d.specialty || "Practitioner",
+      badge: d.phone,
+      extra: d,
+    }));
+  }, [doctorsList.data]);
+
+  const testMasterComboboxOptions = useMemo<ComboboxOption[]>(() => {
+    const tests = testMastersQuery.data ?? [];
+    return tests.map((t) => ({
+      value: t.name,
+      label: t.name,
+      secondary: `Code: ${t.code} · Rate: ₹${t.rate} · MRP: ₹${t.mrp}`,
+      badge: `₹${t.mrp || t.rate}`,
+      extra: t,
+    }));
+  }, [testMastersQuery.data]);
 
   const appointments = useAppointments();
   const invoices = useInvoices();
@@ -276,8 +313,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     const rawRecord = (isAppointment ? appointment.data : invoice.data) as Record<string, any> | undefined;
     const initialValues = isNew
       ? isAppointment
-        ? { patientId: "", doctorId: "", date: "", time: "", type: "", status: "", appointmentLink: "", createdBy: "", franchiseId: "" }
-        : { billNumber: "", patientId: "", doctorId: "", billDate: "", itemDescription: "", itemQuantity: 1, itemMrp: "", discount: 0, sgst: 0, cgst: 0, paymentStatus: "", addedBy: "", franchiseId: "" }
+        ? { patientId: "", doctorId: "", date: new Date().toISOString().slice(0, 10), time: "10:00", type: "Consultation", status: "Upcoming", appointmentLink: "", createdBy: "Reception Desk", franchiseId: "" }
+        : { billNumber: "", patientId: "", doctorId: "", billDate: new Date().toISOString().slice(0, 10), itemDescription: "", itemQuantity: 1, itemMrp: "", discount: 0, sgst: 0, cgst: 0, paymentStatus: "Paid", addedBy: "Finance Desk", franchiseId: "" }
       : isAppointment
       ? {
           patientId: rawRecord?.patientId ?? "",
@@ -301,7 +338,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           discount: rawRecord?.discount ?? 0,
           sgst: rawRecord?.sgst ?? 0,
           cgst: rawRecord?.cgst ?? 0,
-          paymentStatus: rawRecord?.paymentStatus ?? "",
+          paymentStatus: rawRecord?.paymentStatus ?? "Paid",
           addedBy: rawRecord?.addedBy ?? "",
           franchiseId: rawRecord?.franchiseId ?? "",
         };
@@ -378,13 +415,27 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
       <div className="space-y-6 max-w-4xl mx-auto">
         <PageHeader 
           title={isNew ? `New ${isAppointment ? "appointment" : "invoice"}` : `Edit ${isAppointment ? "appointment" : "invoice"}`} 
-          description="Complete all required information below. Validation is performed before saving."
+          description={
+            !isAppointment
+              ? "Generate patient diagnostic invoice. Select patient & tests to auto-populate charges from Test Master database."
+              : "Coordinate patient clinical consultation and laboratory visits."
+          }
           action={
             <Link href={`/${kind}`}>
               <Button variant="ghost">← Back to {isAppointment ? "appointments" : "billing"}</Button>
             </Link>
           }
         />
+
+        {!isAppointment && (
+          <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#176b87]/20 bg-[#e8f4f7]/60 p-3 text-xs text-[#176b87]">
+            <Sparkles size={16} className="shrink-0" />
+            <span>
+              <strong>Dynamic Master Billing:</strong> Select registered patient and tests from the database. Rates and totals calculate automatically.
+            </span>
+          </div>
+        )}
+
         <Card>
           <Formik 
             initialValues={initialValues} 
@@ -395,72 +446,199 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             validateOnBlur={true}
             onSubmit={submit}
           >
-            {({ errors, touched, isSubmitting, setFieldValue }) => (
-              <Form className="space-y-6">
-                <Grid2>
-                  {fields.map((field) => {
-                    const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
-                    return (
-                      <UIField 
-                        key={field.name} 
-                        label={field.label} 
-                        name={field.name} 
-                        required={field.required}
-                        hint={field.hint}
-                        className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                        error={errorMsg}
-                      >
-                        {field.type === "select" ? (
-                          <Field 
+            {({ errors, touched, values, isSubmitting, setFieldValue }) => {
+              // Calculate live total preview
+              const qty = Number(values.itemQuantity) || 1;
+              const mrp = Number(values.itemMrp) || 0;
+              const disc = Number(values.discount) || 0;
+              const sgstVal = Number(values.sgst) || 0;
+              const cgstVal = Number(values.cgst) || 0;
+              const liveSubtotal = qty * mrp;
+              const liveGrandTotal = Math.max(0, liveSubtotal - disc + sgstVal + cgstVal);
+
+              return (
+                <Form className="space-y-6">
+                  <Grid2>
+                    {fields.map((field) => {
+                      const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
+
+                      // 1. Patient selection (Searchable Combobox)
+                      if (field.name === "patientId") {
+                        return (
+                          <UIField 
+                            key={field.name} 
+                            label={field.label} 
                             name={field.name} 
-                            as={Select}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                              const selected = e.target.value;
-                              if (field.name === "franchiseId" && selected === "__add_franchise__") {
-                                router.push("/franchises/new");
-                                return;
-                              }
-                              setFieldValue(field.name, selected);
-                            }}
+                            required={field.required}
+                            hint={field.hint}
+                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            error={errorMsg}
                           >
-                            {field.options?.map((opt) => (
-                              <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </Field>
-                        ) : (
-                          <Field 
+                            <SearchableCombobox
+                              options={patientComboboxOptions}
+                              value={values.patientId}
+                              onChange={(val, opt) => {
+                                setFieldValue("patientId", val);
+                                if (opt?.extra?.referringDoctorId) {
+                                  const doc = (doctorsList.data ?? []).find(d => d.id === opt.extra.referringDoctorId);
+                                  if (doc) setFieldValue("doctorId", doc.name);
+                                }
+                              }}
+                              placeholder="Select registered patient (type name, code, phone)..."
+                              searchPlaceholder="Search by name, patient code, phone..."
+                              loading={patientsList.isLoading}
+                            />
+                          </UIField>
+                        );
+                      }
+
+                      // 2. Doctor selection (Searchable Combobox)
+                      if (field.name === "doctorId") {
+                        return (
+                          <UIField 
+                            key={field.name} 
+                            label={field.label} 
                             name={field.name} 
-                            type={field.type} 
-                            as={Input} 
-                            placeholder={field.placeholder} 
-                          />
-                        )}
-                      </UIField>
-                    );
-                  })}
-                </Grid2>
-                <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
-                  <Button type="submit" variant="primary" loading={isSubmitting || createAppointment.isPending || createInvoice.isPending || updateAppointment.isPending || updateInvoice.isPending}>
-                    Save {isAppointment ? "Appointment" : "Invoice"}
-                  </Button>
-                  <Link href={`/${kind}`}>
-                    <Button type="button" variant="ghost">Cancel</Button>
-                  </Link>
-                  {!isNew && isAdmin && (
-                    <Button 
-                      type="button" 
-                      variant="danger-outline" 
-                      className="ml-auto"
-                      onClick={() => setConfirmDeleteId(id)}
-                    >
-                      Delete {isAppointment ? "Appointment" : "Invoice"}
-                    </Button>
+                            required={field.required}
+                            hint={field.hint}
+                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            error={errorMsg}
+                          >
+                            <SearchableCombobox
+                              options={doctorComboboxOptions}
+                              value={values.doctorId}
+                              onChange={(val) => setFieldValue("doctorId", val)}
+                              placeholder="Select consulting doctor..."
+                              searchPlaceholder="Search doctor by name, specialty..."
+                              loading={doctorsList.isLoading}
+                            />
+                          </UIField>
+                        );
+                      }
+
+                      // 3. Test Master item description for Invoice (Searchable Combobox)
+                      if (!isAppointment && field.name === "itemDescription") {
+                        return (
+                          <UIField 
+                            key={field.name} 
+                            label={field.label} 
+                            name={field.name} 
+                            required={field.required}
+                            hint={field.hint}
+                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            error={errorMsg}
+                          >
+                            <SearchableCombobox
+                              options={testMasterComboboxOptions}
+                              value={values.itemDescription}
+                              onChange={(val, opt) => {
+                                setFieldValue("itemDescription", val);
+                                if (opt?.extra) {
+                                  const tm = opt.extra as TestMaster;
+                                  const unitPrice = tm.mrp || tm.rate || 0;
+                                  setFieldValue("itemMrp", String(unitPrice));
+                                  // Optional auto tax (e.g. 5% GST split if applicable)
+                                  const gstHalf = Number((unitPrice * 0.025).toFixed(2));
+                                  setFieldValue("sgst", gstHalf);
+                                  setFieldValue("cgst", gstHalf);
+                                }
+                              }}
+                              placeholder="Search diagnostic test from Master Database (e.g. CBC, Lipid, Calcium)..."
+                              searchPlaceholder="Type test name or code..."
+                              loading={testMastersQuery.isLoading}
+                            />
+                          </UIField>
+                        );
+                      }
+
+                      return (
+                        <UIField 
+                          key={field.name} 
+                          label={field.label} 
+                          name={field.name} 
+                          required={field.required}
+                          hint={field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          {field.type === "select" ? (
+                            <Field 
+                              name={field.name} 
+                              as={Select}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                const selected = e.target.value;
+                                if (field.name === "franchiseId" && selected === "__add_franchise__") {
+                                  router.push("/franchises/new");
+                                  return;
+                                }
+                                setFieldValue(field.name, selected);
+                              }}
+                            >
+                              {field.options?.map((opt) => (
+                                <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </Field>
+                          ) : (
+                            <Field 
+                              name={field.name} 
+                              type={field.type} 
+                              as={Input} 
+                              placeholder={field.placeholder} 
+                            />
+                          )}
+                        </UIField>
+                      );
+                    })}
+                  </Grid2>
+
+                  {/* Dynamic invoice calculation summary card */}
+                  {!isAppointment && (
+                    <div className="rounded-[var(--radius)] border border-[color:var(--line)] bg-[color:var(--surface-2)] p-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[color:var(--muted)] mb-3">Live Calculation Summary</h4>
+                      <div className="grid sm:grid-cols-4 gap-4 text-xs">
+                        <div>
+                          <span className="text-[color:var(--muted)]">Subtotal (Qty × Rate)</span>
+                          <p className="text-base font-bold text-[color:var(--foreground)] mt-0.5">₹{liveSubtotal.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[color:var(--muted)]">Discount</span>
+                          <p className="text-base font-bold text-amber-600 mt-0.5">-₹{disc.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[color:var(--muted)]">Taxes (SGST + CGST)</span>
+                          <p className="text-base font-bold text-[color:var(--foreground)] mt-0.5">+₹{(sgstVal + cgstVal).toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <span className="text-[color:var(--muted)]">Grand Total</span>
+                          <p className="text-lg font-black text-[#176b87] mt-0.5">₹{liveGrandTotal.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </div>
-              </Form>
-            )}
+
+                  <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+                    <Button type="submit" variant="primary" loading={isSubmitting || createAppointment.isPending || createInvoice.isPending || updateAppointment.isPending || updateInvoice.isPending}>
+                      Save {isAppointment ? "Appointment" : "Invoice"}
+                    </Button>
+                    <Link href={`/${kind}`}>
+                      <Button type="button" variant="ghost">Cancel</Button>
+                    </Link>
+                    {!isNew && isAdmin && (
+                      <Button 
+                        type="button" 
+                        variant="danger-outline" 
+                        className="ml-auto"
+                        onClick={() => setConfirmDeleteId(id)}
+                      >
+                        Delete {isAppointment ? "Appointment" : "Invoice"}
+                      </Button>
+                    )}
+                  </div>
+                </Form>
+              );
+            }}
           </Formik>
         </Card>
       </div>

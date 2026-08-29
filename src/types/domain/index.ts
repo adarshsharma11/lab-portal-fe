@@ -110,12 +110,30 @@ export interface Test {
   name: string;
   department: string;
   sampleId?: string;
+  franchiseId?: string;
   sampleType?: string;
   price?: number;
   referenceRange?: string;
   unit?: string;
   turnaroundHours: number;
   status?: "Active" | "Inactive";
+}
+
+export interface TestMaster {
+  id: string;
+  itemId?: string;
+  code: string;
+  name: string;
+  department: string;
+  rate: number;
+  mrp: number;
+  sampleType?: string;
+  referenceRange?: string;
+  unit?: string;
+  turnaroundHours: number;
+  status: "Active" | "Inactive";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Result {

@@ -463,3 +463,7 @@ export function Breadcrumb({ items }: Readonly<{ items: readonly Readonly<{ labe
     </nav>
   );
 }
+
+export { SearchableCombobox } from "./searchable-combobox";
+export type { ComboboxOption } from "./searchable-combobox";
+
