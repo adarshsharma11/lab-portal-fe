@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+"use client";
+import { useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { BadgeTone } from "@/types/domain";
@@ -356,12 +357,15 @@ export function Tag({ children, tone = "neutral" }: Readonly<{ children: ReactNo
 }
 
 export function Avatar({ initials, size = "md", src }: Readonly<{ initials: string; size?: "xs" | "sm" | "md" | "lg" | "xl"; src?: string }>) {
+  const [imageError, setImageError] = useState(false);
   const sizes = { xs: "size-7 text-[10px]", sm: "size-8 text-[11px]", md: "size-9 text-xs", lg: "size-11 text-sm", xl: "size-14 text-base" } as const;
-  if (src) return <img src={src} alt="" className={cn("rounded-full object-cover", sizes[size])} />;
+  if (src && !imageError) {
+    return <img src={src} alt="" onError={() => setImageError(true)} className={cn("rounded-full object-cover shrink-0", sizes[size])} />;
+  }
   return (
-    <div className={cn("grid place-items-center rounded-full font-semibold", sizes[size],
+    <div className={cn("grid place-items-center rounded-full font-semibold shrink-0 select-none", sizes[size],
       "bg-[color:var(--brand-100)] text-[color:var(--brand-600)]")}>
-      {initials}
+      {initials || "U"}
     </div>
   );
 }

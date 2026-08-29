@@ -65,6 +65,16 @@ export const authService = {
     }
   },
 
+  updateSession(updatedUser: Partial<User>): User | null {
+    if (typeof window === "undefined") return null;
+    const current = this.getSession();
+    if (!current) return null;
+    const merged = { ...current, ...updatedUser };
+    localStorage.setItem(sessionKey, JSON.stringify(merged));
+    window.dispatchEvent(new CustomEvent("auth-session-update", { detail: merged }));
+    return merged;
+  },
+
   getToken(): string | null {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(tokenKey);

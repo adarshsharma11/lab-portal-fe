@@ -1,12 +1,14 @@
 "use client";
+import React, { useMemo, useRef, useState } from "react";
 import { Field, Form, Formik } from "formik";
 import * as Yup from "yup";
-import { useMemo } from "react";
 import {
-  Camera, CheckCircle2, ClipboardList, FileCheck2, Mail, MapPin, Phone, Shield, User as UserIcon, CalendarDays
+  Camera, CheckCircle2, ClipboardList, FileCheck2, Mail, MapPin, Phone, Shield, 
+  User as UserIcon, CalendarDays, Loader2, Trash2, Upload, AlertCircle, Sparkles
 } from "lucide-react";
 import { Avatar, Button, Card, Divider, Field as UIField, FormSection, Grid2, Grid3, Input, KPICard, PageHeader, Select, StatusBadge, Tag, cn } from "@/components/ui";
 import { useProfile, useUpdateProfile } from "@/features/settings/hooks";
+import { authService } from "@/lib/auth/auth-service";
 import type { UserRole } from "@/types/domain";
 
 const profileSchema = Yup.object({
@@ -19,12 +21,13 @@ const profileSchema = Yup.object({
 });
 
 const roleInfo: Record<UserRole | string, { description: string; tone: "info" | "success" | "warning" | "danger" | "neutral" }> = {
-  Admin: { description: "Full access to all laboratory modules and administration.", tone: "info" },
-  Administrator: { description: "Full access to all laboratory modules and administration.", tone: "info" },
-  Pathologist: { description: "Results, validation, reports, and quality control.", tone: "success" },
-  Technician: { description: "Patients, samples, tests, and daily result entry.", tone: "warning" },
-  Receptionist: { description: "Patient registration, appointments, and billing.", tone: "neutral" },
-  Doctor: { description: "Patients and released reports for reference.", tone: "info" },
+  Admin: { description: "Full access to all laboratory modules, franchises, and administration.", tone: "info" },
+  Administrator: { description: "Full access to all laboratory modules, franchises, and administration.", tone: "info" },
+  Franchise: { description: "Manage franchise branch patients, tests, bookings, and revenue share.", tone: "info" },
+  Pathologist: { description: "Results interpretation, diagnostic validation, and report release.", tone: "success" },
+  Technician: { description: "Patients, sample collections, analyzer runs, and result entry.", tone: "warning" },
+  Receptionist: { description: "Patient registration, appointments, and diagnostic billing.", tone: "neutral" },
+  Doctor: { description: "Referring practitioner patients and authorized report reviews.", tone: "info" },
 };
 
 const permissions = [
@@ -42,18 +45,23 @@ const permissions = [
 export function ProfilePage() {
   const profile = useProfile();
   const update = useUpdateProfile();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const granted = useMemo(() => {
     const role = profile.data?.role === "Administrator" ? "Admin" : profile.data?.role;
     if (role === "Admin") return new Set(permissions.map((p) => p.key));
     const perms = new Set<string>(["patients:read"]);
-    if (role === "Technician" || role === "Pathologist") {
+    if (role === "Technician" || role === "Pathologist" || role === "Franchise") {
       perms.add("patients:write").add("samples:write").add("results:write");
     }
     if (role === "Pathologist") {
       perms.add("reports:approve").add("qc:manage");
     }
-    if (role === "Receptionist") {
+    if (role === "Receptionist" || role === "Franchise") {
       perms.add("patients:write").add("billing:manage");
     }
     return perms;
@@ -61,18 +69,125 @@ export function ProfilePage() {
 
   const info = profile.data?.role ? roleInfo[profile.data.role] ?? roleInfo["Technician"] : undefined;
 
+  /**
+   * Client-side Image compression & upload handler
+   * Resizes image to optimal profile dimensions (400x400) and saves as base64
+   */
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please select a valid image file (JPEG, PNG, WEBP).");
+      return;
+    }
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image size must be less than 5MB.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setUploadError(null);
+    setSuccessMessage(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = async () => {
+          // Resize & crop to square canvas for sharp, lightweight storage
+          const canvas = document.createElement("canvas");
+          const size = 400;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            throw new Error("Unable to initialize image processor.");
+          }
+
+          // Center crop calculation
+          const minDim = Math.min(img.width, img.height);
+          const sx = (img.width - minDim) / 2;
+          const sy = (img.height - minDim) / 2;
+
+          ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+          const base64Data = canvas.toDataURL("image/jpeg", 0.9);
+
+          // Save to backend database for logged-in user
+          await update.mutateAsync({ avatar: base64Data });
+          authService.updateSession({ avatar: base64Data });
+
+          setSuccessMessage("Profile photo updated successfully!");
+          setIsUploadingImage(false);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        };
+        img.onerror = () => {
+          setUploadError("Failed to process image file.");
+          setIsUploadingImage(false);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => {
+        setUploadError("Failed to read image file.");
+        setIsUploadingImage(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to update profile image.");
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!confirm("Are you sure you want to remove your profile photo?")) return;
+    setIsUploadingImage(true);
+    setUploadError(null);
+    try {
+      await update.mutateAsync({ avatar: "" });
+      authService.updateSession({ avatar: undefined });
+      setSuccessMessage("Profile photo removed.");
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to remove profile photo.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <PageHeader
-        eyebrow="Account"
+        eyebrow="Account Settings"
         title="My Profile"
-        description="Manage your account information, preferences, and role-based permissions. Password and security settings are managed separately via your administrator."
+        description="Manage your personal profile, credentials, profile photo, and role-based permissions."
       />
+
+      {uploadError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 flex items-center gap-3">
+          <AlertCircle size={16} className="shrink-0 text-rose-600" />
+          <span>{uploadError}</span>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+            <span>{successMessage}</span>
+          </div>
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-700 hover:text-emerald-900 font-bold text-xs">
+            ✕
+          </button>
+        </div>
+      )}
 
       {profile.data && (
         <>
-          <Card padding={false} className="overflow-hidden">
-            <div className="relative h-32 bg-gradient-to-r from-[color:var(--brand-600)] via-[color:var(--brand-500)] to-[#60a5fa]">
+          <Card padding={false} className="overflow-hidden shadow-sm">
+            <div className="relative h-32 bg-gradient-to-r from-[#176b87] via-[#0284c7] to-[#38bdf8]">
               <div className="absolute inset-0 opacity-20" style={{
                 backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 30%, white 1px, transparent 1px)",
                 backgroundSize: "32px 32px"
@@ -81,77 +196,146 @@ export function ProfilePage() {
             <div className="px-6 pb-6">
               <div className="-mt-14 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex flex-col items-center sm:flex-row sm:items-end gap-4">
-                  <div className="relative">
-                    <div className="rounded-full border-4 border-[color:var(--surface)] bg-[color:var(--surface)] shadow-[var(--shadow)] p-0.5">
+                  {/* Avatar Upload Container */}
+                  <div className="relative group">
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="cursor-pointer rounded-full border-4 border-[color:var(--surface)] bg-[color:var(--surface)] shadow-md p-0.5 hover:ring-2 hover:ring-[#176b87] transition-all relative overflow-hidden"
+                      title="Click to change profile picture"
+                    >
                       <Avatar initials={profile.data.initials} size="xl" src={profile.data.avatar} />
+                      {isUploadingImage && (
+                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center rounded-full">
+                          <Loader2 size={22} className="animate-spin text-white" />
+                        </div>
+                      )}
                     </div>
-                    <button type="button" className="absolute bottom-1 right-1 inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-[color:var(--surface)] bg-[color:var(--brand-600)] text-white shadow-[var(--shadow)]" title="Change avatar">
-                      <Camera size={13} />
+
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      className="absolute bottom-1 right-1 inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-[color:var(--surface)] bg-[#176b87] text-white shadow-md hover:bg-[#13586f] transition-all" 
+                      title="Upload new profile image"
+                    >
+                      <Camera size={14} />
                     </button>
+
+                    {/* Hidden Native File Input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg, image/webp"
+                      className="hidden"
+                      onChange={handleImageFileChange}
+                    />
                   </div>
+
                   <div className="text-center sm:text-left">
-                    <p className="text-xl font-bold">{profile.data.name}</p>
-                    <p className="text-sm text-[color:var(--muted)]">{profile.data.email}</p>
-                    <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                      <StatusBadge tone={info?.tone ?? "info"} size="md">{profile.data.role === "Administrator" ? "Admin" : profile.data.role}</StatusBadge>
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                      <p className="text-xl font-bold text-[color:var(--foreground)]">{profile.data.name}</p>
+                    </div>
+                    <p className="text-xs text-[color:var(--muted)] mt-0.5">{profile.data.email}</p>
+                    <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <StatusBadge tone={info?.tone ?? "info"} size="md">
+                        {profile.data.role === "Administrator" ? "Admin" : profile.data.role}
+                      </StatusBadge>
                       {profile.data.active !== false ? (
-                        <Tag tone="success">Active account</Tag>
+                        <Tag tone="success">Active Account</Tag>
                       ) : (
-                        <Tag tone="warning">Account disabled</Tag>
+                        <Tag tone="warning">Account Inactive</Tag>
                       )}
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 justify-center sm:justify-end">
-                  <Button variant="outline" leftIcon={<Shield size={15} />}>Security</Button>
-                  <Button variant="primary" leftIcon={<FileCheck2 size={15} />} onClick={() => update.mutate({ ...profile.data! })}>Sync</Button>
+
+                <div className="flex items-center gap-2 justify-center sm:justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    leftIcon={<Upload size={14} />}
+                    onClick={() => fileInputRef.current?.click()}
+                    loading={isUploadingImage}
+                  >
+                    Change Photo
+                  </Button>
+                  {profile.data.avatar && (
+                    <Button 
+                      variant="danger-outline" 
+                      size="sm"
+                      leftIcon={<Trash2 size={14} />}
+                      onClick={handleRemovePhoto}
+                      loading={isUploadingImage}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                  <Button 
+                    variant="primary" 
+                    size="sm"
+                    leftIcon={<FileCheck2 size={14} />} 
+                    onClick={() => update.mutate({ ...profile.data! })}
+                    loading={update.isPending}
+                  >
+                    Sync Profile
+                  </Button>
                 </div>
               </div>
             </div>
           </Card>
 
           <Grid3>
-            <KPICard label="Reports Approved" value={312} icon={FileCheck2} iconTone="success" supportingText="Last 30 days" />
-            <KPICard label="Samples Processed" value={846} icon={ClipboardList} iconTone="info" supportingText="Month to date" />
-            <KPICard label="Role Permissions" value={granted.size} icon={Shield} iconTone="warning" supportingText={`of ${permissions.length} total`} />
+            <KPICard label="Reports Authorized" value={312} icon={FileCheck2} iconTone="success" supportingText="Certified diagnostic records" />
+            <KPICard label="Specimens Processed" value={846} icon={ClipboardList} iconTone="info" supportingText="Clinical test workload" />
+            <KPICard label="Granted Privileges" value={granted.size} icon={Shield} iconTone="warning" supportingText={`of ${permissions.length} security permissions`} />
           </Grid3>
 
           <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
             <div className="space-y-5">
-              <FormSection title="Personal Information" description="This information is displayed on reports, audit logs, and internal communications.">
-                <Formik initialValues={{ ...profile.data }} validationSchema={profileSchema} enableReinitialize onSubmit={(values) => update.mutate(values)}>
-                  {({ errors, touched }) => (
+              <FormSection title="Personal Information" description="Update your full name, contact mobile, gender, and laboratory workstation.">
+                <Formik 
+                  initialValues={{ ...profile.data }} 
+                  validationSchema={profileSchema} 
+                  enableReinitialize 
+                  onSubmit={async (values) => {
+                    await update.mutateAsync(values);
+                    setSuccessMessage("Profile details updated successfully.");
+                  }}
+                >
+                  {({ errors, touched, isSubmitting }) => (
                     <Form className="space-y-5">
                       <Grid2>
-                        <UIField label="Full Name" name="name" required error={touched.name ? errors.name as string : undefined}>
+                        <UIField label="Full Name" name="name" required error={touched.name ? (errors.name as string) : undefined}>
                           <Field name="name" as={Input} />
                         </UIField>
-                        <UIField label="Email" name="email" required error={touched.email ? errors.email as string : undefined}>
+                        <UIField label="Email Address" name="email" required error={touched.email ? (errors.email as string) : undefined}>
                           <Field name="email" type="email" as={Input} />
                         </UIField>
-                        <UIField label="Mobile" name="mobile" hint="For shift alerts and critical result SMS">
+                        <UIField label="Mobile Number" name="mobile" hint="For urgent critical alerts and notifications">
                           <Field name="mobile" as={Input} placeholder="+91 98000 00000" />
                         </UIField>
                         <UIField label="Gender" name="gender">
                           <Field name="gender" as={Select}>
-                            <option value="">Prefer not to say</option>
-                            <option>Male</option><option>Female</option><option>Other</option>
+                            <option value="">Select gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
                           </Field>
                         </UIField>
                         <UIField label="Date of Birth" name="dateOfBirth">
                           <Field name="dateOfBirth" type="date" as={Input} />
                         </UIField>
-                        <UIField label="Location / Workstation" name="location" hint="Primary department or workstation">
-                          <Field name="location" as={Input} placeholder="Central Processing / Hematology" />
+                        <UIField label="Location / Workstation" name="location" hint="Primary department or franchise branch">
+                          <Field name="location" as={Input} placeholder="Central Laboratory / Hematology Wing" />
                         </UIField>
                       </Grid2>
                       <Divider />
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-[color:var(--muted)] inline-flex items-center gap-1.5">
-                          <CheckCircle2 size={14} className="text-[color:var(--success)]" />
-                          Changes are saved locally and synced to your workspace session.
+                          <CheckCircle2 size={14} className="text-emerald-600" />
+                          Changes sync instantly across your active session.
                         </p>
-                        <Button type="submit" variant="primary" loading={update.isPending} leftIcon={<UserIcon size={15} />}>
+                        <Button type="submit" variant="primary" loading={isSubmitting || update.isPending} leftIcon={<UserIcon size={15} />}>
                           Save Profile
                         </Button>
                       </div>
@@ -162,64 +346,45 @@ export function ProfilePage() {
             </div>
 
             <div className="space-y-5">
-              <Card>
-                <h3 className="mb-4 text-sm font-semibold">Role & Permissions</h3>
-                <div className="rounded-xl bg-[color:var(--brand-50)] border border-[color:var(--brand-100)] p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[color:var(--brand-600)] text-white"><Shield size={18} /></div>
-                    <div>
-                      <p className="font-semibold">{profile.data.role === "Administrator" ? "Admin" : profile.data.role}</p>
-                      <p className="mt-1 text-xs text-[color:var(--muted)] leading-relaxed">{info?.description}</p>
-                    </div>
+              <FormSection title="Account & Security" description="System role, privileges, and assigned permissions.">
+                <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 space-y-4 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[color:var(--muted)]">Assigned System Role</span>
+                    <span className="font-bold text-[color:var(--foreground)]">{profile.data.role === "Administrator" ? "Admin" : profile.data.role}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[color:var(--line)] pt-3">
+                    <span className="text-[color:var(--muted)]">Role Scope</span>
+                    <span className="font-medium text-slate-700">{info?.description}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[color:var(--line)] pt-3">
+                    <span className="text-[color:var(--muted)]">Account Status</span>
+                    <span className="font-semibold text-emerald-700">Verified & Active</span>
                   </div>
                 </div>
-                <Divider className="my-4" />
-                <ul className="space-y-2.5">
-                  {permissions.map((p) => {
-                    const on = granted.has(p.key);
-                    return (
-                      <li key={p.key} className={cn("flex items-center justify-between rounded-lg px-3 py-2.5 text-xs", on ? "bg-[color:var(--success-bg)]" : "bg-[color:var(--surface-2)] opacity-70")}>
-                        <span className={cn("font-medium", on ? "text-[color:var(--foreground)]" : "text-[color:var(--muted)]")}>{p.label}</span>
-                        {on ? <Tag tone="success">Granted</Tag> : <Tag tone="neutral">Denied</Tag>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Card>
 
-              <Card>
-                <h3 className="mb-4 text-sm font-semibold">Contact</h3>
-                <ul className="space-y-3 text-xs">
-                  <li className="flex items-center gap-3">
-                    <span className="grid size-8 place-items-center rounded-lg bg-[color:var(--surface-2)] text-[color:var(--brand-600)]"><Mail size={15} /></span>
-                    <div>
-                      <p className="text-[color:var(--muted)]">Email</p>
-                      <p className="font-semibold text-[color:var(--foreground)]">{profile.data.email}</p>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <span className="grid size-8 place-items-center rounded-lg bg-[color:var(--surface-2)] text-[color:var(--brand-600)]"><Phone size={15} /></span>
-                    <div>
-                      <p className="text-[color:var(--muted)]">Mobile</p>
-                      <p className="font-semibold text-[color:var(--foreground)]">{profile.data.mobile ?? "Not provided"}</p>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <span className="grid size-8 place-items-center rounded-lg bg-[color:var(--surface-2)] text-[color:var(--brand-600)]"><MapPin size={15} /></span>
-                    <div>
-                      <p className="text-[color:var(--muted)]">Location</p>
-                      <p className="font-semibold text-[color:var(--foreground)]">{profile.data.location ?? "Not assigned"}</p>
-                    </div>
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <span className="grid size-8 place-items-center rounded-lg bg-[color:var(--surface-2)] text-[color:var(--brand-600)]"><CalendarDays size={15} /></span>
-                    <div>
-                      <p className="text-[color:var(--muted)]">Date of Birth</p>
-                      <p className="font-semibold text-[color:var(--foreground)]">{profile.data.dateOfBirth ?? "Not provided"}</p>
-                    </div>
-                  </li>
-                </ul>
-              </Card>
+                <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[color:var(--muted)]">Active Module Permissions</h4>
+                  <div className="space-y-2">
+                    {permissions.map((p) => {
+                      const hasPerm = granted.has(p.key);
+                      return (
+                        <div key={p.key} className="flex items-center justify-between text-xs py-1">
+                          <span className={cn(hasPerm ? "text-[color:var(--foreground)] font-medium" : "text-[color:var(--muted)]")}>
+                            {p.label}
+                          </span>
+                          {hasPerm ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                              <CheckCircle2 size={12} /> Allowed
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[color:var(--muted)]">Restricted</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </FormSection>
             </div>
           </div>
         </>

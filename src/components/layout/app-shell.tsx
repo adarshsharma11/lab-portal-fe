@@ -15,15 +15,26 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dark, setDark] = useState(false);
-  const [session, setSession] = useState<{ name: string; initials: string; role?: UserRole } | null>(null);
+  const [session, setSession] = useState<{ name: string; initials: string; role?: UserRole; avatar?: string } | null>(null);
 
   useEffect(() => {
-    const s = authService.getSession();
-    if (!s) {
-      router.replace("/login");
-      return;
-    }
-    setSession({ name: s.name, initials: s.initials, role: (s.role as UserRole) ?? "Admin" });
+    const syncSession = () => {
+      const s = authService.getSession();
+      if (!s) {
+        router.replace("/login");
+        return;
+      }
+      setSession({
+        name: s.name,
+        initials: s.initials,
+        role: (s.role as UserRole) ?? "Admin",
+        avatar: s.avatar,
+      });
+    };
+
+    syncSession();
+    window.addEventListener("auth-session-update", syncSession);
+    return () => window.removeEventListener("auth-session-update", syncSession);
   }, [router]);
 
   useEffect(() => {
@@ -62,6 +73,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           role={session.role}
           userInitials={session.initials}
           userName={session.name}
+          userAvatar={session.avatar}
           collapsed={collapsed}
         />
 
@@ -74,6 +86,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             userName={session.name}
             userRole={session.role}
             userInitials={session.initials}
+            userAvatar={session.avatar}
             collapsed={collapsed}
           />
           <main className="px-4 py-6 lg:px-8 lg:py-8 no-print-children">

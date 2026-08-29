@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { 
   AlertTriangle, Award, CheckCircle2, ChevronRight, Clock, Download, 
   Edit3, Eye, FileText, FlaskConical, Mail, MessageCircle, Microscope, 
-  Plus, Printer, QrCode, Share2, ShieldCheck, Trash2, ArrowLeft 
+  Plus, Printer, QrCode, Share2, ShieldCheck, Trash2, ArrowLeft, Loader2
 } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
@@ -31,7 +31,7 @@ const templateSchema = Yup.object({
   name: Yup.string().trim().required("Template name is required (. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
   department: Yup.string().required("Please select a laboratory department"),
   tests: Yup.string().trim().required("Included test codes are required (. CBC, ESR, Hemoglobin)"),
-  header: Yup.string().trim().required("Report header title is required (. BLDignostics Clinical Laboratory)"),
+  header: Yup.string().trim().required("Report header title is required (. BL Dignostic Clinical Laboratory)"),
   footer: Yup.string().trim().required("Report footer disclaimer is required"),
   signatory: Yup.string().trim().required("Signatory pathologist name is required (. Dr. Ananya Rao, MD)"),
   referenceRanges: Yup.string().trim(),
@@ -58,104 +58,53 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
 
   const isTemplateFlow = path[0] === "templates";
   const templateId = isTemplateFlow && path[1] && path[1] !== "new" ? path[1] : "";
-  const isTemplateEdit = isTemplateFlow && path[2] === "edit";
-  const isTemplateNew = isTemplateFlow && path[1] === "new";
-  const templateDetail = useReportTemplate(templateId);
+  const isNewTemplate = isTemplateFlow && path[1] === "new";
+  const isEditTemplate = isTemplateFlow && path[2] === "edit";
 
-  const reportColumns = useMemo(() => {
-    const h = createColumnHelper<any>();
-    return [
-      h.accessor(row => row.patient?.name || (row.patientId === "pat-01" ? "Maya Srinivasan" : row.patientId), {
-        id: "patient",
-        header: "Patient",
-        cell: ({ row, getValue }) => (
-          <div>
-            <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
-            {row.original.patient?.patientCode && (
-              <p className="text-[11px] font-mono text-[color:var(--muted)]">{row.original.patient.patientCode}</p>
-            )}
-          </div>
-        )
-      }),
-      h.accessor(row => row.sample?.barcode || row.sample?.accession || row.sampleId, {
-        id: "sampleId",
-        header: "Sample / Barcode",
-        cell: ({ getValue }) => <span className="text-[color:var(--muted)] font-mono text-xs">{getValue()}</span>
-      }),
-      h.accessor(row => (Array.isArray(row.testIds) ? row.testIds.join(", ") : String(row.testIds || "—")), {
-        id: "tests",
-        header: "Diagnostic Test",
-        cell: ({ getValue }) => <span className="font-medium text-[color:var(--foreground)]">{getValue()}</span>
-      }),
-      h.accessor("department", {
-        header: "Department",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "Hematology"}</span>
-      }),
-      h.accessor("status", {
-        header: "Status",
-        cell: ({ getValue }) => {
-          const val = getValue();
-          return <StatusBadge tone={val === "Approved" ? "success" : val === "Rejected" ? "danger" : "warning"} size="sm">{val || "Pending Review"}</StatusBadge>;
-        }
-      }),
-      h.accessor(row => (row.createdAt ? row.createdAt.slice(0, 10) : "—"), {
-        id: "created",
-        header: "Report Date",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue()}</span>
-      }),
-      h.display({
-        id: "actions",
-        header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex items-center justify-center gap-1.5">
-            <Link href={`/reports/${row.original.id}`}>
-              <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
-                View Report
-              </Button>
-            </Link>
-            <Button
-              size="sm"
-              variant="outline"
-              leftIcon={<Printer size={13} />}
-              onClick={() => {
-                router.push(`/reports/${row.original.id}`);
-                setTimeout(() => window.print(), 500);
-              }}
-              title="Print report"
-            >
-              Print
-            </Button>
-          </div>
-        )
-      })
-    ];
-  }, [router]);
-
-  const templateColumns = useMemo(() => {
-    const h = createColumnHelper<ReportTemplate>();
-    return [
-      h.accessor("name", {
+  // Template List View
+  if (isTemplateFlow && !templateId && !isNewTemplate) {
+    const templateColumns = [
+      {
+        id: "name",
         header: "Template Name",
-        cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
-      }),
-      h.accessor("department", {
-        header: "Department",
-        cell: ({ getValue }) => <span className="text-xs font-medium">{getValue()}</span>
-      }),
-      h.accessor(row => (Array.isArray(row.tests) ? row.tests.join(", ") : String(row.tests || "—")), {
+        accessorKey: "name",
+        cell: ({ row }: any) => (
+          <div>
+            <p className="font-bold text-[color:var(--foreground)]">{row.original.name}</p>
+            <p className="text-xs text-[color:var(--muted)]">{row.original.department}</p>
+          </div>
+        )
+      },
+      {
         id: "tests",
-        header: "Included Tests",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue()}</span>
-      }),
-      h.accessor("signatory", {
-        header: "Signatory",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue()}</span>
-      }),
-      h.display({
+        header: "Associated Tests",
+        accessorKey: "tests",
+        cell: ({ getValue }: any) => {
+          const t = getValue() as string[];
+          return <span className="font-mono text-xs text-[color:var(--muted)]">{Array.isArray(t) ? t.join(", ") : t}</span>;
+        }
+      },
+      {
+        id: "signatory",
+        header: "Signatory Pathologist",
+        accessorKey: "signatory",
+        cell: ({ getValue }: any) => <span className="text-xs font-medium text-[color:var(--foreground)]">{getValue()}</span>
+      },
+      {
+        id: "active",
+        header: "Status",
+        accessorKey: "active",
+        cell: ({ getValue }: any) => (
+          <StatusBadge tone={getValue() ? "success" : "neutral"} size="sm">
+            {getValue() ? "Active" : "Inactive"}
+          </StatusBadge>
+        )
+      },
+      {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex items-center justify-center gap-1.5">
+        cell: ({ row }: any) => (
+          <div className="flex items-center gap-1.5 justify-center">
             <Link href={`/reports/templates/${row.original.id}`}>
               <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
                 View
@@ -166,9 +115,9 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
                 Edit
               </Button>
             </Link>
-            <Button
-              size="sm"
-              variant="danger-outline"
+            <Button 
+              size="sm" 
+              variant="danger-outline" 
               leftIcon={<Trash2 size={13} />}
               onClick={() => setConfirmDeleteTemplateId(row.original.id)}
             >
@@ -176,233 +125,25 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
             </Button>
           </div>
         )
-      })
+      }
     ];
-  }, []);
-
-  const handleDeleteTemplate = async () => {
-    if (!confirmDeleteTemplateId) return;
-    await deleteTemplate.mutateAsync(confirmDeleteTemplateId);
-    setConfirmDeleteTemplateId(null);
-    if (templateId) {
-      router.push("/reports/templates");
-    }
-  };
-
-  // Main Report List View
-  if (!path.length || path[0] === "pending") {
-    const isPending = path[0] === "pending";
-    const filteredData = (reports.data ?? []).filter(item => !isPending || item.status === "Pending Review");
 
     return (
       <div className="space-y-6">
         <PageHeader
-          title={isPending ? "Pending Pathology Reports" : "Diagnostic Reports"}
-          description="Generate, review, sign, and release clinical diagnostic reports."
+          title="Diagnostic Report Templates"
+          description="Pre-configured reporting headers, biological reference ranges, and digital pathologist signatories."
           action={
-            <div className="flex items-center gap-3">
-              <Link href="/reports/templates">
-                <Button variant="outline">Templates</Button>
+            <div className="flex gap-2">
+              <Link href="/reports">
+                <Button variant="ghost">← Back to Reports</Button>
               </Link>
-              <Link href="/reports/new">
+              <Link href="/reports/templates/new">
                 <Button variant="primary" leftIcon={<Plus size={16} />}>
-                  Generate Report
+                  New Template
                 </Button>
               </Link>
             </div>
-          }
-        />
-        <DataTable
-          columns={reportColumns}
-          data={filteredData}
-          isLoading={reports.isLoading}
-          isError={reports.isError}
-          searchable
-          searchPlaceholder="Search reports by patient, barcode, test..."
-        />
-      </div>
-    );
-  }
-
-  // Template Management Flow (/reports/templates/...)
-  if (isTemplateFlow) {
-    if (isTemplateNew || isTemplateEdit) {
-      const existing = templateDetail.data;
-      const initial = {
-        name: existing?.name ?? "",
-        department: existing?.department ?? "Hematology",
-        tests: Array.isArray(existing?.tests) ? existing.tests.join(", ") : (existing?.tests ?? ""),
-        header: existing?.header ?? "BLDignostics LIMS Reference Laboratory",
-        footer: existing?.footer ?? "This is a computer-generated medical report verified by authorized pathologists.",
-        referenceRanges: existing?.referenceRanges ?? "",
-        notes: existing?.notes ?? "",
-        signatory: existing?.signatory ?? "Dr. Pranjali Sejwal, MBBS, MD Pathology",
-        active: existing?.active ?? true,
-      };
-
-      return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <PageHeader
-            title={isTemplateNew ? "New Report Template" : "Edit Report Template"}
-            description="Configure reusable departmental report layout, test inclusions, and signatory settings."
-            action={
-              <Link href="/reports/templates">
-                <Button variant="ghost">← Back to templates</Button>
-              </Link>
-            }
-          />
-          <Card>
-            <Formik
-              initialValues={initial}
-              validationSchema={templateSchema}
-              enableReinitialize
-              validateOnMount={false}
-              validateOnChange={true}
-              validateOnBlur={true}
-              onSubmit={async (values) => {
-                const rawTests = values.tests;
-                const testList = Array.isArray(rawTests)
-                  ? (rawTests as string[])
-                  : typeof rawTests === "string"
-                  ? rawTests.split(",").map((t: string) => t.trim()).filter(Boolean)
-                  : [];
-                const payload = {
-                  ...values,
-                  tests: testList,
-                };
-                if (isTemplateNew) {
-                  await createTemplate.mutateAsync(payload);
-                } else {
-                  await updateTemplate.mutateAsync({ id: templateId, input: payload });
-                }
-                router.push("/reports/templates");
-              }}
-            >
-              {({ errors, touched, isSubmitting }) => (
-                <Form className="space-y-6">
-                  <Grid2>
-                    <UIField label="Template Name" name="name" required error={touched.name ? errors.name : undefined}>
-                      <Field name="name" as={Input} placeholder="Routine Hematology & Differential Report" />
-                    </UIField>
-                    <UIField label="Department" name="department" required error={touched.department ? errors.department : undefined}>
-                      <Field name="department" as={Select}>
-                        <option value="" disabled>Select department</option>
-                        {["Hematology", "Biochemistry", "Clinical Pathology", "Immunology", "Microbiology", "Histopathology", "Urine Analysis", "Electrolytes"].map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </Field>
-                    </UIField>
-                    <UIField label="Included Test Codes (comma separated)" name="tests" required error={touched.tests ? errors.tests : undefined} hint=". CBC, ESR, WBC">
-                      <Field name="tests" as={Input} placeholder="CBC, ESR, Hemoglobin" />
-                    </UIField>
-                    <UIField label="Authorized Signatory Pathologist" name="signatory" required error={touched.signatory ? errors.signatory : undefined}>
-                      <Field name="signatory" as={Input} placeholder="Dr. Pranjali Sejwal, MBBS, MD Pathology" />
-                    </UIField>
-                    <UIField label="Report Header Title" name="header" required error={touched.header ? errors.header : undefined}>
-                      <Field name="header" as={Input} placeholder="BLDignostics Clinical Laboratory" />
-                    </UIField>
-                    <UIField label="Report Footer / Disclaimer" name="footer" required error={touched.footer ? errors.footer : undefined}>
-                      <Field name="footer" as={Input} placeholder="Electronic validated diagnostic laboratory report" />
-                    </UIField>
-                    <UIField label="Default Reference Range Notes" name="referenceRanges" className="sm:col-span-2">
-                      <Field name="referenceRanges" as={Textarea} placeholder="Standard reference values based on adult male & female reference populations." />
-                    </UIField>
-                    <UIField label="Standard Report Notes / Instructions" name="notes" className="sm:col-span-2">
-                      <Field name="notes" as={Textarea} placeholder="Clinical correlation is recommended. Values exceeding reference limits are flagged." />
-                    </UIField>
-                  </Grid2>
-                  <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
-                    <Button type="submit" variant="primary" loading={isSubmitting || createTemplate.isPending || updateTemplate.isPending}>
-                      {isTemplateNew ? "Save template" : "Update template"}
-                    </Button>
-                    <Link href="/reports/templates">
-                      <Button type="button" variant="ghost">Cancel</Button>
-                    </Link>
-                  </div>
-                </Form>
-              )}
-            </Formik>
-          </Card>
-        </div>
-      );
-    }
-
-    if (templateId && !isTemplateEdit) {
-      const tmpl = templateDetail.data;
-      if (!tmpl) return <p className="text-sm text-[color:var(--muted)]">Loading template…</p>;
-
-      return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <PageHeader
-            title={tmpl.name}
-            description="Report layout specification and signature profile."
-            action={
-              <div className="flex items-center gap-2">
-                <Link href="/reports/templates">
-                  <Button variant="ghost">← Back to templates</Button>
-                </Link>
-                <Link href={`/reports/templates/${tmpl.id}/edit`}>
-                  <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit Template</Button>
-                </Link>
-                <Button
-                  variant="danger-outline"
-                  leftIcon={<Trash2 size={15} />}
-                  onClick={() => setConfirmDeleteTemplateId(tmpl.id)}
-                >
-                  Delete
-                </Button>
-              </div>
-            }
-          />
-          <Card padding={false} className="overflow-hidden">
-            <dl className="grid gap-px bg-[color:var(--line)] sm:grid-cols-2">
-              <div className="bg-[color:var(--surface)] p-4">
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Department</dt>
-                <dd className="mt-1 text-sm font-medium">{tmpl.department}</dd>
-              </div>
-              <div className="bg-[color:var(--surface)] p-4">
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Signatory</dt>
-                <dd className="mt-1 text-sm font-medium">{tmpl.signatory}</dd>
-              </div>
-              <div className="bg-[color:var(--surface)] p-4 sm:col-span-2">
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Included Test Codes</dt>
-                <dd className="mt-1 text-sm font-mono">{Array.isArray(tmpl.tests) ? tmpl.tests.join(", ") : String(tmpl.tests)}</dd>
-              </div>
-              <div className="bg-[color:var(--surface)] p-4">
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Header Title</dt>
-                <dd className="mt-1 text-sm font-medium">{tmpl.header}</dd>
-              </div>
-              <div className="bg-[color:var(--surface)] p-4">
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Footer Disclaimer</dt>
-                <dd className="mt-1 text-sm font-medium">{tmpl.footer}</dd>
-              </div>
-              {tmpl.referenceRanges && (
-                <div className="bg-[color:var(--surface)] p-4 sm:col-span-2">
-                  <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Reference Ranges</dt>
-                  <dd className="mt-1 text-sm font-medium">{tmpl.referenceRanges}</dd>
-                </div>
-              )}
-              {tmpl.notes && (
-                <div className="bg-[color:var(--surface)] p-4 sm:col-span-2">
-                  <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Report Notes</dt>
-                  <dd className="mt-1 text-sm font-medium">{tmpl.notes}</dd>
-                </div>
-              )}
-            </dl>
-          </Card>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Report Templates"
-          description="Reusable layout, methodology standards, and signatory settings."
-          action={
-            <Link href="/reports/templates/new">
-              <Button variant="primary" leftIcon={<Plus size={16} />}>New Template</Button>
-            </Link>
           }
         />
         <DataTable
@@ -412,27 +153,309 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
           isError={templates.isError}
           searchable
           searchPlaceholder="Search templates..."
+          emptyTitle="No report templates found"
         />
+
+        {confirmDeleteTemplateId && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                  <p className="text-xs text-[color:var(--muted)]">This will delete the report template from database.</p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+                Are you sure you want to permanently delete this report template? This action cannot be undone.
+              </p>
+              <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+                <Button variant="ghost" onClick={() => setConfirmDeleteTemplateId(null)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="danger" 
+                  loading={deleteTemplate.isPending} 
+                  onClick={async () => {
+                    await deleteTemplate.mutateAsync(confirmDeleteTemplateId);
+                    setConfirmDeleteTemplateId(null);
+                  }}
+                >
+                  Confirm Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  // ==========================================
-  // FINAL DIAGNOSTIC REPORT VIEW (/reports/:id)
-  // ==========================================
+  // Template Create/Edit Form View
+  if (isNewTemplate || isEditTemplate) {
+    return <TemplateFormView id={templateId} isNew={isNewTemplate} />;
+  }
+
+  // Template Detail View
+  if (isTemplateFlow && templateId) {
+    return <TemplateDetailView id={templateId} />;
+  }
+
+  // Report Detail View (Single Report preview and PDF download)
+  if (path.length && path[0] !== "templates") {
+    return <ReportDetailView id={path[0]} />;
+  }
+
+  // Default Reports List
+  return <ReportListView />;
+}
+
+// -------------------------------------------------------------
+// TEMPLATE FORM VIEW
+// -------------------------------------------------------------
+function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }>) {
+  const router = useRouter();
+  const templateQuery = useReportTemplate(isNew ? "" : id);
+  const createTemplate = useCreateTemplate();
+  const updateTemplate = useUpdateTemplate();
+
+  const existing = templateQuery.data;
+
+  const initialValues = {
+    name: existing?.name ?? "",
+    department: existing?.department ?? "",
+    tests: Array.isArray(existing?.tests) ? existing.tests.join(", ") : (existing?.tests ?? ""),
+    header: existing?.header ?? "BL Dignostic LIMS Reference Laboratory",
+    footer: existing?.footer ?? "This is a computer-generated report and does not require physical signature. Interpret clinically.",
+    signatory: existing?.signatory ?? "Dr. Ananya Rao, MD (Pathology)",
+    referenceRanges: existing?.referenceRanges ?? "",
+    notes: existing?.notes ?? "Specimen processed under certified automated CLIA/NABL standards.",
+    active: existing?.active ?? true,
+  };
+
+  const submit = async (values: typeof initialValues) => {
+    const payload: Omit<ReportTemplate, "id"> = {
+      ...values,
+      tests: typeof values.tests === "string" 
+        ? values.tests.split(",").map((t: string) => t.trim()).filter(Boolean)
+        : Array.isArray(values.tests) ? values.tests : [],
+    };
+
+    if (isNew) {
+      await createTemplate.mutateAsync(payload);
+    } else {
+      await updateTemplate.mutateAsync({ id, input: payload });
+    }
+    router.push("/reports/templates");
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <PageHeader
+        title={isNew ? "New Report Template" : `Edit Template: ${existing?.name || ""}`}
+        description="Configure diagnostic layout, reference ranges, and authorization signatory for clinical reports."
+        action={
+          <Link href="/reports/templates">
+            <Button variant="ghost">← Back to Templates</Button>
+          </Link>
+        }
+      />
+      <Card>
+        <Formik
+          initialValues={initialValues}
+          validationSchema={templateSchema}
+          enableReinitialize
+          validateOnChange={true}
+          validateOnBlur={true}
+          onSubmit={submit}
+        >
+          {({ errors, touched, isSubmitting }) => (
+            <Form className="space-y-6">
+              <Grid2>
+                <UIField 
+                  label="Template Name" 
+                  name="name" 
+                  required 
+                  error={touched.name ? errors.name : undefined}
+                >
+                  <Field name="name" as={Input} placeholder="e.g. Standard Hematology CBC Profile" />
+                </UIField>
+
+                <UIField 
+                  label="Laboratory Department" 
+                  name="department" 
+                  required 
+                  error={touched.department ? errors.department : undefined}
+                >
+                  <Field name="department" as={Select}>
+                    <option value="">Select department</option>
+                    <option value="Hematology">Hematology & Coagulation</option>
+                    <option value="Biochemistry">Clinical Biochemistry</option>
+                    <option value="Electrolytes">Electrolytes & Blood Gas</option>
+                    <option value="Serology">Immunology & Serology</option>
+                    <option value="Microbiology">Microbiology & Cultures</option>
+                    <option value="Histopathology">Histopathology & Cytology</option>
+                    <option value="Molecular">Molecular Diagnostics</option>
+                  </Field>
+                </UIField>
+
+                <UIField 
+                  label="Included Test Codes (comma-separated)" 
+                  name="tests" 
+                  required 
+                  hint="e.g. CBC, ESR, HB, PLATELET"
+                  className="sm:col-span-2"
+                  error={touched.tests ? errors.tests : undefined}
+                >
+                  <Field name="tests" as={Input} placeholder="CBC, ESR, HB" />
+                </UIField>
+
+                <UIField 
+                  label="Report Header Title" 
+                  name="header" 
+                  required 
+                  className="sm:col-span-2"
+                  error={touched.header ? errors.header : undefined}
+                >
+                  <Field name="header" as={Input} placeholder="BL Dignostic Clinical Laboratory" />
+                </UIField>
+
+                <UIField 
+                  label="Signatory Pathologist Name & Credentials" 
+                  name="signatory" 
+                  required 
+                  error={touched.signatory ? errors.signatory : undefined}
+                >
+                  <Field name="signatory" as={Input} placeholder="Dr. Ananya Rao, MD (Pathology)" />
+                </UIField>
+
+                <UIField 
+                  label="Status" 
+                  name="active" 
+                >
+                  <Field name="active" as={Select}>
+                    <option value="true">Active (Enabled)</option>
+                    <option value="false">Inactive (Disabled)</option>
+                  </Field>
+                </UIField>
+
+                <UIField 
+                  label="Default Reference Ranges & Methodology Notes" 
+                  name="referenceRanges" 
+                  className="sm:col-span-2"
+                >
+                  <Field name="referenceRanges" as={Textarea} rows={2} placeholder="Adult Indian biological reference intervals apply." />
+                </UIField>
+
+                <UIField 
+                  label="Report Footer Disclaimer" 
+                  name="footer" 
+                  required 
+                  className="sm:col-span-2"
+                  error={touched.footer ? errors.footer : undefined}
+                >
+                  <Field name="footer" as={Textarea} rows={2} placeholder="This is a computer-generated diagnostic report." />
+                </UIField>
+              </Grid2>
+
+              <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+                <Button type="submit" variant="primary" loading={isSubmitting || createTemplate.isPending || updateTemplate.isPending}>
+                  Save Template
+                </Button>
+                <Link href="/reports/templates">
+                  <Button type="button" variant="ghost">Cancel</Button>
+                </Link>
+              </div>
+            </Form>
+          )}
+        </Formik>
+      </Card>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// TEMPLATE DETAIL VIEW
+// -------------------------------------------------------------
+function TemplateDetailView({ id }: Readonly<{ id: string }>) {
+  const templateQuery = useReportTemplate(id);
+  const item = templateQuery.data;
+
+  if (templateQuery.isLoading) return <p className="text-sm text-[color:var(--muted)]">Loading template...</p>;
+  if (!item) return <p className="text-sm text-[color:var(--muted)]">Template not found.</p>;
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <PageHeader
+        title={item.name}
+        description={`Department: ${item.department}`}
+        action={
+          <div className="flex gap-2">
+            <Link href="/reports/templates">
+              <Button variant="ghost">← Back to Templates</Button>
+            </Link>
+            <Link href={`/reports/templates/${id}/edit`}>
+              <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit Template</Button>
+            </Link>
+          </div>
+        }
+      />
+      <Card padding={false} className="overflow-hidden">
+        <dl className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[color:var(--line)]">
+          <div className="p-4">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Department</dt>
+            <dd className="mt-1 text-sm font-bold text-[color:var(--foreground)]">{item.department}</dd>
+          </div>
+          <div className="p-4">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Status</dt>
+            <dd className="mt-1">
+              <StatusBadge tone={item.active ? "success" : "neutral"} size="sm">
+                {item.active ? "Active" : "Inactive"}
+              </StatusBadge>
+            </dd>
+          </div>
+          <div className="p-4 sm:border-t border-[color:var(--line)]">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Associated Tests</dt>
+            <dd className="mt-1 text-sm font-mono">{Array.isArray(item.tests) ? item.tests.join(", ") : item.tests}</dd>
+          </div>
+          <div className="p-4 sm:border-t border-[color:var(--line)]">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Signatory</dt>
+            <dd className="mt-1 text-sm font-semibold">{item.signatory}</dd>
+          </div>
+          <div className="p-4 sm:col-span-2 border-t border-[color:var(--line)]">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Report Header</dt>
+            <dd className="mt-1 text-sm font-medium">{item.header}</dd>
+          </div>
+          <div className="p-4 sm:col-span-2 border-t border-[color:var(--line)]">
+            <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">Footer Disclaimer</dt>
+            <dd className="mt-1 text-xs text-[color:var(--muted)]">{item.footer}</dd>
+          </div>
+        </dl>
+      </Card>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// REPORT DETAIL / PRINT & DIRECT PDF DOWNLOAD VIEW
+// -------------------------------------------------------------
+function ReportDetailView({ id }: Readonly<{ id: string }>) {
+  const router = useRouter();
+  const report = useReport(id);
+  const actions = useReportActions();
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
   const item = report.data as any;
-  if (!item) return <div className="p-8 text-center text-sm text-[color:var(--muted)]">Loading diagnostic report…</div>;
+  if (report.isLoading) return <p className="text-sm text-[color:var(--muted)]">Loading report details...</p>;
+  if (!item) return <p className="text-sm text-[color:var(--muted)]">Report not found.</p>;
 
-  const testTitle = (Array.isArray(item.testIds) && item.testIds[0]) || item.department || "Complete Blood Count (CBC)";
-  const testSchema = getTestParameterSchema(testTitle);
-
-  // Gather results: either from report.results (direct from backend), or from test results, or from results query
-  let reportResults: Result[] = Array.isArray(item.results) && item.results.length > 0
-    ? item.results
-    : (results.data ?? []).filter((result) => item.resultIds?.includes(result.id));
-
-  // If no results attached yet, generate display rows from test schema
-  if (reportResults.length === 0 && testSchema.parameters.length > 0) {
+  // Load test schema to auto-populate default results if empty
+  const testSchema = getTestParameterSchema(item.testCode || (item.testIds && item.testIds[0]) || "CBC");
+  
+  let reportResults: Result[] = (item.results ?? []) as Result[];
+  if (!reportResults.length && testSchema.parameters.length) {
     reportResults = testSchema.parameters.map((p) => ({
       id: p.id,
       testId: item.id,
@@ -458,6 +481,77 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
     }
   };
 
+  /**
+   * DIRECT PDF DOWNLOAD FUNCTION
+   * Captures the diagnostic-report-article container cleanly and generates a high-res,
+   * A4-fitted PDF file and initiates download directly without opening any print popup.
+   */
+  const downloadPdfDirectly = async () => {
+    const reportElement = document.getElementById("diagnostic-report-article");
+    if (!reportElement) return;
+
+    setIsDownloadingPdf(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const { jsPDF } = await import("jspdf");
+
+      // Render DOM element to high-res PNG (2x pixel ratio for print sharpness)
+      const imgData = await toPng(reportElement, {
+        quality: 0.98,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        cacheBust: true,
+      });
+
+      const img = new Image();
+      img.src = imgData;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = (e) => reject(e);
+      });
+      
+      // Standard A4 dimensions in mm: 210 x 297
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const margin = 8;
+      const contentWidth = pdfWidth - margin * 2;
+      const contentHeight = (img.height * contentWidth) / img.width;
+
+      if (contentHeight <= pdfHeight - margin * 2) {
+        pdf.addImage(imgData, "PNG", margin, margin, contentWidth, contentHeight, undefined, "FAST");
+      } else {
+        let heightLeft = contentHeight;
+        let position = margin;
+
+        pdf.addImage(imgData, "PNG", margin, position, contentWidth, contentHeight, undefined, "FAST");
+        heightLeft -= (pdfHeight - margin * 2);
+
+        while (heightLeft > 0) {
+          position = heightLeft - contentHeight + margin;
+          pdf.addPage();
+          pdf.addImage(imgData, "PNG", margin, position, contentWidth, contentHeight, undefined, "FAST");
+          heightLeft -= (pdfHeight - margin * 2);
+        }
+      }
+
+      const filename = `Diagnostic_Report_${item.reportNumber || "RPT"}_${(patient.name || "Patient").replace(/\s+/g, "_")}.pdf`;
+      pdf.save(filename);
+    } catch (error) {
+      console.error("Failed to generate direct PDF download:", error);
+      alert("An error occurred while generating the PDF. Please try again.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Action Bar (hidden on print) */}
@@ -479,7 +573,12 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
           <Button variant="outline" onClick={() => window.print()} leftIcon={<Printer size={15} />}>
             Print Report
           </Button>
-          <Button variant="outline" onClick={() => window.print()} leftIcon={<Download size={15} />}>
+          <Button 
+            variant="outline" 
+            onClick={downloadPdfDirectly} 
+            loading={isDownloadingPdf}
+            leftIcon={<Download size={15} />}
+          >
             Download PDF
           </Button>
           {item.status !== "Approved" && (
@@ -493,32 +592,47 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
       {/* ========================================================== */}
       {/* PROFESSIONAL DIAGNOSTIC LAB REPORT ARTICLE (A4 PRINT READY) */}
       {/* ========================================================== */}
-      <article className="mx-auto max-w-4xl bg-white text-slate-900 border border-slate-200 p-8 sm:p-12 shadow-sm rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans">
+      <article 
+        id="diagnostic-report-article"
+        className="mx-auto max-w-4xl bg-white text-slate-900 border border-slate-200 p-8 sm:p-12 shadow-sm rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans"
+        style={{ backgroundColor: "#ffffff", color: "#0f172a" }}
+      >
         
         {/* Top Laboratory Brand & Accreditation Header */}
-        <header className="border-b-2 border-[#176b87] pb-4 mb-5 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-xl bg-[#176b87] text-white">
-              <FlaskConical size={26} />
+        <header 
+          className="border-b-2 border-[#176b87] pb-4 mb-5 flex items-start justify-between gap-4"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #176b87" }}
+        >
+          <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div 
+              className="grid size-12 place-items-center rounded-xl bg-[#176b87] text-white shrink-0"
+              style={{ backgroundColor: "#176b87", color: "#ffffff", width: "3rem", height: "3rem", borderRadius: "0.75rem", display: "grid", placeItems: "center" }}
+            >
+              <FlaskConical size={26} color="#ffffff" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-[#176b87]">BLDignostics</h1>
-              <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+              <h1 className="text-2xl font-black tracking-tight text-[#176b87]" style={{ color: "#176b87", fontSize: "1.5rem", fontWeight: 900, margin: 0 }}>
+                BL Dignostic LIMS
+              </h1>
+              <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase" style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", margin: 0 }}>
                 Clinical Reference Pathology Laboratory
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-right">
-            <div className="hidden sm:flex flex-col items-end text-[10px] text-slate-600">
-              <span className="font-bold flex items-center gap-1 text-emerald-700">
-                <ShieldCheck size={12} /> NABL ACCREDITED
+          <div className="flex items-center gap-4 text-right shrink-0" style={{ display: "flex", alignItems: "center", gap: "1rem", textAlign: "right" }}>
+            <div className="flex flex-col items-end text-[10px] text-slate-600" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", fontSize: "10px", color: "#475569" }}>
+              <span className="font-bold flex items-center gap-1 text-emerald-700" style={{ color: "#047857", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <ShieldCheck size={12} color="#047857" /> NABL ACCREDITED
               </span>
               <span>ISO 15189:2012 Certified</span>
-              <span className="text-slate-400 font-mono">MC-4245 · CAP #9019582</span>
+              <span className="text-slate-400 font-mono" style={{ color: "#94a3b8", fontFamily: "monospace" }}>MC-4245 · CAP #9019582</span>
             </div>
-            <div className="border-l border-slate-200 pl-4 text-right">
-              <span className="inline-block rounded bg-[#e8f4f7] px-2.5 py-1 text-xs font-bold text-[#176b87]">
+            <div className="border-l border-slate-200 pl-4 text-right" style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "1rem" }}>
+              <span 
+                className="inline-block rounded bg-[#e8f4f7] px-2.5 py-1 text-xs font-bold text-[#176b87]"
+                style={{ backgroundColor: "#e8f4f7", color: "#176b87", borderRadius: "0.375rem", padding: "0.25rem 0.625rem", fontSize: "12px", fontWeight: 700 }}
+              >
                 Smart Report 3.0
               </span>
             </div>
@@ -552,19 +666,19 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
             <div>
               <span className="text-slate-500 text-[11px] block">Sample Collected On</span>
               <span className="font-mono font-medium text-slate-900">
-                {sample.collectedAt ? sample.collectedAt.slice(0, 10) : item.createdAt.slice(0, 10)} 07:43 AM
+                {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-08-29")} 07:43 AM
               </span>
             </div>
             <div>
               <span className="text-slate-500 text-[11px] block">Report Generated On</span>
               <span className="font-mono font-medium text-slate-900">
-                {item.createdAt ? item.createdAt.slice(0, 10) : "Today"} 02:46 PM
+                {item.createdAt ? item.createdAt.slice(0, 10) : "2026-08-29"} 02:46 PM
               </span>
             </div>
             <div>
               <span className="text-slate-500 text-[11px] block">Report Status</span>
               <span className="font-bold text-emerald-700 flex items-center gap-1">
-                {item.status || "Final Report"} ✓
+                {item.status || "Approved"} ✓
               </span>
             </div>
           </div>
@@ -579,144 +693,81 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
               ||| | |||| | |||||| || | |||| ||
             </div>
             <div className="text-[11px] text-slate-500">
-              Sample Temp: <span className="font-bold text-emerald-700">Maintained (2-8°C) ✓</span>
+              Sample Temp: <span className="font-medium text-slate-800">Maintained (2-8°C) ✓</span>
             </div>
           </div>
         </section>
 
-        {/* Department Banner */}
-        <div className="text-center my-5">
-          <h2 className="text-xs font-black uppercase tracking-[0.2em] text-[#176b87] border-y border-slate-200 py-1.5 inline-block px-8 bg-slate-50">
-            DEPARTMENT OF {item.department ? item.department.toUpperCase() : testSchema.department.toUpperCase()}
-          </h2>
-          <h3 className="text-base font-bold text-slate-900 mt-2">
+        {/* Diagnostic Section Heading */}
+        <div className="mb-6 text-center">
+          <span className="inline-block rounded-full bg-[#e8f4f7] px-4 py-1 text-[11px] font-bold uppercase tracking-widest text-[#176b87]">
+            Department of {item.department || testSchema.department}
+          </span>
+          <h2 className="text-lg font-black tracking-tight text-slate-900 mt-2">
             {testSchema.name}
-          </h3>
+          </h2>
         </div>
 
-        {/* Critical Alert Banner if critical results exist */}
-        {critical && (
-          <div className="mb-5 rounded-lg border-l-4 border-rose-600 bg-rose-50 p-3.5 text-xs text-rose-900 flex items-center gap-2.5">
-            <AlertTriangle size={18} className="text-rose-600 shrink-0" />
-            <div>
-              <span className="font-bold">Critical Values Detected:</span> Immediate physician communication required. Results verified by dual automated rerun.
-            </div>
+        {/* Results Parameters Table */}
+        <table className="w-full text-left text-xs mb-8">
+          <thead>
+            <tr className="border-b-2 border-slate-300 bg-slate-50 text-slate-600 font-bold uppercase text-[11px]">
+              <th className="py-2.5 px-3">Test Name / Parameter</th>
+              <th className="py-2.5 px-3 text-right">Value</th>
+              <th className="py-2.5 px-3">Unit</th>
+              <th className="py-2.5 px-3">Bio. Ref Interval</th>
+              <th className="py-2.5 px-3 text-center">Flag</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {reportResults.map((r, idx) => (
+              <tr key={r.id || idx} className={r.criticalFlag ? "bg-rose-50/70" : r.abnormalFlag ? "bg-amber-50/50" : ""}>
+                <td className="py-3 px-3">
+                  <p className="font-bold text-slate-900">{r.parameter}</p>
+                  {r.comments && <p className="text-[10px] text-slate-500 italic">{r.comments}</p>}
+                </td>
+                <td className="py-3 px-3 text-right font-mono font-bold text-sm text-slate-900">
+                  {r.value}
+                </td>
+                <td className="py-3 px-3 font-mono text-slate-600">
+                  {r.unit || "—"}
+                </td>
+                <td className="py-3 px-3 text-slate-600 font-mono">
+                  {r.referenceRange || "—"}
+                </td>
+                <td className="py-3 px-3 text-center font-bold">
+                  {r.criticalFlag ? (
+                    <span className="inline-block rounded bg-rose-600 px-2 py-0.5 text-[10px] text-white">
+                      CRITICAL
+                    </span>
+                  ) : r.abnormalFlag ? (
+                    <span className="inline-block rounded bg-amber-500 px-2 py-0.5 text-[10px] text-white">
+                      ABNORMAL
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 text-[11px]">Normal</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Clinical Comments & Pathological Observations */}
+        {item.comments && (
+          <div className="mb-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
+            <h4 className="font-bold uppercase tracking-wider text-slate-700 mb-1">
+              Clinical Interpretation & Notes
+            </h4>
+            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+              {item.comments}
+            </p>
           </div>
         )}
 
-        {/* Main Test Results Table */}
-        <div className="mb-6 overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b-2 border-slate-300 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                <th className="py-2.5 pr-4">Test Name / Parameter</th>
-                <th className="py-2.5 px-3 text-center">Value</th>
-                <th className="py-2.5 px-3">Unit</th>
-                <th className="py-2.5 pl-3">Bio. Ref Interval</th>
-                <th className="py-2.5 px-2 text-right">Flag</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {reportResults.map((res, idx) => {
-                const isCrit = res.criticalFlag;
-                const isAbn = res.abnormalFlag;
-
-                return (
-                  <tr key={res.id || idx} className="hover:bg-slate-50/50">
-                    <td className="py-2.5 pr-4">
-                      <span className="font-bold text-slate-900 block text-xs">{res.parameter}</span>
-                      {res.comments && (
-                        <span className="text-[10px] text-slate-500 block">{res.comments}</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className={cn(
-                        "font-mono font-bold text-sm",
-                        isCrit ? "text-rose-700 bg-rose-50 px-2 py-0.5 rounded" :
-                        isAbn ? "text-amber-700 font-extrabold" : "text-slate-900"
-                      )}>
-                        {res.value}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-600">
-                      {res.unit || "—"}
-                    </td>
-                    <td className="py-2.5 pl-3 text-slate-700 font-medium whitespace-pre-line">
-                      {res.referenceRange || "—"}
-                    </td>
-                    <td className="py-2.5 px-2 text-right">
-                      {isCrit ? (
-                        <span className="rounded bg-rose-100 text-rose-800 px-1.5 py-0.5 text-[10px] font-bold">Critical</span>
-                      ) : isAbn ? (
-                        <span className="rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-bold">Abnormal</span>
-                      ) : (
-                        <span className="text-emerald-700 font-semibold text-[11px]">Normal</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Clinical Interpretations & Guidelines Table (if defined) */}
-        {testSchema.interpretations && testSchema.interpretations.length > 0 && (
-          <section className="my-5 rounded-lg border border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-700 space-y-3">
-            {testSchema.interpretations.map((interp, idx) => (
-              <div key={idx} className="space-y-2">
-                <h4 className="font-bold text-[#176b87] uppercase text-[11px] tracking-wider">
-                  INTERPRETATION: {interp.heading}
-                </h4>
-                <p className="leading-relaxed text-slate-600">{interp.content}</p>
-
-                {interp.table && (
-                  <div className="overflow-x-auto my-2 border border-slate-200 rounded bg-white">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="bg-slate-100 border-b border-slate-200 font-bold text-slate-800">
-                        <tr>
-                          {interp.table.headers.map((h, i) => (
-                            <th key={i} className="px-3 py-1.5">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {interp.table.rows.map((r, ri) => (
-                          <tr key={ri}>
-                            {r.map((c, ci) => (
-                              <td key={ci} className="px-3 py-1.5 font-medium">{c}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ))}
-          </section>
-        )}
-
-        {/* Clinical Remarks / Observations */}
-        {(item.comments || (testSchema.remarks && testSchema.remarks.length > 0)) && (
-          <section className="my-5 text-xs text-slate-600 space-y-1.5">
-            <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wider">
-              REMARKS & CLINICAL OBSERVATIONS:
-            </h4>
-            {item.comments && (
-              <p className="font-medium text-slate-800 bg-slate-50 p-2.5 rounded border border-slate-200 leading-relaxed">
-                {item.comments}
-              </p>
-            )}
-            {testSchema.remarks && testSchema.remarks.map((rem, i) => (
-              <p key={i} className="leading-relaxed text-[11px]">{rem}</p>
-            ))}
-          </section>
-        )}
-
-        {/* Signatory & Authorization Footer */}
-        <footer className="mt-8 pt-6 border-t-2 border-slate-300">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+        {/* Pathologist Digital Authorization & Authenticity Footer */}
+        <footer className="mt-12 pt-6 border-t-2 border-slate-300">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6">
             
             {/* Left SIN barcode & Verification QR */}
             <div className="flex items-center gap-4">
@@ -739,12 +790,12 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
                 {item.pathologist || "Dr. Pranjali Sejwal, MBBS, MD Pathology"}
               </p>
               <p className="text-[11px] text-slate-600">Consultant Pathologist & Biochemist</p>
-              <p className="text-[10px] font-mono text-slate-400">Reg. No: HN-20567 · BLDignostics Central Lab</p>
+              <p className="text-[10px] font-mono text-slate-400">Reg. No: HN-20567 · BL Dignostic Central Lab</p>
             </div>
           </div>
 
           <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-            <span>BLDignostics Laboratories (A Unit of Healthcare LIMS Diagnostics Pvt. Ltd.) · Plot 1 & 2, Healthcare City</span>
+            <span>BL Dignostic Laboratories (A Unit of Healthcare LIMS Diagnostics Pvt. Ltd.) · Plot 1 & 2, Healthcare City</span>
             <span>Page 1 of 1 · *** End Of Report ***</span>
           </div>
         </footer>
@@ -787,6 +838,102 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
           )}
         </Formik>
       </Card>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// DEFAULT REPORT LIST VIEW
+// -------------------------------------------------------------
+function ReportListView() {
+  const router = useRouter();
+  const reports = useReports();
+  const actions = useReportActions();
+
+  const columns = useMemo(() => {
+    const h = createColumnHelper<Report>();
+    return [
+      h.accessor("reportNumber", {
+        header: "Report No.",
+        cell: ({ getValue }) => <span className="font-mono font-bold text-[color:var(--foreground)]">{getValue()}</span>
+      }),
+      h.accessor(row => (row as any).patient?.name || row.patientId, {
+        id: "patient",
+        header: "Patient",
+        cell: ({ getValue }) => <span className="font-medium text-[color:var(--foreground)]">{getValue()}</span>
+      }),
+      h.accessor(row => (row as any).department || (row.testIds && row.testIds[0]) || "General", {
+        id: "department",
+        header: "Department / Test",
+        cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
+      }),
+      h.accessor("status", {
+        header: "Report Status",
+        cell: ({ getValue }) => {
+          const val = getValue();
+          const tone = val === "Approved" ? "success" : val === "Draft" ? "neutral" : val === "Rejected" ? "danger" : "warning";
+          return <StatusBadge tone={tone} size="sm">{val}</StatusBadge>;
+        }
+      }),
+      h.accessor("createdAt", {
+        header: "Generated Date",
+        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() ? String(getValue()).slice(0, 10) : "—"}</span>
+      }),
+      h.display({
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1.5 justify-center">
+            <Link href={`/reports/${row.original.id}`}>
+              <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                View / Print
+              </Button>
+            </Link>
+            {row.original.status !== "Approved" && (
+              <Button 
+                size="sm" 
+                variant="primary" 
+                leftIcon={<CheckCircle2 size={13} />}
+                onClick={() => actions.approveReport.mutate(row.original.id)}
+              >
+                Approve
+              </Button>
+            )}
+          </div>
+        )
+      })
+    ];
+  }, [actions]);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Diagnostic Reports Workflow"
+        description="Verify laboratory findings, pathologist digital signatures, and release certified patient reports."
+        action={
+          <div className="flex gap-2">
+            <Link href="/reports/templates">
+              <Button variant="outline" leftIcon={<FileText size={15} />}>
+                Templates
+              </Button>
+            </Link>
+            <Link href="/reports/new">
+              <Button variant="primary" leftIcon={<Plus size={15} />}>
+                Generate Report
+              </Button>
+            </Link>
+          </div>
+        }
+      />
+      <DataTable
+        columns={columns}
+        data={reports.data}
+        isLoading={reports.isLoading}
+        isError={reports.isError}
+        searchable
+        searchPlaceholder="Search reports by patient, code, number..."
+        emptyTitle="No diagnostic reports found"
+      />
     </div>
   );
 }

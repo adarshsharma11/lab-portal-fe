@@ -25,6 +25,7 @@ export function Sidebar({
   role,
   userInitials,
   userName,
+  userAvatar,
   collapsed,
 }: Readonly<{
   mobileOpen: boolean;
@@ -32,6 +33,7 @@ export function Sidebar({
   role?: UserRole;
   userInitials: string;
   userName: string;
+  userAvatar?: string;
   collapsed: boolean;
 }>) {
   const pathname = usePathname();
@@ -70,7 +72,7 @@ export function Sidebar({
             {!collapsed && (
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">
-                  BLDignostics LIMS
+                  BL Dignostic LIMS
                 </p>
                 <p className="truncate text-[11px] font-medium text-[color:var(--muted)]">
                   Diagnostic Platform
@@ -137,7 +139,7 @@ export function Sidebar({
               collapsed && "justify-center",
             )}
           >
-            <Avatar initials={userInitials} size="sm" />
+            <Avatar initials={userInitials} src={userAvatar} size="sm" />
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-[color:var(--foreground)]">{userName}</p>
@@ -191,6 +193,7 @@ export function Header({
   userName,
   userRole,
   userInitials,
+  userAvatar,
   collapsed,
 }: Readonly<{
   onToggleMobile: () => void;
@@ -200,6 +203,7 @@ export function Header({
   userName: string;
   userRole?: UserRole;
   userInitials: string;
+  userAvatar?: string;
   collapsed: boolean;
 }>) {
   const pathname = usePathname();
@@ -237,7 +241,7 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-20 h-16 border-b border-[color:var(--line)] bg-[color:var(--surface)]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-20 h-16 border-b border-[color:var(--line)] bg-[color:var(--surface)]/90 backdrop-blur-md print:hidden">
         <div className="flex h-full items-center justify-between px-4 lg:px-6 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -397,7 +401,7 @@ export function Header({
                 onClick={() => setMenuOpen((v) => !v)}
                 className="hidden sm:inline-flex items-center gap-2.5 h-9 pr-2 pl-1 rounded-[10px] hover:bg-[color:var(--surface-2)] transition-colors"
               >
-                <Avatar initials={userInitials} size="sm" />
+                <Avatar initials={userInitials} src={userAvatar} size="sm" />
                 <div className="hidden xl:block text-left leading-tight">
                   <p className="text-xs font-semibold text-[color:var(--foreground)] truncate max-w-[140px]">{userName}</p>
                   <p className="text-[11px] text-[color:var(--muted)]">{userRole === "Administrator" ? "Admin" : userRole}</p>

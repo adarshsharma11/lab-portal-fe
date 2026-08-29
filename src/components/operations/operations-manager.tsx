@@ -682,7 +682,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
         <article className="rounded-[var(--radius-lg)] border border-[color:var(--line)] bg-[color:var(--surface)] p-8 shadow-[var(--shadow-sm)] print:border-0">
           <header className="flex justify-between border-b border-[color:var(--line)] pb-5">
             <div>
-              <p className="text-2xl font-bold text-[color:var(--brand-600)]">BLDignostics LIMS</p>
+              <p className="text-2xl font-bold text-[color:var(--brand-600)]">BL Dignostic LIMS</p>
               <p className="text-xs text-[color:var(--muted)]">Clinical Diagnostics & Pathology Laboratory</p>
             </div>
             <StatusBadge tone={detail.paymentStatus === "Paid" ? "success" : "warning"} size="lg">

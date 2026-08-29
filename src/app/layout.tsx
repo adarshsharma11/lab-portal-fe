@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/ui/providers";
 
 export const metadata: Metadata = {
-  title: "BLDignostics LIMS",
+  title: "BL Dignostic LIMS",
   description: "Clinical laboratory information system",
 };
 

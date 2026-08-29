@@ -123,7 +123,7 @@ const doctorFields: readonly FieldConfig[] = [
 ];
 
 const franchiseFields: readonly FieldConfig[] = [
-  { name: "name", label: "Franchise Name", type: "text", placeholder: "BLDignostics Hub - Indiranagar", required: true, section: "Franchise Identification" },
+  { name: "name", label: "Franchise Name", type: "text", placeholder: "BL Dignostic Hub - Indiranagar", required: true, section: "Franchise Identification" },
   { name: "code", label: "Franchise Code", type: "text", placeholder: "FR-BLR-01 (Auto-generated if left blank)", section: "Franchise Identification" },
   { name: "licenseNumber", label: "License / Accr. Number", type: "text", placeholder: "KAR-FR-2026-9081", section: "Franchise Identification" },
   { name: "gstNumber", label: "GSTIN Number", type: "text", placeholder: "29AAAAA0000A1Z5", section: "Franchise Identification" },

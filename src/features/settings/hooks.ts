@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiResponse } from "@/lib/api/client";
 import { queryKeys } from "@/lib/query/query-keys";
 import { settingsApi, profileApi } from "@/mocks/services/settings";
+import { authService } from "@/lib/auth/auth-service";
 import type { LaboratoryInfo, NotificationSettings, ReferenceRange, ReportSettings, SystemPreferences, UnitDefinition, User } from "@/types/domain";
 
 export const useLaboratorySettings = () => useQuery<ApiResponse<LaboratoryInfo>, Error, LaboratoryInfo>({
@@ -103,6 +104,11 @@ export const useUpdateProfile = () => {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: Partial<User>) => profileApi.updateProfile(input),
-    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.profile.me() }),
+    onSuccess: (response) => {
+      if (response?.data) {
+        authService.updateSession(response.data);
+      }
+      client.invalidateQueries({ queryKey: queryKeys.profile.me() });
+    },
   });
 };
