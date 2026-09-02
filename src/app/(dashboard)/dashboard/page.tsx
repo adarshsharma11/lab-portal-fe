@@ -23,6 +23,7 @@ import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
 import { createColumnHelper } from "@tanstack/react-table";
+import { ProfitLossSection } from "@/components/dashboard/ProfitLossSection";
 import type { Doctor, Franchise, Patient, PendingWork, Report, Sample, User, UserRole } from "@/types/domain";
 
 const brandColor = "#2563eb";
@@ -250,6 +251,9 @@ function AdminDashboard() {
           </div>
         </section>
       )}
+
+      {/* MONTHLY PROFIT & LOSS REPORT */}
+      <ProfitLossSection isAdmin={true} />
 
       <Grid2>
         <ChartCard title="Test Volume" description="Daily completed diagnostic tests">
@@ -518,6 +522,9 @@ function FranchiseDashboard() {
           )}
         </div>
       </Card>
+
+      {/* 2.5 MONTHLY PROFIT & LOSS REPORT */}
+      <ProfitLossSection isAdmin={false} />
 
       {/* 3. OPERATIONAL WORKBENCH (SAMPLES & NETWORK) */}
       <div className="grid gap-6 lg:grid-cols-3">

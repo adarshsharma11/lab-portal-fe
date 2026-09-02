@@ -194,6 +194,27 @@ export interface ChartPoint {
   value: number;
 }
 
+export interface MonthlyProfitLossItem {
+  month: string;
+  monthIndex: number;
+  year: number;
+  totalSale: number;
+  totalCost: number;
+  profitLoss: number;
+  marginPercentage: number;
+}
+
+export interface ProfitLossReport {
+  year: number;
+  franchiseId: string | null;
+  franchiseName: string;
+  totalSale: number;
+  totalCost: number;
+  netProfitLoss: number;
+  overallMargin: number;
+  monthlyData: readonly MonthlyProfitLossItem[];
+}
+
 export interface Activity {
   id: string;
   type: "Patient registered" | "Sample collected" | "Test completed" | "Report approved" | "Critical result";

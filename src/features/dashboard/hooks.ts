@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "@/mocks/services/dashboard";
 import { queryKeys } from "@/lib/query/query-keys";
 import type { ApiResponse } from "@/lib/api/client";
-import type { Activity, ChartPoint, CriticalResult, DashboardStats, PendingWork } from "@/types/domain";
+import type { Activity, ChartPoint, CriticalResult, DashboardStats, PendingWork, ProfitLossReport } from "@/types/domain";
 export const useDashboardStats = () => useQuery<ApiResponse<DashboardStats>, Error, DashboardStats>({ queryKey: queryKeys.dashboard.stats(), queryFn: dashboardApi.getStats, select: (response) => response.data });
 export const useTestVolume = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.testVolume(), queryFn: dashboardApi.getTestVolume, select: (response) => response.data });
 export const useDepartmentDistribution = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.departments(), queryFn: dashboardApi.getDepartmentDistribution, select: (response) => response.data });
@@ -13,3 +13,10 @@ export const useTurnaround = () => useQuery<ApiResponse<readonly ChartPoint[]>, 
 export const useRecentActivity = () => useQuery<ApiResponse<readonly Activity[]>, Error, readonly Activity[]>({ queryKey: queryKeys.dashboard.activity(), queryFn: dashboardApi.getRecentActivity, select: (response) => response.data });
 export const usePendingWork = () => useQuery<ApiResponse<readonly PendingWork[]>, Error, readonly PendingWork[]>({ queryKey: queryKeys.dashboard.pendingWork(), queryFn: dashboardApi.getPendingWork, select: (response) => response.data });
 export const useCriticalResults = () => useQuery<ApiResponse<readonly CriticalResult[]>, Error, readonly CriticalResult[]>({ queryKey: queryKeys.dashboard.criticalResults(), queryFn: dashboardApi.getCriticalResults, select: (response) => response.data });
+export const useProfitLoss = (year?: number, franchiseId?: string) =>
+  useQuery<ApiResponse<ProfitLossReport>, Error, ProfitLossReport>({
+    queryKey: queryKeys.dashboard.profitLoss(year, franchiseId),
+    queryFn: () => dashboardApi.getProfitLoss(year, franchiseId),
+    select: (response) => response.data,
+  });
+
