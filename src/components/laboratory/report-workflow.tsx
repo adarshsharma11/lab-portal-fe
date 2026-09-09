@@ -25,6 +25,7 @@ import {
 } from "@/features/reports/hooks";
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
+import { useLaboratorySettings } from "@/features/settings/hooks";
 import type { Report, ReportTemplate, Result } from "@/types/domain";
 
 const templateSchema = Yup.object({
@@ -445,6 +446,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const router = useRouter();
   const report = useReport(id);
   const actions = useReportActions();
+  const lab = useLaboratorySettings();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const item = report.data as any;
@@ -605,14 +607,24 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         >
           <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <div 
-              className="grid size-12 place-items-center rounded-xl bg-[#176b87] text-white shrink-0"
-              style={{ backgroundColor: "#176b87", color: "#ffffff", width: "3rem", height: "3rem", borderRadius: "0.75rem", display: "grid", placeItems: "center" }}
+              className="grid size-12 place-items-center rounded-xl bg-[#176b87] text-white shrink-0 overflow-hidden"
+              style={{ backgroundColor: "#176b87", color: "#ffffff", width: "3rem", height: "3rem", borderRadius: "0.75rem", display: "grid", placeItems: "center", overflow: "hidden" }}
             >
-              <FlaskConical size={26} color="#ffffff" />
+              {lab.data?.logo ? (
+                <img 
+                  src={lab.data.logo} 
+                  alt={lab.data.name || "BL Diagnostics"} 
+                  className="size-full object-contain bg-white p-0.5" 
+                  style={{ width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#ffffff" }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <FlaskConical size={26} color="#ffffff" />
+              )}
             </div>
             <div>
               <h1 className="text-2xl font-black tracking-tight text-[#176b87]" style={{ color: "#176b87", fontSize: "1.5rem", fontWeight: 900, margin: 0 }}>
-                BL Dignostic LIMS
+                {lab.data?.name || "BL Dignostic LIMS"}
               </h1>
               <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase" style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", margin: 0 }}>
                 Clinical Reference Pathology Laboratory
@@ -623,10 +635,10 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
           <div className="flex items-center gap-4 text-right shrink-0" style={{ display: "flex", alignItems: "center", gap: "1rem", textAlign: "right" }}>
             <div className="flex flex-col items-end text-[10px] text-slate-600" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", fontSize: "10px", color: "#475569" }}>
               <span className="font-bold flex items-center gap-1 text-emerald-700" style={{ color: "#047857", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                <ShieldCheck size={12} color="#047857" /> NABL ACCREDITED
+                <ShieldCheck size={12} color="#047857" /> {lab.data?.accreditation || "NABL ACCREDITED"}
               </span>
               <span>ISO 15189:2012 Certified</span>
-              <span className="text-slate-400 font-mono" style={{ color: "#94a3b8", fontFamily: "monospace" }}>MC-4245 · CAP #9019582</span>
+              <span className="text-slate-400 font-mono" style={{ color: "#94a3b8", fontFamily: "monospace" }}>{lab.data?.licenseNumber || "MC-4245 · CAP #9019582"}</span>
             </div>
             <div className="border-l border-slate-200 pl-4 text-right" style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "1rem" }}>
               <span 

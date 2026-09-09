@@ -12,11 +12,11 @@ export type NavItem = Readonly<{
   roles: readonly UserRole[];
 }>;
 
-const ALL: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor", "Receptionist", "Franchise"] as const;
+const ALL: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Technician", "Doctor", "Receptionist", "Franchise", "Billing"] as const;
 const ADMIN: readonly UserRole[] = ["Administrator", "Admin"] as const;
 const TECH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Franchise"] as const;
 const PATH_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist"] as const;
-const LAB_PROCESS: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist", "Franchise"] as const;
+const LAB_PROCESS: readonly UserRole[] = ["Administrator", "Admin", "Technician", "Pathologist", "Franchise", "Billing"] as const;
 const REPORT_ROLES: readonly UserRole[] = ["Administrator", "Admin", "Pathologist", "Doctor", "Technician", "Franchise"] as const;
 
 export const NAVIGATION: readonly NavGroup[] = [
@@ -29,9 +29,9 @@ export const NAVIGATION: readonly NavGroup[] = [
   {
     label: "Laboratory & Testing",
     items: [
-      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist", "Franchise"] },
-      { label: "Samples", href: "/samples", icon: "TestTube2", roles: LAB_PROCESS },
-      { label: "Tests Master", href: "/tests", icon: "ClipboardList", roles: LAB_PROCESS },
+      { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist", "Franchise", "Billing"] },
+      { label: "Samples", href: "/samples", icon: "TestTube2", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Franchise"] },
+      { label: "Tests Master", href: "/tests", icon: "ClipboardList", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Franchise", "Billing"] },
       { label: "Hematology", href: "/hematology", icon: "Droplets", roles: TECH_ROLES },
       { label: "Biochemistry", href: "/biochemistry", icon: "FlaskConical", roles: TECH_ROLES },
       { label: "Urine Analysis", href: "/urine-analysis", icon: "Activity", roles: TECH_ROLES },
@@ -49,7 +49,7 @@ export const NAVIGATION: readonly NavGroup[] = [
     label: "Clinical & Operations",
     items: [
       { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise"] },
-      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise"] },
+      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise", "Billing"] },
       { label: "Inventory Stock", href: "/inventory", icon: "Package", roles: ["Administrator", "Admin", "Franchise"] },
       { label: "Suppliers", href: "/suppliers", icon: "Package", roles: ADMIN },
     ],
@@ -65,7 +65,7 @@ export const NAVIGATION: readonly NavGroup[] = [
     label: "Administration",
     items: [
       { label: "Franchises", href: "/franchises", icon: "Building2", roles: ADMIN },
-      { label: "Doctors Directory", href: "/doctors", icon: "Stethoscope", roles: ["Administrator", "Admin", "Doctor", "Franchise"] },
+      { label: "Doctors Directory", href: "/doctors", icon: "Stethoscope", roles: ["Administrator", "Admin", "Doctor", "Franchise", "Billing"] },
       { label: "Pathologist", href: "/pathologists", icon: "Microscope", roles: ["Administrator", "Admin", "Franchise"] },
       { label: "Technician", href: "/technicians", icon: "TestTube2", roles: ["Administrator", "Admin", "Franchise"] },
       { label: "User Management", href: "/users", icon: "UserCog", roles: ["Administrator", "Admin", "Franchise"] },
@@ -78,9 +78,16 @@ export function canAccessRoute(role: UserRole | undefined, href: string): boolea
   if (!role) return true;
   const normalized = role === "Administrator" ? "Admin" : role;
   if (normalized === "Admin") return true;
-  const item = NAVIGATION.flatMap((g) => g.items).find((i) => i.href === href);
-  if (!item) return true;
-  const roles = item.roles.map((r) => (r === "Administrator" ? "Admin" : r));
+
+  // Profile is allowed for all authenticated users
+  if (href === "/profile" || href.startsWith("/profile/")) return true;
+
+  // Find exact match or base prefix match
+  const items = NAVIGATION.flatMap((g) => g.items);
+  const matchedItem = items.find((i) => href === i.href || (i.href !== "/dashboard" && href.startsWith(`${i.href}/`)));
+  if (!matchedItem) return true;
+  
+  const roles = matchedItem.roles.map((r) => (r === "Administrator" ? "Admin" : r));
   return roles.includes(normalized);
 }
 
@@ -92,6 +99,7 @@ export function getFilteredNavigation(role: UserRole | undefined): readonly NavG
     .filter((g) => g.items.length > 0);
 }
 
-export function getLandingPageForRole(_role: UserRole | undefined): string {
+export function getLandingPageForRole(role: UserRole | undefined): string {
+  if (role === "Billing") return "/billing";
   return "/dashboard";
 }

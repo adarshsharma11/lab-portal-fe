@@ -12,6 +12,7 @@ import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
 import type { UserRole } from "@/types/domain";
 import { getFilteredNavigation, type NavItem } from "@/lib/auth/rbac";
+import { useLaboratorySettings } from "@/features/settings/hooks";
 import { Avatar, Breadcrumb, cn, Dot, StatusBadge } from "@/components/ui";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -38,6 +39,7 @@ export function Sidebar({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
+  const lab = useLaboratorySettings();
   const navigation = useMemo(() => getFilteredNavigation(role), [role]);
 
   const logout = () => {
@@ -66,13 +68,17 @@ export function Sidebar({
       >
         <div className="flex h-16 items-center justify-between px-4 border-b border-[color:var(--line)]">
           <Link href="/dashboard" className="flex items-center gap-3 min-w-0" onClick={onClose}>
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[color:var(--brand-600)] text-white shadow-sm">
-              <FlaskConical size={18} />
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[color:var(--brand-600)] text-white shadow-sm overflow-hidden">
+              {lab.data?.logo ? (
+                <img src={lab.data.logo} alt={lab.data.name || "BL Diagnostics"} className="size-full object-contain bg-white p-0.5 rounded-xl" />
+              ) : (
+                <FlaskConical size={18} />
+              )}
             </div>
             {!collapsed && (
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold tracking-tight text-[color:var(--foreground)]">
-                  BL Dignostic LIMS
+                  {lab.data?.name || "BL Dignostic LIMS"}
                 </p>
                 <p className="truncate text-[11px] font-medium text-[color:var(--muted)]">
                   Diagnostic Platform

@@ -1,10 +1,10 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Field, Form, Formik } from "formik";
 import * as Yup from "yup";
 import {
-  Bell, Building2, ClipboardList, FileSignature, FlaskConical, ListOrdered, Palette, Receipt, Ruler, Settings2, Shield, Globe2
+  Bell, Building2, ClipboardList, FileSignature, FlaskConical, ListOrdered, Palette, Receipt, Ruler, Settings2, Shield, Globe2, Upload, Trash2, Image as ImageIcon
 } from "lucide-react";
 import { DataTable } from "@/components/tables/DataTable";
 import {
@@ -23,6 +23,7 @@ const laboratorySchema = Yup.object({
   website: Yup.string().url("Invalid URL"),
   accreditation: Yup.string(),
   licenseNumber: Yup.string(),
+  logo: Yup.string().nullable(),
 });
 
 const reportSchema = Yup.object({
@@ -168,10 +169,114 @@ export function SettingsPage() {
 
       {tab === "laboratory" && lab.data && (
         <div className="max-w-4xl space-y-5">
-          <FormSection title="Laboratory Information" description="This information appears on reports, invoices, and public-facing documentation.">
+          <FormSection title="Laboratory Information & Branding" description="This information and uploaded logo appear across reports, invoices, patient bills, and LIMS workspace.">
             <Formik initialValues={lab.data} validationSchema={laboratorySchema} enableReinitialize onSubmit={(values) => updateLab.mutate(values)}>
-              {({ errors, touched }) => (
-                <Form className="space-y-5">
+              {({ errors, touched, values, setFieldValue }) => (
+                <Form className="space-y-6">
+                  {/* BL Diagnostics Logo Upload Card */}
+                  <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface-2)] p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="relative grid size-20 place-items-center rounded-2xl border-2 border-dashed border-[color:var(--line)] bg-[color:var(--surface)] overflow-hidden shadow-sm shrink-0">
+                          {values.logo ? (
+                            <img
+                              src={values.logo}
+                              alt="BL Diagnostics Logo"
+                              className="size-full object-contain p-1.5"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-[color:var(--muted)]">
+                              <FlaskConical size={28} className="text-[#176b87]" />
+                              <span className="text-[9px] font-semibold mt-1">No Logo</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-[color:var(--foreground)]">BL Diagnostics Company Logo</h4>
+                          <p className="text-xs text-[color:var(--muted)] max-w-md mt-0.5">
+                            Upload your official BL Diagnostics logo. This logo dynamically updates across the entire LIMS, diagnostic PDF reports, bills/invoices, and print layouts.
+                          </p>
+                          <p className="text-[11px] text-[color:var(--muted)] mt-1 font-medium">
+                            Supported: PNG, JPG, SVG, WebP (Transparent or white background recommended)
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const rawBase64 = event.target?.result as string;
+                                if (!rawBase64) return;
+
+                                // Optimize image size using canvas
+                                const img = new Image();
+                                img.onload = () => {
+                                  const canvas = document.createElement("canvas");
+                                  const maxDim = 600;
+                                  let width = img.width;
+                                  let height = img.height;
+
+                                  if (width > maxDim || height > maxDim) {
+                                    if (width > height) {
+                                      height = Math.round((height * maxDim) / width);
+                                      width = maxDim;
+                                    } else {
+                                      width = Math.round((width * maxDim) / height);
+                                      height = maxDim;
+                                    }
+                                  }
+
+                                  canvas.width = width;
+                                  canvas.height = height;
+                                  const ctx = canvas.getContext("2d");
+                                  if (ctx) {
+                                    ctx.drawImage(img, 0, 0, width, height);
+                                    const optimizedDataUrl = canvas.toDataURL("image/png", 0.95);
+                                    setFieldValue("logo", optimizedDataUrl);
+                                  } else {
+                                    setFieldValue("logo", rawBase64);
+                                  }
+                                };
+                                img.onerror = () => {
+                                  setFieldValue("logo", rawBase64);
+                                };
+                                img.src = rawBase64;
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                          <Button type="button" variant="outline" size="sm" leftIcon={<Upload size={14} />} onClick={(e) => {
+                            const input = (e.currentTarget.parentElement as HTMLLabelElement)?.querySelector("input");
+                            input?.click();
+                          }}>
+                            {values.logo ? "Change Logo" : "Upload Logo"}
+                          </Button>
+                        </label>
+
+                        {values.logo && (
+                          <Button
+                            type="button"
+                            variant="danger-outline"
+                            size="sm"
+                            leftIcon={<Trash2 size={14} />}
+                            onClick={() => setFieldValue("logo", null)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <Grid2>
                     <UIField label="Laboratory Name" name="name" required error={touched.name ? errors.name as string : undefined}>
                       <Field name="name" as={Input} />
@@ -197,10 +302,10 @@ export function SettingsPage() {
                   </UIField>
                   <Divider />
                   <div className="flex justify-between items-center">
-                    <Alert tone="info" title="Branding preview">
-                      Laboratory header and logo should be uploaded in the Reports tab once storage is available.
+                    <Alert tone="info" title="Centralized Branding">
+                      The uploaded logo and laboratory information automatically propagate to your navigation bar, diagnostic reports, invoice prints, and receipt vouchers.
                     </Alert>
-                    <Button type="submit" variant="primary" loading={updateLab.isPending}>Save Laboratory Info</Button>
+                    <Button type="submit" variant="primary" loading={updateLab.isPending}>Save</Button>
                   </div>
                 </Form>
               )}

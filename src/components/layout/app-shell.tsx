@@ -77,19 +77,21 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           collapsed={collapsed}
         />
 
-        <div className={cn("transition-[padding] duration-200", collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]")}>
-          <Header
-            onToggleMobile={() => setMobileOpen(true)}
-            onToggleSidebar={() => setCollapsed((v) => !v)}
-            dark={dark}
-            onToggleDark={() => setDark((v) => !v)}
-            userName={session.name}
-            userRole={session.role}
-            userInitials={session.initials}
-            userAvatar={session.avatar}
-            collapsed={collapsed}
-          />
-          <main className="px-4 py-6 lg:px-8 lg:py-8 no-print-children">
+        <div className={cn("transition-[padding] duration-200 print:pl-0", collapsed ? "lg:pl-[72px]" : "lg:pl-[260px]")}>
+          <div className="print:hidden">
+            <Header
+              onToggleMobile={() => setMobileOpen(true)}
+              onToggleSidebar={() => setCollapsed((v) => !v)}
+              dark={dark}
+              onToggleDark={() => setDark((v) => !v)}
+              userName={session.name}
+              userRole={session.role}
+              userInitials={session.initials}
+              userAvatar={session.avatar}
+              collapsed={collapsed}
+            />
+          </div>
+          <main className="px-4 py-6 lg:px-8 lg:py-8 print:p-0 print:m-0">
             {children}
           </main>
         </div>

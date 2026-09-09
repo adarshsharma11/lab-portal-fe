@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
-import { AlertTriangle, Edit3, Trash2, Eye, Plus, Building2 } from "lucide-react";
+import { AlertTriangle, Edit3, Trash2, Eye, Plus, Building2, IndianRupee } from "lucide-react";
 import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
@@ -48,7 +48,7 @@ const patientFields: readonly FieldConfig[] = [
     name: "bloodGroup",
     label: "Blood Group",
     type: "select",
-    required: true,
+    required: false,
     section: "Personal Details",
     options: [
       { label: "Select blood group", value: "" },
@@ -90,7 +90,7 @@ const doctorFields: readonly FieldConfig[] = [
     type: "select",
     section: "Personal Details",
     options: [
-      { label: "Select gender (optional)", value: "" },
+      { label: "Select gender", value: "" },
       { label: "Female", value: "Female" },
       { label: "Male", value: "Male" },
       { label: "Other", value: "Other" },
@@ -175,7 +175,7 @@ const pathologistFields: readonly FieldConfig[] = [
     type: "select",
     section: "Personal Details",
     options: [
-      { label: "Select gender (optional)", value: "" },
+      { label: "Select gender", value: "" },
       { label: "Female", value: "Female" },
       { label: "Male", value: "Male" },
       { label: "Other", value: "Other" },
@@ -227,7 +227,7 @@ const technicianFields: readonly FieldConfig[] = [
     type: "select",
     section: "Personal Details",
     options: [
-      { label: "Select gender (optional)", value: "" },
+      { label: "Select gender", value: "" },
       { label: "Male", value: "Male" },
       { label: "Female", value: "Female" },
       { label: "Other", value: "Other" },
@@ -306,7 +306,7 @@ const userFields: readonly FieldConfig[] = [
     type: "select",
     section: "Personal Details",
     options: [
-      { label: "Select gender (optional)", value: "" },
+      { label: "Select gender", value: "" },
       { label: "Female", value: "Female" },
       { label: "Male", value: "Male" },
       { label: "Other", value: "Other" },
@@ -367,7 +367,7 @@ const patientSchema = Yup.object({
   patientCode: Yup.string().trim(),
   sex: Yup.string().required("Please select gender").oneOf(["Female", "Male", "Other"], "Invalid gender option"),
   age: Yup.number().typeError("Age must be a valid number").required("Age is required").min(0, "Age cannot be negative").max(130, "Please enter a valid age"),
-  bloodGroup: Yup.string().trim().required("Blood group is required"),
+  bloodGroup: Yup.string().trim(),
   phone: Yup.string().trim().required("Phone number is required"),
   email: Yup.string().trim().email("Please enter a valid email address"),
   city: Yup.string().trim(),
@@ -510,6 +510,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const [currentSession, setCurrentSession] = useState<User | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [proceedToBilling, setProceedToBilling] = useState(false);
 
   useEffect(() => {
     const s = authService.getSession();
@@ -620,6 +621,11 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           header: "Actions",
           cell: ({ row }) => (
             <div className="flex items-center justify-center gap-1.5">
+              <Link href={`/billing/new?patientId=${row.original.id}`}>
+                <Button size="sm" variant="outline" leftIcon={<IndianRupee size={13} />}>
+                  Bill
+                </Button>
+              </Link>
               <Link href={`/${kind}/${row.original.id}`}>
                 <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
                   View
@@ -998,12 +1004,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         delete input.password;
       }
 
+      let createdEntityId = id;
       if (isNew) {
-        await mutations.create.mutateAsync(input as never);
+        const res = await mutations.create.mutateAsync(input as never);
+        createdEntityId = (res as any)?.data?.id || (res as any)?.id || (res as any)?.data?.patientCode || "";
       } else {
         await mutations.update.mutateAsync({ id, input: input as never });
       }
-      router.push(`/${kind}`);
+
+      if (kind === "patients" && proceedToBilling && createdEntityId) {
+        router.push(`/billing/new?patientId=${createdEntityId}`);
+      } else {
+        router.push(`/${kind}`);
+      }
     } catch (err: any) {
       const msg = err?.message || "Failed to save record. Please check the inputs.";
       setFormError(msg);
@@ -1103,6 +1116,13 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
               <Link href={`/${kind}`}>
                 <Button variant="ghost">← Back to {config.plural}</Button>
               </Link>
+              {kind === "patients" && (
+                <Link href={`/billing/new?patientId=${id}`}>
+                  <Button variant="primary" leftIcon={<IndianRupee size={15} />}>
+                    Initiate Billing
+                  </Button>
+                </Link>
+              )}
               {(kind === "franchises" ? isAdmin : canManage) && (
                 <>
                   <Link href={`/${kind}/${id}/edit`}>
@@ -1262,10 +1282,26 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 </div>
               ))}
 
-              <div className="flex items-center gap-3 pt-6 border-t border-[color:var(--line)]">
-                <Button type="submit" variant="primary" loading={isSubmitting || mutations.create.isPending || mutations.update.isPending}>
-                  {isNew ? `Create ${config.singular}` : `Update ${config.singular}`}
+              <div className="flex flex-wrap items-center gap-3 pt-6 border-t border-[color:var(--line)]">
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  loading={isSubmitting || mutations.create.isPending || mutations.update.isPending}
+                  onClick={() => setProceedToBilling(false)}
+                >
+                  {isNew ? `Register ${config.singular}` : `Update ${config.singular}`}
                 </Button>
+                {kind === "patients" && isNew && (
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    leftIcon={<IndianRupee size={15} />}
+                    loading={isSubmitting || mutations.create.isPending}
+                    onClick={() => setProceedToBilling(true)}
+                  >
+                    Save & Proceed to Billing
+                  </Button>
+                )}
                 <Link href={`/${kind}`}>
                   <Button type="button" variant="ghost">Cancel</Button>
                 </Link>
