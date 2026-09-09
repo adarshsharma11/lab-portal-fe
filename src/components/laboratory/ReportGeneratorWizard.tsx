@@ -12,6 +12,7 @@ import { useSamples } from "@/features/laboratory/hooks";
 import { useTestMasters } from "@/features/test-masters/hooks";
 import { useReportTemplates } from "@/features/reports/hooks";
 import { reportApi } from "@/mocks/services/resources";
+import { authService } from "@/lib/auth/auth-service";
 import { 
   STANDARD_TEST_CATALOG, 
   getTestParameterSchema, 
@@ -47,28 +48,47 @@ export function ReportGeneratorWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [currentSession, setCurrentSession] = useState<{ role?: string; franchiseId?: string } | null>(null);
+
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s) {
+      setCurrentSession({ role: s.role, franchiseId: s.franchiseId });
+    }
+  }, []);
+
+  const isAdmin = currentSession?.role === "Admin" || currentSession?.role === "Administrator";
+
   // Combobox options
   const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
-    const patients = (patientsQuery.data ?? []) as Patient[];
-    return patients.map((p) => ({
+    const allPatients = (patientsQuery.data ?? []) as Patient[];
+    const filtered = (!isAdmin && currentSession?.franchiseId)
+      ? allPatients.filter(p => !p.franchiseId || p.franchiseId === currentSession.franchiseId)
+      : allPatients;
+
+    return filtered.map((p) => ({
       value: p.id,
       label: p.name,
       secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
       badge: p.phone,
       extra: p,
     }));
-  }, [patientsQuery.data]);
+  }, [patientsQuery.data, isAdmin, currentSession]);
 
   const doctorComboboxOptions = useMemo<ComboboxOption[]>(() => {
     const doctors = (doctorsQuery.data ?? []) as Doctor[];
-    return doctors.map((d) => ({
+    const filtered = (!isAdmin && currentSession?.franchiseId)
+      ? doctors.filter(d => !d.franchiseId || d.franchiseId === currentSession.franchiseId)
+      : doctors;
+
+    return filtered.map((d) => ({
       value: d.id,
       label: d.name,
       secondary: d.specialty || "Practitioner",
       badge: d.phone,
       extra: d,
     }));
-  }, [doctorsQuery.data]);
+  }, [doctorsQuery.data, isAdmin, currentSession]);
 
   const testMasterComboboxOptions = useMemo<ComboboxOption[]>(() => {
     const dbTests = (testMastersQuery.data ?? []) as TestMaster[];
@@ -171,6 +191,7 @@ export function ReportGeneratorWizard() {
       const reportPayload = {
         patientId: currentPatient.id,
         doctorId: selectedDoctorId || undefined,
+        franchiseId: currentPatient.franchiseId || (currentPatient as any).franchise?.id || undefined,
         accession,
         barcode,
         sampleType,

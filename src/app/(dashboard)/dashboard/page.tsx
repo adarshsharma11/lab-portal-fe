@@ -35,15 +35,17 @@ const brandPalette = ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"];
 function AdminDashboard() {
   const { selectedFranchiseId, selectedFranchise, franchises, setSelectedFranchiseId, activeFranchiseName } = useFranchise();
 
-  const stats = useDashboardStats();
-  const volume = useTestVolume();
-  const departments = useDepartmentDistribution();
-  const samples = useSampleStatistics();
-  const revenue = useRevenue();
-  const turnaround = useTurnaround();
-  const activity = useRecentActivity();
-  const pending = usePendingWork();
-  const critical = useCriticalResults();
+  const franchiseScope = selectedFranchiseId === "all" ? undefined : selectedFranchiseId;
+
+  const stats = useDashboardStats(franchiseScope);
+  const volume = useTestVolume(franchiseScope);
+  const departments = useDepartmentDistribution(franchiseScope);
+  const samples = useSampleStatistics(franchiseScope);
+  const revenue = useRevenue(franchiseScope);
+  const turnaround = useTurnaround(franchiseScope);
+  const activity = useRecentActivity(franchiseScope);
+  const pending = usePendingWork(franchiseScope);
+  const critical = useCriticalResults(franchiseScope);
 
   const pendingCols = useMemo(() => {
     const h = createColumnHelper<PendingWork>();

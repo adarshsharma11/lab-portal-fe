@@ -26,6 +26,34 @@ interface FieldConfig {
   section?: string;
 }
 
+export function calculateAgeFromDob(dob: string): number | "" {
+  if (!dob || typeof dob !== "string" || !dob.trim()) return "";
+  const clean = dob.trim();
+  let birthDate: Date | null = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const [y, m, d] = clean.split("-").map(Number);
+    birthDate = new Date(y, m - 1, d);
+  } else if (/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(clean)) {
+    const parts = clean.split(/[/-]/).map(Number);
+    birthDate = new Date(parts[2], parts[1] - 1, parts[0]);
+  } else {
+    const parsed = new Date(clean);
+    if (!isNaN(parsed.getTime())) {
+      birthDate = parsed;
+    }
+  }
+
+  if (!birthDate || isNaN(birthDate.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : 0;
+}
+
 const patientFields: readonly FieldConfig[] = [
   { name: "name", label: "Full Name", type: "text", placeholder: "Maya Sharma", required: true, section: "Personal Details" },
   { name: "patientCode", label: "Patient Code", type: "text", placeholder: "PT-82910 (auto-generated if left blank)", section: "Personal Details" },
@@ -42,8 +70,8 @@ const patientFields: readonly FieldConfig[] = [
       { label: "Other", value: "Other" },
     ],
   },
-  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details" },
-  { name: "age", label: "Age", type: "number", placeholder: "32", required: true, section: "Personal Details" },
+  { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", hint: "Selecting Date of Birth calculates Age automatically", section: "Personal Details" },
+  { name: "age", label: "Age", type: "number", placeholder: "32", required: true, hint: "Auto-calculated from Date of Birth", section: "Personal Details" },
   {
     name: "bloodGroup",
     label: "Blood Group",
@@ -691,32 +719,42 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         f.display({
           id: "actions",
           header: "Actions",
-          cell: ({ row }) => (
-            <div className="flex items-center justify-center gap-1.5">
-              <Link href={`/${kind}/${row.original.id}`}>
-                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
-                  View
-                </Button>
-              </Link>
-              {isAdmin && (
-                <>
-                  <Link href={`/${kind}/${row.original.id}/edit`}>
-                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
-                      Edit
-                    </Button>
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="danger-outline"
-                    leftIcon={<Trash2 size={13} />}
-                    onClick={() => setConfirmDeleteId(row.original.id)}
-                  >
-                    Delete
+          cell: ({ row }) => {
+            const isSelf = Boolean(
+              currentSession && (
+                currentSession.id === row.original.id ||
+                (row.original.email && currentSession.email && row.original.email.toLowerCase() === currentSession.email.toLowerCase())
+              )
+            );
+            return (
+              <div className="flex items-center justify-center gap-1.5">
+                <Link href={`/${kind}/${row.original.id}`}>
+                  <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                    View
                   </Button>
-                </>
-              )}
-            </div>
-          ),
+                </Link>
+                {isAdmin && (
+                  <>
+                    <Link href={`/${kind}/${row.original.id}/edit`}>
+                      <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                        Edit
+                      </Button>
+                    </Link>
+                    {!isSelf && (
+                      <Button
+                        size="sm"
+                        variant="danger-outline"
+                        leftIcon={<Trash2 size={13} />}
+                        onClick={() => setConfirmDeleteId(row.original.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          },
         }),
       ];
     }
@@ -751,32 +789,42 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         d.display({
           id: "actions",
           header: "Actions",
-          cell: ({ row }) => (
-            <div className="flex items-center justify-center gap-1.5">
-              <Link href={`/${kind}/${row.original.id}`}>
-                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
-                  View
-                </Button>
-              </Link>
-              {canManage && (
-                <>
-                  <Link href={`/${kind}/${row.original.id}/edit`}>
-                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
-                      Edit
-                    </Button>
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="danger-outline"
-                    leftIcon={<Trash2 size={13} />}
-                    onClick={() => setConfirmDeleteId(row.original.id)}
-                  >
-                    Delete
+          cell: ({ row }) => {
+            const isSelf = Boolean(
+              currentSession && (
+                currentSession.id === row.original.id ||
+                (row.original.email && currentSession.email && row.original.email.toLowerCase() === currentSession.email.toLowerCase())
+              )
+            );
+            return (
+              <div className="flex items-center justify-center gap-1.5">
+                <Link href={`/${kind}/${row.original.id}`}>
+                  <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                    View
                   </Button>
-                </>
-              )}
-            </div>
-          ),
+                </Link>
+                {canManage && (
+                  <>
+                    <Link href={`/${kind}/${row.original.id}/edit`}>
+                      <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                        Edit
+                      </Button>
+                    </Link>
+                    {!isSelf && (
+                      <Button
+                        size="sm"
+                        variant="danger-outline"
+                        leftIcon={<Trash2 size={13} />}
+                        onClick={() => setConfirmDeleteId(row.original.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          },
         }),
       ];
     }
@@ -835,32 +883,42 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         u.display({
           id: "actions",
           header: "Actions",
-          cell: ({ row }) => (
-            <div className="flex items-center justify-center gap-1.5">
-              <Link href={`/${kind}/${row.original.id}`}>
-                <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
-                  View
-                </Button>
-              </Link>
-              {canManage && (
-                <>
-                  <Link href={`/${kind}/${row.original.id}/edit`}>
-                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
-                      Edit
-                    </Button>
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="danger-outline"
-                    leftIcon={<Trash2 size={13} />}
-                    onClick={() => setConfirmDeleteId(row.original.id)}
-                  >
-                    Delete
+          cell: ({ row }) => {
+            const isSelf = Boolean(
+              currentSession && (
+                currentSession.id === row.original.id ||
+                (row.original.email && currentSession.email && row.original.email.toLowerCase() === currentSession.email.toLowerCase())
+              )
+            );
+            return (
+              <div className="flex items-center justify-center gap-1.5">
+                <Link href={`/${kind}/${row.original.id}`}>
+                  <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+                    View
                   </Button>
-                </>
-              )}
-            </div>
-          ),
+                </Link>
+                {canManage && (
+                  <>
+                    <Link href={`/${kind}/${row.original.id}/edit`}>
+                      <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                        Edit
+                      </Button>
+                    </Link>
+                    {!isSelf && (
+                      <Button
+                        size="sm"
+                        variant="danger-outline"
+                        leftIcon={<Trash2 size={13} />}
+                        onClick={() => setConfirmDeleteId(row.original.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          },
         }),
       ];
     }
@@ -906,7 +964,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         ),
       }),
     ];
-  }, [kind, isAdmin, canManage]);
+  }, [kind, isAdmin, canManage, currentSession]);
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };
@@ -1266,6 +1324,23 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                               name={field.name}
                               as={Textarea}
                               placeholder={placeholder}
+                            />
+                          ) : field.name === "dateOfBirth" ? (
+                            <Field
+                              name={field.name}
+                              type="date"
+                              as={Input}
+                              placeholder={placeholder}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                const val = e.target.value;
+                                setFieldValue("dateOfBirth", val);
+                                if (kind === "patients") {
+                                  const computedAge = calculateAgeFromDob(val);
+                                  if (computedAge !== "") {
+                                    setFieldValue("age", computedAge);
+                                  }
+                                }
+                              }}
                             />
                           ) : (
                             <Field

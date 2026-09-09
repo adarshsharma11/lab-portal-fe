@@ -81,6 +81,7 @@ const sampleFields: readonly FormFieldDef[] = [
 ];
 
 const testFields: readonly FormFieldDef[] = [
+  { name: "patientId", label: "Registered Patient / Patient Name", type: "text", placeholder: "Search patient by name, code, phone...", required: true, hint: "Select registered patient for this diagnostic test", colSpan: 2 },
   { name: "name", label: "Test Full Name (Master Database)", type: "text", placeholder: "Search by test name (e.g. Calcium, CBC, Bilirubin)...", required: true, hint: "Search test name from database catalog", colSpan: 2 },
   { name: "code", label: "Test Code", type: "text", placeholder: "e.g. HM001, BC001, CBC", required: true, hint: "Auto-populated from test master or search by code" },
   {
@@ -150,6 +151,7 @@ const sampleSchema = Yup.object({
 });
 
 const testSchema = Yup.object({
+  patientId: Yup.string().trim().required("Registered patient selection is required"),
   code: Yup.string().trim().required("Test code is required").min(2, "Test code must be at least 2 characters"),
   name: Yup.string().trim().required("Test full name is required from catalog").min(2, "Name must be at least 2 characters"),
   department: Yup.string().required("Please select a department"),
@@ -164,11 +166,15 @@ const testSchema = Yup.object({
 export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly string[] }>) {
   const router = useRouter();
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+  const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string; id?: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const s = authService.getSession();
-    if (s?.role) setCurrentRole(s.role);
+    if (s) {
+      setCurrentSession({ role: s.role, franchiseId: s.franchiseId, id: s.id });
+      if (s.role) setCurrentRole(s.role);
+    }
   }, []);
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
@@ -179,7 +185,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   const franchiseOptions = useMemo(() => {
     const franchises = (franchisesList.data ?? []) as Franchise[];
     return [
-      { label: "Select Franchise (or leave empty for Central Lab)...", value: "" },
+      { label: "Select Franchise...", value: "" },
       ...franchises.map((f) => ({
         label: `${f.name} (${f.code || f.city || "Branch"})`,
         value: f.id,
@@ -188,16 +194,27 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     ];
   }, [franchisesList.data]);
 
-  const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
-    const patients = (patientsList.data ?? []) as Patient[];
-    return patients.map((p) => ({
-      value: p.patientCode || p.id,
+  const getPatientComboboxOptions = (formFranchiseId?: string): ComboboxOption[] => {
+    const allPatients = (patientsList.data ?? []) as Patient[];
+    let filtered = allPatients;
+    if (isAdmin) {
+      if (formFranchiseId && formFranchiseId !== "__add_franchise__") {
+        filtered = allPatients.filter((p) => p.franchiseId === formFranchiseId);
+      } else {
+        filtered = [];
+      }
+    } else if (currentSession?.franchiseId) {
+      filtered = allPatients.filter((p) => !p.franchiseId || p.franchiseId === currentSession.franchiseId);
+    }
+
+    return filtered.map((p) => ({
+      value: p.id,
       label: p.name,
       secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
       badge: p.phone,
       extra: p,
     }));
-  }, [patientsList.data]);
+  };
 
   const testMasterNameOptions = useMemo<ComboboxOption[]>(() => {
     const tests = testMastersQuery.data ?? [];
@@ -251,9 +268,27 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         header: isSample ? "Sample ID / Barcode" : "Test Name",
         cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
       }),
-      h.accessor(row => ("patientId" in row ? row.patientId : row.department), {
-        id: "patient_dept",
-        header: isSample ? "Patient" : "Department",
+      h.accessor(row => {
+        if ("patient" in row && (row as any).patient?.name) {
+          return (row as any).patient.name;
+        }
+        if ("sample" in row && (row as any).sample?.patient?.name) {
+          return (row as any).sample.patient.name;
+        }
+        if ("patientId" in row && row.patientId) {
+          const p = (patientsList.data ?? []).find(pt => pt.id === row.patientId || pt.patientCode === row.patientId);
+          if (p) return p.name;
+          return row.patientId;
+        }
+        return "—";
+      }, {
+        id: "patient_name",
+        header: "Patient",
+        cell: ({ getValue }) => <span className="font-medium text-[color:var(--foreground)]">{getValue()}</span>
+      }),
+      h.accessor(row => ("department" in row ? row.department : (row as any).sampleType || "Blood"), {
+        id: "dept_type",
+        header: isSample ? "Specimen" : "Department",
         cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
       }),
       ...(!isSample ? [
@@ -316,7 +351,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         )
       })
     ];
-  }, [isSample, kind, isAdmin]);
+  }, [isSample, kind, isAdmin, patientsList.data]);
 
   const handleDelete = async () => {
     if (!confirmDeleteId) return;
@@ -393,7 +428,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     const initialValues = isNew
       ? isSample
         ? { accession: "", barcode: "", patientId: "", sampleType: "", collectedAt: new Date().toISOString().slice(0, 16), priority: "", status: "", notes: "", franchiseId: "" }
-        : { code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "24", status: "Active", franchiseId: "" }
+        : { patientId: "", code: "", name: "", department: "", sampleType: "", price: "", referenceRange: "", unit: "", turnaroundHours: "24", status: "Active", franchiseId: "" }
       : isSample
       ? {
           accession: rawRecord?.accession ?? "",
@@ -407,6 +442,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           franchiseId: rawRecord?.franchiseId ?? "",
         }
       : {
+          patientId: rawRecord?.patientId ?? rawRecord?.sample?.patientId ?? "",
           code: rawRecord?.code ?? "",
           name: rawRecord?.name ?? "",
           department: rawRecord?.department ?? "",
@@ -426,15 +462,22 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             name: "franchiseId",
             label: "Assign to Franchise",
             type: "select",
+            required: true,
             options: franchiseOptions,
-            hint: "Assign this record to a Franchise branch.",
+            hint: "Select which Franchise owns this record.",
             colSpan: 2,
           },
           ...baseFields,
         ]
       : [...baseFields];
 
-    const schema = isSample ? sampleSchema : testSchema;
+    const schema = (isSample ? sampleSchema : testSchema).shape(
+      isAdmin
+        ? {
+            franchiseId: Yup.string().trim().required("Please select which Franchise this record belongs to."),
+          }
+        : {}
+    );
 
     const submit = async (values: typeof initialValues) => {
       if (values.franchiseId === "__add_franchise__") {
@@ -458,6 +501,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       } else {
         const payload = {
           ...values,
+          patientId: values.patientId || undefined,
           price: Number(values.price) || 0,
           turnaroundHours: Number(values.turnaroundHours) || 24,
           franchiseId: values.franchiseId || undefined,
@@ -477,7 +521,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           title={isNew ? `New ${isSample ? "sample" : "test"}` : `Edit ${isSample ? "sample" : "test"}`} 
           description={
             !isSample 
-              ? "Select any test from the Master Database catalog. Details, codes, and rates auto-populate dynamically."
+              ? "Select patient and test from Master Database catalog. Codes, rates, and parameters auto-populate dynamically."
               : "Complete the required fields below. Select registered patient to link diagnostic sample."
           }
           action={
@@ -491,7 +535,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#176b87]/20 bg-[#e8f4f7]/60 p-3 text-xs text-[#176b87]">
             <Sparkles size={16} className="shrink-0" />
             <span>
-              <strong>Master Data Connected:</strong> Type test full name or code to autocomplete and auto-fetch official rates, MRP, and department from the database.
+              <strong>Master Data Connected:</strong> Select patient, then type test full name or code to autocomplete and auto-fetch official rates, MRP, and department.
             </span>
           </div>
         )}
@@ -506,166 +550,231 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             validateOnBlur={true}
             onSubmit={submit}
           >
-            {({ errors, touched, values, isSubmitting, setFieldValue }) => (
-              <Form className="space-y-6">
-                <Grid2>
-                  {fields.map((field) => {
-                    const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
-                    
-                    // 1. Patient selection for Sample Form (Searchable Autocomplete)
-                    if (isSample && field.name === "patientId") {
-                      return (
-                        <UIField 
-                          key={field.name} 
-                          label={field.label} 
-                          name={field.name} 
-                          required={field.required}
-                          hint={field.hint}
-                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                          error={errorMsg}
-                        >
-                          <SearchableCombobox
-                            options={patientComboboxOptions}
-                            value={values.patientId}
-                            onChange={(val) => setFieldValue("patientId", val)}
-                            placeholder="Select registered patient (type name, code, phone)..."
-                            searchPlaceholder="Search by name, patient code, phone..."
-                            loading={patientsList.isLoading}
-                          />
-                        </UIField>
-                      );
-                    }
+            {({ errors, touched, values, isSubmitting, setFieldValue }) => {
+              const patientOpts = getPatientComboboxOptions(values.franchiseId);
+              const selectedPatient = (patientsList.data ?? []).find(
+                (p) => p.id === values.patientId || p.patientCode === values.patientId || p.name === values.patientId
+              );
 
-                    // 2. Test Full Name selection from Master Database (Searchable Autocomplete)
-                    if (!isSample && field.name === "name") {
-                      return (
-                        <UIField 
-                          key={field.name} 
-                          label={field.label} 
-                          name={field.name} 
-                          required={field.required}
-                          hint={field.hint}
-                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                          error={errorMsg}
-                        >
-                          <SearchableCombobox
-                            options={testMasterNameOptions}
-                            value={values.name}
-                            onChange={(val, opt) => {
-                              setFieldValue("name", val);
-                              if (opt?.extra) {
-                                const tm = opt.extra as TestMaster;
-                                setFieldValue("code", tm.code || "");
-                                setFieldValue("department", tm.department || "Biochemistry");
-                                setFieldValue("price", String(tm.mrp || tm.rate || 0));
-                                if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
-                                if (tm.unit) setFieldValue("unit", tm.unit);
-                                if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
-                              }
-                            }}
-                            placeholder="Search & select test name from database (e.g. Calcium, CBC, Bilirubin)..."
-                            searchPlaceholder="Type test name (e.g. Calcium, CBC, Blood Glucose)..."
-                            loading={testMastersQuery.isLoading}
-                          />
-                        </UIField>
-                      );
-                    }
+              return (
+                <Form className="space-y-6">
+                  <Grid2>
+                    {fields.map((field) => {
+                      const errorMsg = touched[field.name as keyof typeof touched] ? (errors[field.name as keyof typeof errors] as string) : undefined;
+                      
+                      // 1. Patient selection for Sample and Test Forms (Searchable Autocomplete with Franchise Isolation)
+                      if (field.name === "patientId") {
+                        return (
+                          <div key={field.name} className={field.colSpan === 2 ? "sm:col-span-2 space-y-3" : "space-y-3"}>
+                            <UIField 
+                              label={field.label} 
+                              name={field.name} 
+                              required={field.required}
+                              hint={isAdmin && !values.franchiseId ? "⚠️ Please select a Franchise above first to load patients for that branch." : field.hint}
+                              error={errorMsg}
+                            >
+                              <SearchableCombobox
+                                options={patientOpts}
+                                value={values.patientId}
+                                onChange={(val, opt) => {
+                                  setFieldValue("patientId", val);
+                                  if (opt?.extra) {
+                                    const p = opt.extra as Patient;
+                                    if (isAdmin && p.franchiseId && !values.franchiseId) {
+                                      setFieldValue("franchiseId", p.franchiseId);
+                                    }
+                                  }
+                                }}
+                                placeholder={
+                                  isAdmin && !values.franchiseId 
+                                    ? "← Select Franchise above first to load patients..." 
+                                    : patientOpts.length === 0 
+                                    ? "No patients registered under this franchise" 
+                                    : "Select registered patient (type name, code, phone)..."
+                                }
+                                searchPlaceholder="Search by name, patient code, phone..."
+                                loading={patientsList.isLoading}
+                                disabled={isAdmin && !values.franchiseId}
+                              />
+                            </UIField>
 
-                    // 3. Test Code selection from Master Database (Searchable Autocomplete)
-                    if (!isSample && field.name === "code") {
-                      return (
-                        <UIField 
-                          key={field.name} 
-                          label={field.label} 
-                          name={field.name} 
-                          required={field.required}
-                          hint={field.hint}
-                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                          error={errorMsg}
-                        >
-                          <SearchableCombobox
-                            options={testMasterCodeOptions}
-                            value={values.code}
-                            onChange={(val, opt) => {
-                              setFieldValue("code", val);
-                              if (opt?.extra) {
-                                const tm = opt.extra as TestMaster;
-                                setFieldValue("name", tm.name || "");
-                                setFieldValue("department", tm.department || "Biochemistry");
-                                setFieldValue("price", String(tm.mrp || tm.rate || 0));
-                                if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
-                                if (tm.unit) setFieldValue("unit", tm.unit);
-                                if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
-                              }
-                            }}
-                            placeholder="Search or enter test code (e.g. BC069, HM001)..."
-                            searchPlaceholder="Type code (e.g. HM001, BC001)..."
-                            loading={testMastersQuery.isLoading}
-                          />
-                        </UIField>
-                      );
-                    }
+                            {/* Verified Patient Detail Card */}
+                            {selectedPatient && (
+                              <div className="rounded-xl border border-[#176b87]/30 bg-[#e8f4f7]/70 p-3 text-xs text-[#176b87] shadow-xs">
+                                <div className="flex items-center justify-between border-b border-[#176b87]/20 pb-1.5 mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="size-2 rounded-full bg-emerald-500" />
+                                    <span className="font-bold text-sm text-[color:var(--foreground)]">{selectedPatient.name}</span>
+                                    <span className="font-mono text-xs font-semibold bg-white/80 px-2 py-0.5 rounded border border-[#176b87]/20">
+                                      {selectedPatient.patientCode || selectedPatient.id}
+                                    </span>
+                                  </div>
+                                  <StatusBadge tone="success" size="sm">Registered Patient</StatusBadge>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                  <div>
+                                    <span className="text-[color:var(--muted)] block">Age & Gender</span>
+                                    <span className="font-semibold text-[color:var(--foreground)]">{selectedPatient.age} yrs · {selectedPatient.sex || "—"}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[color:var(--muted)] block">Contact Phone</span>
+                                    <span className="font-mono font-semibold text-[color:var(--foreground)]">{selectedPatient.phone || "—"}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[color:var(--muted)] block">Blood Group</span>
+                                    <span className="font-semibold text-rose-600">{selectedPatient.bloodGroup || "Not Recorded"}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[color:var(--muted)] block">Assigned Franchise</span>
+                                    <span className="font-semibold text-[#176b87]">
+                                      {franchisesList.data?.find(f => f.id === selectedPatient.franchiseId)?.name || "Central Lab"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
 
-                    return (
-                      <UIField 
-                        key={field.name} 
-                        label={field.label} 
-                        name={field.name} 
-                        required={field.required}
-                        hint={field.hint}
-                        className={field.colSpan === 2 ? "sm:col-span-2" : ""}
-                        error={errorMsg}
-                      >
-                        {field.type === "select" ? (
-                          <Field 
+                      // 2. Test Full Name selection from Master Database (Searchable Autocomplete)
+                      if (!isSample && field.name === "name") {
+                        return (
+                          <UIField 
+                            key={field.name} 
+                            label={field.label} 
                             name={field.name} 
-                            as={Select}
-                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                              const selected = e.target.value;
-                              if (field.name === "franchiseId" && selected === "__add_franchise__") {
-                                router.push("/franchises/new");
-                                return;
-                              }
-                              setFieldValue(field.name, selected);
-                            }}
+                            required={field.required}
+                            hint={field.hint}
+                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            error={errorMsg}
                           >
-                            {field.options?.map((opt) => (
-                              <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </Field>
-                        ) : field.type === "textarea" ? (
-                          <Field name={field.name} as={Textarea} placeholder={field.placeholder} />
-                        ) : field.type === "datetime" ? (
-                          <Field name={field.name} type="datetime-local" as={Input} />
-                        ) : (
-                          <Field name={field.name} type={field.type} as={Input} placeholder={field.placeholder} />
-                        )}
-                      </UIField>
-                    );
-                  })}
-                </Grid2>
-                <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
-                  <Button type="submit" variant="primary" loading={isSubmitting || createSample.isPending || createTest.isPending || updateSample.isPending || updateTest.isPending}>
-                    Save {isSample ? "Sample" : "Test"}
-                  </Button>
-                  <Link href={`/${kind}`}>
-                    <Button type="button" variant="ghost">Cancel</Button>
-                  </Link>
-                  {!isNew && isAdmin && (
-                    <Button 
-                      type="button" 
-                      variant="danger-outline"
-                      className="ml-auto"
-                      onClick={() => setConfirmDeleteId(id)}
-                    >
-                      Delete {isSample ? "Sample" : "Test"}
+                            <SearchableCombobox
+                              options={testMasterNameOptions}
+                              value={values.name}
+                              onChange={(val, opt) => {
+                                setFieldValue("name", val);
+                                if (opt?.extra) {
+                                  const tm = opt.extra as TestMaster;
+                                  setFieldValue("code", tm.code || "");
+                                  setFieldValue("department", tm.department || "Biochemistry");
+                                  setFieldValue("price", String(tm.mrp || tm.rate || 0));
+                                  if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
+                                  if (tm.unit) setFieldValue("unit", tm.unit);
+                                  if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
+                                }
+                              }}
+                              placeholder="Search & select test name from database (e.g. Calcium, CBC, Bilirubin)..."
+                              searchPlaceholder="Type test name (e.g. Calcium, CBC, Blood Glucose)..."
+                              loading={testMastersQuery.isLoading}
+                            />
+                          </UIField>
+                        );
+                      }
+
+                      // 3. Test Code selection from Master Database (Searchable Autocomplete)
+                      if (!isSample && field.name === "code") {
+                        return (
+                          <UIField 
+                            key={field.name} 
+                            label={field.label} 
+                            name={field.name} 
+                            required={field.required}
+                            hint={field.hint}
+                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            error={errorMsg}
+                          >
+                            <SearchableCombobox
+                              options={testMasterCodeOptions}
+                              value={values.code}
+                              onChange={(val, opt) => {
+                                setFieldValue("code", val);
+                                if (opt?.extra) {
+                                  const tm = opt.extra as TestMaster;
+                                  setFieldValue("name", tm.name || "");
+                                  setFieldValue("department", tm.department || "Biochemistry");
+                                  setFieldValue("price", String(tm.mrp || tm.rate || 0));
+                                  if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
+                                  if (tm.unit) setFieldValue("unit", tm.unit);
+                                  if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
+                                }
+                              }}
+                              placeholder="Search or enter test code (e.g. BC069, HM001)..."
+                              searchPlaceholder="Type code (e.g. HM001, BC001)..."
+                              loading={testMastersQuery.isLoading}
+                            />
+                          </UIField>
+                        );
+                      }
+
+                      return (
+                        <UIField 
+                          key={field.name} 
+                          label={field.label} 
+                          name={field.name} 
+                          required={field.required}
+                          hint={field.hint}
+                          className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                          error={errorMsg}
+                        >
+                          {field.type === "select" ? (
+                            <Field 
+                              name={field.name} 
+                              as={Select}
+                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                const selected = e.target.value;
+                                if (field.name === "franchiseId" && selected === "__add_franchise__") {
+                                  router.push("/franchises/new");
+                                  return;
+                                }
+                                setFieldValue(field.name, selected);
+                                if (field.name === "franchiseId") {
+                                  // Clear patientId if patient does not belong to new franchise
+                                  const curP = (patientsList.data ?? []).find(p => p.id === values.patientId || p.patientCode === values.patientId);
+                                  if (curP && curP.franchiseId !== selected) {
+                                    setFieldValue("patientId", "");
+                                  }
+                                }
+                              }}
+                            >
+                              {field.options?.map((opt) => (
+                                <option key={opt.value} value={opt.value} disabled={opt.value === "" && field.required}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </Field>
+                          ) : field.type === "textarea" ? (
+                            <Field name={field.name} as={Textarea} placeholder={field.placeholder} />
+                          ) : field.type === "datetime" ? (
+                            <Field name={field.name} type="datetime-local" as={Input} />
+                          ) : (
+                            <Field name={field.name} type={field.type} as={Input} placeholder={field.placeholder} />
+                          )}
+                        </UIField>
+                      );
+                    })}
+                  </Grid2>
+                  <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
+                    <Button type="submit" variant="primary" loading={isSubmitting || createSample.isPending || createTest.isPending || updateSample.isPending || updateTest.isPending}>
+                      Save {isSample ? "Sample" : "Test"}
                     </Button>
-                  )}
-                </div>
-              </Form>
-            )}
+                    <Link href={`/${kind}`}>
+                      <Button type="button" variant="ghost">Cancel</Button>
+                    </Link>
+                    {!isNew && isAdmin && (
+                      <Button 
+                        type="button" 
+                        variant="danger-outline"
+                        className="ml-auto"
+                        onClick={() => setConfirmDeleteId(id)}
+                      >
+                        Delete {isSample ? "Sample" : "Test"}
+                      </Button>
+                    )}
+                  </div>
+                </Form>
+              );
+            }}
           </Formik>
         </Card>
       </div>

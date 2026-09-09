@@ -435,13 +435,17 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const isAppointment = kind === "appointments";
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+  const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string; id?: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activePrintLayout, setActivePrintLayout] = useState<"a4" | "thermal">("a4");
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     const s = authService.getSession();
-    if (s?.role) setCurrentRole(s.role);
+    if (s) {
+      setCurrentSession({ role: s.role, franchiseId: s.franchiseId, id: s.id });
+      if (s.role) setCurrentRole(s.role);
+    }
   }, []);
 
   const lab = useLaboratorySettings();
@@ -461,7 +465,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const franchiseOptions = useMemo(() => {
     const franchises = (franchisesList.data ?? []) as Franchise[];
     return [
-      { label: "Select Franchise (or leave empty for Central Lab)...", value: "" },
+      { label: "Select Franchise...", value: "" },
       ...franchises.map((f) => ({
         label: `${f.name} (${f.code || f.city || "Branch"})`,
         value: f.id,
@@ -470,27 +474,47 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     ];
   }, [franchisesList.data]);
 
-  const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
-    const patients = (patientsList.data ?? []) as Patient[];
-    return patients.map((p) => ({
-      value: p.patientCode || p.id,
+  const getPatientComboboxOptions = (formFranchiseId?: string): ComboboxOption[] => {
+    const allPatients = (patientsList.data ?? []) as Patient[];
+    let filtered = allPatients;
+    if (isAdmin) {
+      if (formFranchiseId && formFranchiseId !== "__add_franchise__") {
+        filtered = allPatients.filter((p) => p.franchiseId === formFranchiseId);
+      } else {
+        filtered = [];
+      }
+    } else if (currentSession?.franchiseId) {
+      filtered = allPatients.filter((p) => !p.franchiseId || p.franchiseId === currentSession.franchiseId);
+    }
+
+    return filtered.map((p) => ({
+      value: p.id,
       label: p.name,
       secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
       badge: p.phone,
       extra: p,
     }));
-  }, [patientsList.data]);
+  };
 
-  const doctorComboboxOptions = useMemo<ComboboxOption[]>(() => {
-    const doctors = (doctorsList.data ?? []) as Doctor[];
-    return doctors.map((d) => ({
+  const getDoctorComboboxOptions = (formFranchiseId?: string): ComboboxOption[] => {
+    const allDoctors = (doctorsList.data ?? []) as Doctor[];
+    let filtered = allDoctors;
+    if (isAdmin) {
+      if (formFranchiseId && formFranchiseId !== "__add_franchise__") {
+        filtered = allDoctors.filter((d) => !d.franchiseId || d.franchiseId === formFranchiseId);
+      }
+    } else if (currentSession?.franchiseId) {
+      filtered = allDoctors.filter((d) => !d.franchiseId || d.franchiseId === currentSession.franchiseId);
+    }
+
+    return filtered.map((d) => ({
       value: d.name,
       label: d.name,
       secondary: d.specialty || "Practitioner",
       badge: d.phone,
       extra: d,
     }));
-  }, [doctorsList.data]);
+  };
 
   const testMasterComboboxOptions = useMemo<ComboboxOption[]>(() => {
     const tests = testMastersQuery.data ?? [];
@@ -844,15 +868,22 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             name: "franchiseId",
             label: "Assign to Franchise",
             type: "select",
+            required: true,
             options: franchiseOptions,
-            hint: "Assign this record to a Franchise branch.",
+            hint: "Select which Franchise owns this record.",
             colSpan: 2,
           },
           ...baseFields,
         ]
       : [...baseFields];
 
-    const schema = isAppointment ? appointmentSchema : invoiceSchema;
+    const schema = (isAppointment ? appointmentSchema : invoiceSchema).shape(
+      isAdmin
+        ? {
+            franchiseId: Yup.string().trim().required("Please select which Franchise this record belongs to."),
+          }
+        : {}
+    );
 
     const submit = async (values: typeof initialValues) => {
       if (values.franchiseId === "__add_franchise__") {
@@ -950,6 +981,9 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               const liveSubtotal = qty * mrp;
               const liveGrandTotal = Math.max(0, liveSubtotal - disc + sgstVal + cgstVal);
 
+              const patientOpts = getPatientComboboxOptions(values.franchiseId);
+              const doctorOpts = getDoctorComboboxOptions(values.franchiseId);
+
               return (
                 <Form className="space-y-6">
                   <Grid2>
@@ -968,11 +1002,11 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                               label={field.label} 
                               name={field.name} 
                               required={field.required}
-                              hint={field.hint}
+                              hint={isAdmin && !values.franchiseId ? "⚠️ Please select a Franchise above first to load patients for that branch." : field.hint}
                               error={errorMsg}
                             >
                               <SearchableCombobox
-                                options={patientComboboxOptions}
+                                options={patientOpts}
                                 value={values.patientId}
                                 onChange={(val, opt) => {
                                   setFieldValue("patientId", val);
@@ -982,14 +1016,21 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                       const doc = (doctorsList.data ?? []).find(d => d.id === p.referringDoctorId);
                                       if (doc) setFieldValue("doctorId", doc.name);
                                     }
-                                    if (isAdmin && p.franchiseId) {
+                                    if (isAdmin && p.franchiseId && !values.franchiseId) {
                                       setFieldValue("franchiseId", p.franchiseId);
                                     }
                                   }
                                 }}
-                                placeholder="Select registered patient (type name, code, phone)..."
+                                placeholder={
+                                  isAdmin && !values.franchiseId 
+                                    ? "← Select Franchise above first to load patients..." 
+                                    : patientOpts.length === 0 
+                                    ? "No patients registered under this franchise" 
+                                    : "Select registered patient (type name, code, phone)..."
+                                }
                                 searchPlaceholder="Search by name, patient code, phone..."
                                 loading={patientsList.isLoading}
+                                disabled={isAdmin && !values.franchiseId}
                               />
                             </UIField>
 
@@ -1045,7 +1086,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                             error={errorMsg}
                           >
                             <SearchableCombobox
-                              options={doctorComboboxOptions}
+                              options={doctorOpts}
                               value={values.doctorId}
                               onChange={(val) => setFieldValue("doctorId", val)}
                               placeholder="Select consulting doctor..."
@@ -1111,6 +1152,12 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                   return;
                                 }
                                 setFieldValue(field.name, selected);
+                                if (field.name === "franchiseId") {
+                                  const curP = (patientsList.data ?? []).find(p => p.id === values.patientId || p.patientCode === values.patientId);
+                                  if (curP && curP.franchiseId !== selected) {
+                                    setFieldValue("patientId", "");
+                                  }
+                                }
                               }}
                             >
                               {field.options?.map((opt) => (

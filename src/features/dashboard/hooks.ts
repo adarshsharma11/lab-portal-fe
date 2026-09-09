@@ -4,19 +4,74 @@ import { dashboardApi } from "@/mocks/services/dashboard";
 import { queryKeys } from "@/lib/query/query-keys";
 import type { ApiResponse } from "@/lib/api/client";
 import type { Activity, ChartPoint, CriticalResult, DashboardStats, PendingWork, ProfitLossReport } from "@/types/domain";
-export const useDashboardStats = () => useQuery<ApiResponse<DashboardStats>, Error, DashboardStats>({ queryKey: queryKeys.dashboard.stats(), queryFn: dashboardApi.getStats, select: (response) => response.data });
-export const useTestVolume = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.testVolume(), queryFn: dashboardApi.getTestVolume, select: (response) => response.data });
-export const useDepartmentDistribution = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.departments(), queryFn: dashboardApi.getDepartmentDistribution, select: (response) => response.data });
-export const useSampleStatistics = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.sampleStatistics(), queryFn: dashboardApi.getSampleStatistics, select: (response) => response.data });
-export const useRevenue = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.revenue(), queryFn: dashboardApi.getRevenue, select: (response) => response.data });
-export const useTurnaround = () => useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({ queryKey: queryKeys.dashboard.turnaround(), queryFn: dashboardApi.getTurnaround, select: (response) => response.data });
-export const useRecentActivity = () => useQuery<ApiResponse<readonly Activity[]>, Error, readonly Activity[]>({ queryKey: queryKeys.dashboard.activity(), queryFn: dashboardApi.getRecentActivity, select: (response) => response.data });
-export const usePendingWork = () => useQuery<ApiResponse<readonly PendingWork[]>, Error, readonly PendingWork[]>({ queryKey: queryKeys.dashboard.pendingWork(), queryFn: dashboardApi.getPendingWork, select: (response) => response.data });
-export const useCriticalResults = () => useQuery<ApiResponse<readonly CriticalResult[]>, Error, readonly CriticalResult[]>({ queryKey: queryKeys.dashboard.criticalResults(), queryFn: dashboardApi.getCriticalResults, select: (response) => response.data });
+export const useDashboardStats = (franchiseId?: string) =>
+  useQuery<ApiResponse<DashboardStats>, Error, DashboardStats>({
+    queryKey: queryKeys.dashboard.stats(franchiseId),
+    queryFn: () => dashboardApi.getStats(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useTestVolume = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({
+    queryKey: queryKeys.dashboard.testVolume(franchiseId),
+    queryFn: () => dashboardApi.getTestVolume(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useDepartmentDistribution = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({
+    queryKey: queryKeys.dashboard.departments(franchiseId),
+    queryFn: () => dashboardApi.getDepartmentDistribution(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useSampleStatistics = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({
+    queryKey: queryKeys.dashboard.sampleStatistics(franchiseId),
+    queryFn: () => dashboardApi.getSampleStatistics(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useRevenue = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({
+    queryKey: queryKeys.dashboard.revenue(franchiseId),
+    queryFn: () => dashboardApi.getRevenue(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useTurnaround = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly ChartPoint[]>, Error, readonly ChartPoint[]>({
+    queryKey: queryKeys.dashboard.turnaround(franchiseId),
+    queryFn: () => dashboardApi.getTurnaround(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useRecentActivity = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly Activity[]>, Error, readonly Activity[]>({
+    queryKey: queryKeys.dashboard.activity(franchiseId),
+    queryFn: () => dashboardApi.getRecentActivity(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const usePendingWork = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly PendingWork[]>, Error, readonly PendingWork[]>({
+    queryKey: queryKeys.dashboard.pendingWork(franchiseId),
+    queryFn: () => dashboardApi.getPendingWork(franchiseId),
+    select: (response) => response.data,
+  });
+
+export const useCriticalResults = (franchiseId?: string) =>
+  useQuery<ApiResponse<readonly CriticalResult[]>, Error, readonly CriticalResult[]>({
+    queryKey: queryKeys.dashboard.criticalResults(franchiseId),
+    queryFn: () => dashboardApi.getCriticalResults(franchiseId),
+    select: (response) => response.data,
+  });
+
 export const useProfitLoss = (year?: number, franchiseId?: string) =>
   useQuery<ApiResponse<ProfitLossReport>, Error, ProfitLossReport>({
     queryKey: queryKeys.dashboard.profitLoss(year, franchiseId),
     queryFn: () => dashboardApi.getProfitLoss(year, franchiseId),
     select: (response) => response.data,
   });
+
 

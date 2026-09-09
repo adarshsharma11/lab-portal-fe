@@ -76,6 +76,8 @@ export interface Doctor {
   experience?: string;
   description?: string;
   dateOfJoining?: string;
+  franchiseId?: string;
+  franchise?: Franchise;
 }
 
 export interface Supplier {
@@ -110,6 +112,7 @@ export interface Test {
   name: string;
   department: string;
   sampleId?: string;
+  patientId?: string;
   franchiseId?: string;
   sampleType?: string;
   price?: number;
@@ -117,6 +120,9 @@ export interface Test {
   unit?: string;
   turnaroundHours: number;
   status?: "Active" | "Inactive";
+  patient?: Patient;
+  sample?: Sample;
+  franchise?: Franchise;
 }
 
 export interface TestMaster {

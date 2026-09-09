@@ -24,13 +24,21 @@ export function FranchiseProvider({ children }: { children: React.ReactNode }) {
   const franchiseList = useEntityList<Franchise>("franchises");
   const franchises = useMemo(() => franchiseList.data ?? [], [franchiseList.data]);
 
+  const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchiseUser = currentRole !== undefined && !isAdmin;
+
   useEffect(() => {
     const session = authService.getSession();
     if (session) {
       setCurrentRole(session.role);
-      if (session.role === "Franchise" && (session as any).franchiseId) {
-        setUserFranchiseId((session as any).franchiseId);
-        setSelectedIdState((session as any).franchiseId);
+      const isUserAdmin = session.role === "Admin" || session.role === "Administrator";
+      const fid = (session as any).franchiseId || null;
+      setUserFranchiseId(fid);
+
+      if (!isUserAdmin) {
+        if (fid) {
+          setSelectedIdState(fid);
+        }
         return;
       }
     }
@@ -42,16 +50,14 @@ export function FranchiseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setSelectedFranchiseId = (id: string | "all") => {
-    // If franchise user, locked to their own franchise
-    if (currentRole === "Franchise" && userFranchiseId) {
+    // If not Admin, locked to their own assigned franchise
+    if (!isAdmin && userFranchiseId) {
       setSelectedIdState(userFranchiseId);
       return;
     }
     setSelectedIdState(id);
     localStorage.setItem("active_franchise_id", id);
   };
-
-  const isFranchiseUser = currentRole === "Franchise";
 
   const selectedFranchise = useMemo(() => {
     if (selectedFranchiseId === "all") return null;
