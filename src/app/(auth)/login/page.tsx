@@ -57,7 +57,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-[color:var(--foreground)]">Welcome back</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-[color:var(--foreground)]">Welcome to BL Diagnostic LIMS</h2>
             <p className="mt-2 text-sm text-[color:var(--muted)]">Sign in to your laboratory workspace.</p>
           </div>
 
