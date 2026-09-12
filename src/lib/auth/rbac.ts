@@ -30,7 +30,8 @@ export const NAVIGATION: readonly NavGroup[] = [
     label: "Laboratory & Testing",
     items: [
       { label: "Patients", href: "/patients", icon: "Users", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Doctor", "Receptionist", "Franchise", "Billing"] },
-      { label: "Samples", href: "/samples", icon: "TestTube2", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Franchise"] },
+      // Sample functionality disabled for Technician role as requested (code preserved in comments for future reactivation)
+      { label: "Samples", href: "/samples", icon: "TestTube2", roles: ["Administrator", "Admin", /* "Technician", */ "Pathologist", "Franchise"] },
       { label: "Tests Master", href: "/tests", icon: "ClipboardList", roles: ["Administrator", "Admin", "Technician", "Pathologist", "Franchise", "Billing"] },
       { label: "Hematology", href: "/hematology", icon: "Droplets", roles: TECH_ROLES },
       { label: "Biochemistry", href: "/biochemistry", icon: "FlaskConical", roles: TECH_ROLES },
@@ -42,14 +43,14 @@ export const NAVIGATION: readonly NavGroup[] = [
     label: "Diagnostic Reports",
     items: [
       { label: "Test Results", href: "/results", icon: "FileBarChart", roles: REPORT_ROLES },
-      { label: "Reports Workflow", href: "/reports", icon: "ReceiptText", roles: ["Administrator", "Admin", "Pathologist", "Doctor", "Franchise"] },
+      { label: "Reports Workflow", href: "/reports", icon: "ReceiptText", roles: ["Administrator", "Admin", "Pathologist", "Doctor", "Technician", "Franchise"] },
     ],
   },
   {
     label: "Clinical & Operations",
     items: [
       { label: "Appointments", href: "/appointments", icon: "CalendarDays", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise"] },
-      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Franchise", "Billing"] },
+      { label: "Billing & Invoices", href: "/billing", icon: "IndianRupee", roles: ["Administrator", "Admin", "Doctor", "Receptionist", "Technician", "Franchise", "Billing"] },
       { label: "Inventory Stock", href: "/inventory", icon: "Package", roles: ["Administrator", "Admin", "Franchise"] },
       { label: "Suppliers", href: "/suppliers", icon: "Package", roles: ADMIN },
     ],

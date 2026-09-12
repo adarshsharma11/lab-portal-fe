@@ -64,13 +64,10 @@ const invoiceFields: readonly FormFieldDef[] = [
   { name: "billNumber", label: "Bill / Invoice Number", type: "text", placeholder: "INV-100452 (auto-generated if empty)" },
   { name: "billDate", label: "Invoice Date", type: "date", required: true },
   { name: "patientId", label: "Select Patient", type: "text", placeholder: "Search registered patient...", required: true, hint: "Patient details auto-fill on select" },
-  { name: "doctorId", label: "Referring Doctor", type: "text", placeholder: "Select doctor...", required: true },
+  { name: "doctorId", label: "Referring Doctor / Business Source", type: "text", placeholder: "Select doctor or referral source...", required: true, hint: "E.g. Doctor, Blood Collection Centre, Direct / Walk-in" },
   { name: "itemDescription", label: "Diagnostic Test / Service (Master Database)", type: "text", placeholder: "Search test name from database...", required: true, hint: "Search test catalog to auto-populate rate and price", colSpan: 2 },
-  { name: "itemQuantity", label: "Quantity", type: "number", placeholder: "1", required: true },
   { name: "itemMrp", label: "Unit Rate / MRP (₹)", type: "number", placeholder: "850", required: true, hint: "Auto-filled from test master" },
   { name: "discount", label: "Discount (₹)", type: "number", placeholder: "0" },
-  { name: "sgst", label: "SGST (₹)", type: "number", placeholder: "0" },
-  { name: "cgst", label: "CGST (₹)", type: "number", placeholder: "0" },
   {
     name: "paymentStatus",
     label: "Payment Status",
@@ -101,14 +98,14 @@ const appointmentSchema = Yup.object({
 const invoiceSchema = Yup.object({
   billNumber: Yup.string().trim(),
   patientId: Yup.string().trim().required("Patient selection is required"),
-  doctorId: Yup.string().trim().required("Referring doctor is required"),
+  doctorId: Yup.string().trim().required("Referring doctor / business source is required"),
   billDate: Yup.string().required("Invoice date is required"),
   itemDescription: Yup.string().trim().required("Test or item description is required"),
-  itemQuantity: Yup.number().typeError("Quantity must be a number").required("Quantity is required").min(1, "Quantity must be at least 1"),
+  itemQuantity: Yup.number().typeError("Quantity must be a number").min(1, "Quantity must be at least 1").default(1),
   itemMrp: Yup.number().typeError("Price must be a number").required("Price is required").min(0, "Price cannot be negative"),
-  discount: Yup.number().typeError("Discount must be a number").min(0, "Discount cannot be negative"),
-  sgst: Yup.number().typeError("SGST must be a number").min(0, "Tax cannot be negative"),
-  cgst: Yup.number().typeError("CGST must be a number").min(0, "Tax cannot be negative"),
+  discount: Yup.number().typeError("Discount must be a number").min(0, "Discount cannot be negative").default(0),
+  sgst: Yup.number().typeError("SGST must be a number").min(0, "Tax cannot be negative").default(0),
+  cgst: Yup.number().typeError("CGST must be a number").min(0, "Tax cannot be negative").default(0),
   paymentStatus: Yup.string().required("Please select payment status").oneOf(["Pending", "Paid", "Partially Paid", "Cancelled"], "Invalid payment status"),
   addedBy: Yup.string().trim().required("Biller staff name is required"),
 });
@@ -507,13 +504,36 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
       filtered = allDoctors.filter((d) => !d.franchiseId || d.franchiseId === currentSession.franchiseId);
     }
 
-    return filtered.map((d) => ({
-      value: d.name,
-      label: d.name,
-      secondary: d.specialty || "Practitioner",
+    const doctorItems: ComboboxOption[] = filtered.map((d) => ({
+      value: `Referred by Doctor – ${d.name}`,
+      label: `Referred by Doctor – ${d.name}`,
+      secondary: d.specialty ? `${d.specialty} · ${d.city || "Practitioner"}` : "Practitioner",
       badge: d.phone,
       extra: d,
     }));
+
+    const businessSources: ComboboxOption[] = [
+      {
+        value: "Direct / Walk-in",
+        label: "Direct / Walk-in (Self Referral)",
+        secondary: "Standard OPD walk-in patient",
+        badge: "Direct",
+      },
+      {
+        value: "Referred by Blood Collection Centre",
+        label: "Referred by Blood Collection Centre",
+        secondary: "Collection kiosk / phlebotomy centre",
+        badge: "Collection Hub",
+      },
+      {
+        value: "Referred by Health Camp / Outreach",
+        label: "Referred by Health Camp / Outreach",
+        secondary: "Community screening / corporate camp",
+        badge: "Outreach",
+      },
+    ];
+
+    return [...businessSources, ...doctorItems];
   };
 
   const testMasterComboboxOptions = useMemo<ComboboxOption[]>(() => {
@@ -907,11 +927,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           });
         }
       } else {
-        const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity: number; itemMrp: number; discount: number; sgst: number; cgst: number; paymentStatus: string; addedBy: string; franchiseId?: string };
-        const subtotal = (Number(v.itemQuantity) || 1) * (Number(v.itemMrp) || 0);
+        const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity?: number; itemMrp: number; discount?: number; sgst?: number; cgst?: number; paymentStatus: string; addedBy: string; franchiseId?: string };
+        const subtotal = Number(v.itemMrp) || 0;
         const discountVal = Number(v.discount) || 0;
-        const taxVal = (Number(v.sgst) || 0) + (Number(v.cgst) || 0);
-        const total = Math.max(0, subtotal - discountVal + taxVal);
+        const total = Math.max(0, subtotal - discountVal);
 
         const payload: Omit<Invoice, "id"> = {
           billNumber: v.billNumber || `INV-${Date.now().toString().slice(-6)}`,
@@ -919,10 +938,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           doctorId: v.doctorId,
           franchiseId: v.franchiseId || undefined,
           billDate: v.billDate,
-          items: [{ description: v.itemDescription, quantity: Number(v.itemQuantity) || 1, mrp: Number(v.itemMrp) || 0 }],
+          items: [{ description: v.itemDescription, quantity: 1, mrp: Number(v.itemMrp) || 0 }],
           discount: discountVal,
-          sgst: Number(v.sgst) || 0,
-          cgst: Number(v.cgst) || 0,
+          sgst: 0,
+          cgst: 0,
           total,
           paymentStatus: v.paymentStatus as Invoice["paymentStatus"],
           addedBy: v.addedBy,
@@ -973,13 +992,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           >
             {({ errors, touched, values, isSubmitting, setFieldValue }) => {
               // Calculate live total preview
-              const qty = Number(values.itemQuantity) || 1;
               const mrp = Number(values.itemMrp) || 0;
               const disc = Number(values.discount) || 0;
-              const sgstVal = Number(values.sgst) || 0;
-              const cgstVal = Number(values.cgst) || 0;
-              const liveSubtotal = qty * mrp;
-              const liveGrandTotal = Math.max(0, liveSubtotal - disc + sgstVal + cgstVal);
+              const liveSubtotal = mrp;
+              const liveGrandTotal = Math.max(0, liveSubtotal - disc);
 
               const patientOpts = getPatientComboboxOptions(values.franchiseId);
               const doctorOpts = getDoctorComboboxOptions(values.franchiseId);
@@ -1089,8 +1105,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                               options={doctorOpts}
                               value={values.doctorId}
                               onChange={(val) => setFieldValue("doctorId", val)}
-                              placeholder="Select consulting doctor..."
-                              searchPlaceholder="Search doctor by name, specialty..."
+                              placeholder={isAppointment ? "Select consulting doctor..." : "Select referring doctor or business source (e.g. Doctor, Collection Centre, Direct)..."}
+                              searchPlaceholder="Search doctor or business referral source..."
                               loading={doctorsList.isLoading}
                             />
                           </UIField>

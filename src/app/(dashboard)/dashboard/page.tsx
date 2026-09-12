@@ -686,16 +686,21 @@ function FranchiseDashboard() {
 // 3. TECHNICIAN DASHBOARD
 // ==========================================
 function TechnicianDashboard() {
+  const patients = useEntityList<Patient>("patients");
+  const invoices = useInvoices();
+  const reports = useReports();
+  const tests = useTests();
+
+  /*
+  // PREVIOUS SAMPLE ACCESSIONING LOGIC (Commented out for Technician role as requested; can be re-enabled here)
   const samples = useSamples();
   const pending = usePendingWork();
   const instruments = useInstruments();
-
   const allSamples = samples.data ?? [];
   const statCount = allSamples.filter((s) => s.priority === "STAT").length;
   const urgentCount = allSamples.filter((s) => s.priority === "Urgent").length;
   const processingCount = allSamples.filter((s) => s.status === "Processing" || s.status === "Received").length;
   const completedToday = allSamples.filter((s) => s.status === "Completed").length;
-
   const onlineInstruments = (instruments.data ?? []).filter((i) => i.status === "Online").length;
 
   const sampleCols = useMemo(() => {
@@ -726,39 +731,90 @@ function TechnicianDashboard() {
       })
     ];
   }, []);
+  */
+
+  const allPatients = patients.data ?? [];
+  const allInvoices = invoices.data ?? [];
+  const allReports = reports.data ?? [];
+  const allTests = tests.data ?? [];
+
+  const totalBilled = allInvoices.reduce((acc, inv) => acc + (Number(inv.total) || 0), 0);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader
-        eyebrow="Technician Laboratory Workspace"
-        title="Specimen Accessioning & Analyzer Queue"
-        description="Monitor active collection batches, analyzer runs, and enter specimen test findings."
+        eyebrow="Technician Laboratory Operations"
+        title="Patient Registration, Billing & Diagnostic Reporting"
+        description="Streamlined workflow: Register franchise patients, generate billing with business source tracking, and process diagnostic reports."
         action={
           <div className="flex items-center gap-2">
-            <Link href="/results">
-              <Button variant="outline" leftIcon={<FileText size={16} />}>Enter Test Results</Button>
+            <Link href="/billing/new">
+              <Button variant="outline" leftIcon={<IndianRupee size={16} />}>Create Invoice</Button>
             </Link>
-            <Link href="/samples/new">
-              <Button variant="primary" leftIcon={<Plus size={16} />}>Collect New Sample</Button>
+            <Link href="/patients/new">
+              <Button variant="primary" leftIcon={<UserPlus size={16} />}>Register Patient</Button>
             </Link>
           </div>
         }
       />
 
       <Grid4>
-        <KPICard label="Active In Queue" value={processingCount} icon={TestTube2} iconTone="info" supportingText="Awaiting completion" />
-        <KPICard label="STAT Emergency" value={statCount} icon={Zap} iconTone="danger" supportingText="High priority urgent" />
-        <KPICard label="Urgent Batches" value={urgentCount} icon={Clock3} iconTone="warning" supportingText="Expedited TAT" />
-        <KPICard label="Completed Today" value={completedToday} icon={CheckCircle2} iconTone="success" supportingText="Sent to Pathologist" />
+        <KPICard label="My Patients" value={allPatients.length} icon={Users} iconTone="info" supportingText="Registered in franchise" />
+        <KPICard label="Invoices Raised" value={allInvoices.length} icon={IndianRupee} iconTone="success" supportingText={`₹${(totalBilled / 1000).toFixed(1)}k collected`} />
+        <KPICard label="Diagnostic Reports" value={allReports.length} icon={FileCheck2} iconTone="info" supportingText="Patient reports filed" />
+        <KPICard label="Active Tests" value={allTests.length} icon={FlaskConical} iconTone="warning" supportingText="Catalog tests active" />
       </Grid4>
 
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column: Recent Patients & Billing Queue */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-semibold text-base">Laboratory Department Workbenches</h3>
-                <p className="text-xs text-[color:var(--muted)]">Access specialized testing benches directly.</p>
+                <h3 className="font-semibold text-base">Recent Patient Registrations</h3>
+                <p className="text-xs text-[color:var(--muted)]">Patients registered under your active franchise.</p>
+              </div>
+              <Link href="/patients">
+                <Button size="sm" variant="ghost">View Directory →</Button>
+              </Link>
+            </div>
+            <div className="space-y-2.5">
+              {allPatients.slice(0, 5).map((p) => (
+                <div key={p.id} className="p-3.5 rounded-xl border border-[color:var(--line)] bg-slate-50 flex items-center justify-between text-xs hover:bg-slate-100/80 transition">
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-8 place-items-center rounded-lg bg-blue-100 text-blue-700 font-bold text-xs">
+                      {p.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[color:var(--foreground)]">{p.name}</p>
+                      <p className="text-[11px] text-[color:var(--muted)]">
+                        {p.patientCode || p.id} · {p.age ? `${p.age} yrs` : "Age —"} · {p.phone || "No phone"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/billing/new?patientId=${p.id}`}>
+                      <Button size="sm" variant="outline" leftIcon={<IndianRupee size={12} />}>Bill Patient</Button>
+                    </Link>
+                    <Link href={`/patients/${p.id}`}>
+                      <Button size="sm" variant="ghost">Details</Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+              {allPatients.length === 0 && (
+                <div className="text-center py-6 text-xs text-[color:var(--muted)]">
+                  No patients registered under this franchise yet.
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-base">Laboratory Department Testing Benches</h3>
+                <p className="text-xs text-[color:var(--muted)]">Direct access to specialized testing workstations.</p>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -784,76 +840,58 @@ function TechnicianDashboard() {
               </Link>
             </div>
           </Card>
-
-          <Card padding={false} className="overflow-hidden">
-            <div className="p-5 border-b border-[color:var(--line)] flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-base">Active Sample Processing Queue</h3>
-                <p className="text-xs text-[color:var(--muted)]">All accessioned samples in laboratory pipeline.</p>
-              </div>
-              <Link href="/samples">
-                <Button size="sm" variant="ghost">View All Samples →</Button>
-              </Link>
-            </div>
-            <DataTable
-              columns={sampleCols}
-              data={allSamples}
-              isLoading={samples.isLoading}
-              pageSize={6}
-              searchable
-              searchPlaceholder="Filter specimens..."
-            />
-          </Card>
         </div>
 
+        {/* Right Column: Billing & Reports Workflow */}
         <div className="space-y-6">
           <Card>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Cpu size={18} className="text-[color:var(--brand-600)]" />
-                <h3 className="font-semibold text-sm">Analyzer Connectivity</h3>
-              </div>
-              <StatusBadge tone="success" size="sm">{onlineInstruments} Online</StatusBadge>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">Recent Billing & Invoices</h3>
+              <Link href="/billing" className="text-xs font-semibold text-[#176b87] hover:underline">
+                View All ({allInvoices.length}) →
+              </Link>
             </div>
-            <div className="space-y-3">
-              {(instruments.data ?? []).slice(0, 5).map((inst) => (
-                <div className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 flex items-center justify-between text-xs" key={inst.id}>
+            <div className="space-y-2.5 text-xs">
+              {allInvoices.slice(0, 4).map((inv) => (
+                <div key={inv.id} className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-[color:var(--foreground)]">{inst.name}</p>
-                    <p className="text-[10px] text-[color:var(--muted)]">{inst.department} · {inst.model}</p>
+                    <p className="font-bold font-mono text-[color:var(--foreground)]">{inv.billNumber}</p>
+                    <p className="text-[11px] text-[color:var(--muted)]">{inv.patientId} · {inv.doctorId || "Direct"}</p>
                   </div>
-                  <StatusBadge tone={inst.status === "Online" ? "success" : inst.status === "Maintenance" ? "warning" : "danger"} size="sm">
-                    {inst.status}
-                  </StatusBadge>
+                  <div className="text-right">
+                    <p className="font-bold text-emerald-700">₹{inv.total}</p>
+                    <StatusBadge tone={inv.paymentStatus === "Paid" ? "success" : "warning"} size="sm">{inv.paymentStatus}</StatusBadge>
+                  </div>
                 </div>
               ))}
+              {allInvoices.length === 0 && (
+                <p className="text-center py-4 text-xs text-[color:var(--muted)]">No invoices issued yet.</p>
+              )}
             </div>
-            <Link href="/instruments" className="mt-4 block text-center text-xs font-semibold text-[#176b87] hover:underline">
-              Manage Instruments & Interfaces →
-            </Link>
           </Card>
 
           <Card>
-            <h3 className="font-semibold text-sm mb-3">Pending Analyzer Batches</h3>
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100 flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-blue-900">Hematology Sysmex XN-550</p>
-                  <p className="text-blue-700/80 text-[11px]">8 CBC tests pending matching</p>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">Diagnostic Reports</h3>
+              <Link href="/reports" className="text-xs font-semibold text-[#176b87] hover:underline">
+                Reports →
+              </Link>
+            </div>
+            <div className="space-y-2.5 text-xs">
+              {allReports.slice(0, 4).map((r) => (
+                <div key={r.id} className="p-3 rounded-lg border border-[color:var(--line)] bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-[color:var(--foreground)]">{r.reportNumber}</p>
+                    <p className="text-[10px] text-[color:var(--muted)]">Patient: {r.patientId}</p>
+                  </div>
+                  <Link href={`/reports/${r.id}`}>
+                    <Button size="sm" variant="outline">View</Button>
+                  </Link>
                 </div>
-                <Link href="/results">
-                  <Button size="sm" variant="primary">Match</Button>
-                </Link>
-              </div>
-              <div className="p-3 rounded-lg bg-emerald-50/60 border border-emerald-100 flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-emerald-900">Biochemistry Cobas 6000</p>
-                  <p className="text-emerald-700/80 text-[11px]">14 chemistry panels running</p>
-                </div>
-                <Link href="/results">
-                  <Button size="sm" variant="outline">View</Button>
-                </Link>
-              </div>
+              ))}
+              {allReports.length === 0 && (
+                <p className="text-center py-4 text-xs text-[color:var(--muted)]">No reports created yet.</p>
+              )}
             </div>
           </Card>
         </div>
