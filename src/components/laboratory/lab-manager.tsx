@@ -180,7 +180,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
-  const testMastersQuery = useTestMasters("", undefined, 500);
+  const testMastersQuery = useTestMasters("", undefined, 2500);
 
   const franchiseOptions = useMemo(() => {
     const franchises = (franchisesList.data ?? []) as Franchise[];

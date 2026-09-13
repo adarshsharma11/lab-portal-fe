@@ -32,7 +32,7 @@ export function ReportGeneratorWizard() {
   const patientsQuery = usePatients();
   const doctorsQuery = useDoctors();
   const samplesQuery = useSamples();
-  const testMastersQuery = useTestMasters("", undefined, 500);
+  const testMastersQuery = useTestMasters("", undefined, 2500);
   const templatesQuery = useReportTemplates();
 
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);

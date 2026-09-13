@@ -484,25 +484,80 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   };
 
   /**
-   * DIRECT PDF DOWNLOAD FUNCTION
-   * Captures the diagnostic-report-article container cleanly and generates a high-res,
-   * A4-fitted PDF file and initiates download directly without opening any print popup.
+   * Direct PDF download with full width, crystal clear typography, and accurate layout.
+   * Uses an isolated 820px iframe with all document styles to guarantee zero viewport clipping
+   * and perfectly centered A4 PDF placement with equal margins.
    */
   const downloadPdfDirectly = async () => {
     const reportElement = document.getElementById("diagnostic-report-article");
     if (!reportElement) return;
 
     setIsDownloadingPdf(true);
+
+    let iframe: HTMLIFrameElement | null = null;
     try {
       const { toPng } = await import("html-to-image");
       const { jsPDF } = await import("jspdf");
 
-      // Render DOM element to high-res PNG (2x pixel ratio for print sharpness)
-      const imgData = await toPng(reportElement, {
-        quality: 0.98,
+      // Create a hidden isolated iframe with standard desktop A4 width (820px)
+      iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.top = "0";
+      iframe.style.left = "0";
+      iframe.style.width = "820px";
+      iframe.style.height = "1600px";
+      iframe.style.zIndex = "-99999";
+      iframe.style.opacity = "0";
+      iframe.style.pointerEvents = "none";
+      iframe.style.border = "none";
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error("Could not access iframe document");
+
+      // Copy all stylesheets, link tags, and font definitions from parent document
+      const styleNodes = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"));
+      for (const node of styleNodes) {
+        iframeDoc.head.appendChild(node.cloneNode(true));
+      }
+
+      // Add print/PDF styling rules
+      const customStyle = iframeDoc.createElement("style");
+      customStyle.textContent = `
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #ffffff; width: 820px; font-family: system-ui, -apple-system, sans-serif; }
+        #diagnostic-report-article { 
+          width: 820px !important; 
+          min-width: 820px !important; 
+          max-width: 820px !important; 
+          margin: 0 !important; 
+          padding: 32px !important; 
+          border: none !important; 
+          box-shadow: none !important; 
+          border-radius: 0 !important; 
+          background: #ffffff !important;
+        }
+      `;
+      iframeDoc.head.appendChild(customStyle);
+
+      // Clone the report element into the iframe
+      const clone = reportElement.cloneNode(true) as HTMLElement;
+      iframeDoc.body.appendChild(clone);
+
+      // Allow fonts, stylesheets, and images to settle in the iframe
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const targetEl = iframeDoc.getElementById("diagnostic-report-article") || clone;
+      const captureWidth = 820;
+      const captureHeight = targetEl.scrollHeight || 1100;
+
+      const imgData = await toPng(targetEl, {
+        quality: 1.0,
         pixelRatio: 2,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        width: captureWidth,
+        height: captureHeight,
       });
 
       const img = new Image();
@@ -511,7 +566,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         img.onload = () => resolve();
         img.onerror = (e) => reject(e);
       });
-      
+
       // Standard A4 dimensions in mm: 210 x 297
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -520,27 +575,28 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         compress: true,
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      const margin = 8;
-      const contentWidth = pdfWidth - margin * 2;
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+
+      const marginX = 10; // Equal 10mm margins on both left and right
+      const marginY = 10; // 10mm top margin
+      const contentWidth = pdfWidth - marginX * 2; // 190 mm (centered on 210mm page)
       const contentHeight = (img.height * contentWidth) / img.width;
 
-      if (contentHeight <= pdfHeight - margin * 2) {
-        pdf.addImage(imgData, "PNG", margin, margin, contentWidth, contentHeight, undefined, "FAST");
+      if (contentHeight <= pdfHeight - marginY * 2) {
+        pdf.addImage(imgData, "PNG", marginX, marginY, contentWidth, contentHeight, undefined, "FAST");
       } else {
         let heightLeft = contentHeight;
-        let position = margin;
+        let position = marginY;
 
-        pdf.addImage(imgData, "PNG", margin, position, contentWidth, contentHeight, undefined, "FAST");
-        heightLeft -= (pdfHeight - margin * 2);
+        pdf.addImage(imgData, "PNG", marginX, position, contentWidth, contentHeight, undefined, "FAST");
+        heightLeft -= (pdfHeight - marginY * 2);
 
         while (heightLeft > 0) {
-          position = heightLeft - contentHeight + margin;
+          position = heightLeft - contentHeight + marginY;
           pdf.addPage();
-          pdf.addImage(imgData, "PNG", margin, position, contentWidth, contentHeight, undefined, "FAST");
-          heightLeft -= (pdfHeight - margin * 2);
+          pdf.addImage(imgData, "PNG", marginX, position, contentWidth, contentHeight, undefined, "FAST");
+          heightLeft -= (pdfHeight - marginY * 2);
         }
       }
 
@@ -550,6 +606,9 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       console.error("Failed to generate direct PDF download:", error);
       alert("An error occurred while generating the PDF. Please try again.");
     } finally {
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
       setIsDownloadingPdf(false);
     }
   };
@@ -602,48 +661,42 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         
         {/* Top Laboratory Brand & Accreditation Header */}
         <header 
-          className="border-b-2 border-[#176b87] pb-4 mb-5 flex items-start justify-between gap-4"
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #176b87" }}
+          className="border-b-2 border-[#176b87] pb-4 mb-5 flex items-center justify-between gap-4"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #176b87" }}
         >
-          <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <div 
-              className="grid size-12 place-items-center rounded-xl bg-[#176b87] text-white shrink-0 overflow-hidden"
-              style={{ backgroundColor: "#176b87", color: "#ffffff", width: "3rem", height: "3rem", borderRadius: "0.75rem", display: "grid", placeItems: "center", overflow: "hidden" }}
-            >
-              {lab.data?.logo ? (
-                <img 
-                  src={lab.data.logo} 
-                  alt={lab.data.name || "BL Diagnostics"} 
-                  className="size-full object-contain bg-white p-0.5" 
-                  style={{ width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#ffffff" }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <FlaskConical size={26} color="#ffffff" />
-              )}
-            </div>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-[#176b87]" style={{ color: "#176b87", fontSize: "1.5rem", fontWeight: 900, margin: 0 }}>
-                {lab.data?.name || "BL Dignostic LIMS"}
-              </h1>
-              <p className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase" style={{ color: "#64748b", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", margin: 0 }}>
-                Clinical Reference Pathology Laboratory
-              </p>
-            </div>
+          <div className="flex items-center shrink-0" style={{ display: "flex", alignItems: "center" }}>
+            {lab.data?.logo ? (
+              <img 
+                src={lab.data.logo} 
+                alt="BL Diagnostics Logo" 
+                className="h-20 max-h-24 w-auto max-w-[340px] object-contain" 
+                style={{ height: "5.5rem", maxHeight: "6rem", maxWidth: "340px", objectFit: "contain", display: "block" }}
+                crossOrigin="anonymous"
+              />
+            ) : (
+              <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div 
+                  className="grid size-16 place-items-center rounded-xl bg-[#176b87] text-white shrink-0 overflow-hidden"
+                  style={{ backgroundColor: "#176b87", color: "#ffffff", width: "4rem", height: "4rem", borderRadius: "0.75rem", display: "grid", placeItems: "center" }}
+                >
+                  <FlaskConical size={34} color="#ffffff" />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4 text-right shrink-0" style={{ display: "flex", alignItems: "center", gap: "1rem", textAlign: "right" }}>
             <div className="flex flex-col items-end text-[10px] text-slate-600" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", fontSize: "10px", color: "#475569" }}>
-              <span className="font-bold flex items-center gap-1 text-emerald-700" style={{ color: "#047857", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <span className="font-bold flex items-center gap-1 text-emerald-700 whitespace-nowrap" style={{ color: "#047857", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem", whiteSpace: "nowrap" }}>
                 <ShieldCheck size={12} color="#047857" /> {lab.data?.accreditation || "NABL ACCREDITED"}
               </span>
-              <span>ISO 15189:2012 Certified</span>
-              <span className="text-slate-400 font-mono" style={{ color: "#94a3b8", fontFamily: "monospace" }}>{lab.data?.licenseNumber || "MC-4245 · CAP #9019582"}</span>
+              <span className="whitespace-nowrap">ISO 15189:2012 Certified</span>
+              <span className="text-slate-400 font-mono whitespace-nowrap" style={{ color: "#94a3b8", fontFamily: "monospace", whiteSpace: "nowrap" }}>{lab.data?.licenseNumber || "MC-4245 · CAP #9019582"}</span>
             </div>
-            <div className="border-l border-slate-200 pl-4 text-right" style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "1rem" }}>
+            <div className="border-l border-slate-200 pl-4 text-right shrink-0" style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "1rem" }}>
               <span 
-                className="inline-block rounded bg-[#e8f4f7] px-2.5 py-1 text-xs font-bold text-[#176b87]"
-                style={{ backgroundColor: "#e8f4f7", color: "#176b87", borderRadius: "0.375rem", padding: "0.25rem 0.625rem", fontSize: "12px", fontWeight: 700 }}
+                className="inline-block rounded bg-[#e8f4f7] px-2.5 py-1 text-xs font-bold text-[#176b87] whitespace-nowrap"
+                style={{ backgroundColor: "#e8f4f7", color: "#176b87", borderRadius: "0.375rem", padding: "0.25rem 0.625rem", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}
               >
                 Smart Report 3.0
               </span>
@@ -704,7 +757,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             <div className="font-mono text-xs tracking-widest text-slate-800 font-bold">
               ||| | |||| | |||||| || | |||| ||
             </div>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-slate-500 whitespace-nowrap">
               Sample Temp: <span className="font-medium text-slate-800">Maintained (2-8°C) ✓</span>
             </div>
           </div>

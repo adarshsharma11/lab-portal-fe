@@ -75,10 +75,8 @@ const invoiceFields: readonly FormFieldDef[] = [
     required: true,
     options: [
       { label: "Select payment status", value: "" },
-      { label: "Paid (Full settlement received)", value: "Paid" },
-      { label: "Pending (Payment due)", value: "Pending" },
-      { label: "Partially Paid", value: "Partially Paid" },
-      { label: "Cancelled", value: "Cancelled" },
+      { label: "Paid", value: "Paid" },
+      { label: "Pending", value: "Pending" },
     ],
   },
   { name: "addedBy", label: "Biller / Staff Name", type: "text", placeholder: "Finance Desk / Dr. Ananya Rao", required: true },
@@ -106,7 +104,7 @@ const invoiceSchema = Yup.object({
   discount: Yup.number().typeError("Discount must be a number").min(0, "Discount cannot be negative").default(0),
   sgst: Yup.number().typeError("SGST must be a number").min(0, "Tax cannot be negative").default(0),
   cgst: Yup.number().typeError("CGST must be a number").min(0, "Tax cannot be negative").default(0),
-  paymentStatus: Yup.string().required("Please select payment status").oneOf(["Pending", "Paid", "Partially Paid", "Cancelled"], "Invalid payment status"),
+  paymentStatus: Yup.string().required("Please select payment status").oneOf(["Pending", "Paid"], "Invalid payment status"),
   addedBy: Yup.string().trim().required("Biller staff name is required"),
 });
 
@@ -450,7 +448,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
   const doctorsList = useEntityList<Doctor>("doctors");
-  const testMastersQuery = useTestMasters("", undefined, 500);
+  const testMastersQuery = useTestMasters("", undefined, 2500);
 
   const printBillDirectly = (layout: "a4" | "thermal") => {
     setActivePrintLayout(layout);
