@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Form, Formik, Field } from "formik";
 import * as Yup from "yup";
 import Link from "next/link";
@@ -26,7 +26,8 @@ import {
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
 import { useLaboratorySettings } from "@/features/settings/hooks";
-import type { Report, ReportTemplate, Result } from "@/types/domain";
+import { authService } from "@/lib/auth/auth-service";
+import type { Report, ReportTemplate, Result, UserRole } from "@/types/domain";
 
 const templateSchema = Yup.object({
   name: Yup.string().trim().required("Template name is required (. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
@@ -448,6 +449,19 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const actions = useReportActions();
   const lab = useLaboratorySettings();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s?.role) setCurrentRole(s.role);
+  }, []);
+
+  const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const isTechnician = currentRole === "Technician";
+  const isPathologist = currentRole === "Pathologist";
+  const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
 
   const item = report.data as any;
   if (report.isLoading) return <p className="text-sm text-[color:var(--muted)]">Loading report details...</p>;
@@ -645,6 +659,15 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
           {item.status !== "Approved" && (
             <Button variant="primary" onClick={approve} leftIcon={<CheckCircle2 size={15} />}>
               Approve & Release
+            </Button>
+          )}
+          {canManage && (
+            <Button 
+              variant="danger-outline" 
+              onClick={() => setConfirmDeleteId(item.id)} 
+              leftIcon={<Trash2 size={15} />}
+            >
+              Delete Report
             </Button>
           )}
         </div>
@@ -897,12 +920,58 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                       Approve & Release Report
                     </Button>
                   )}
+                  {canManage && (
+                    <Button 
+                      variant="danger-outline" 
+                      size="sm" 
+                      leftIcon={<Trash2 size={13} />}
+                      onClick={() => setConfirmDeleteId(item.id)}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
             </Form>
           )}
         </Formik>
       </Card>
+
+      {/* Delete Confirmation Modal in Report Detail */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                <p className="text-xs text-[color:var(--muted)]">This will delete the diagnostic report from database.</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+              Are you sure you want to permanently delete report <strong>{item.reportNumber}</strong>? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+              <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="danger" 
+                loading={actions.deleteReport.isPending} 
+                onClick={async () => {
+                  await actions.deleteReport.mutateAsync(item.id);
+                  setConfirmDeleteId(null);
+                  router.push("/reports");
+                }}
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -914,6 +983,19 @@ function ReportListView() {
   const router = useRouter();
   const reports = useReports();
   const actions = useReportActions();
+  const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
+  const [confirmDeleteReportId, setConfirmDeleteReportId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s?.role) setCurrentRole(s.role);
+  }, []);
+
+  const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const isTechnician = currentRole === "Technician";
+  const isPathologist = currentRole === "Pathologist";
+  const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Report>();
@@ -964,11 +1046,21 @@ function ReportListView() {
                 Approve
               </Button>
             )}
+            {canManage && (
+              <Button 
+                size="sm" 
+                variant="danger-outline" 
+                leftIcon={<Trash2 size={13} />}
+                onClick={() => setConfirmDeleteReportId(row.original.id)}
+              >
+                Delete
+              </Button>
+            )}
           </div>
         )
       })
     ];
-  }, [actions]);
+  }, [actions, canManage]);
 
   return (
     <div className="space-y-6">
@@ -999,6 +1091,43 @@ function ReportListView() {
         searchPlaceholder="Search reports by patient, code, number..."
         emptyTitle="No diagnostic reports found"
       />
+
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteReportId && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-lg)]">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="grid size-10 place-items-center rounded-xl bg-rose-50">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[color:var(--foreground)]">Confirm Permanent Delete</h3>
+                <p className="text-xs text-[color:var(--muted)]">This will delete the diagnostic report from database.</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-[color:var(--muted)] leading-relaxed">
+              Are you sure you want to permanently delete this report? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2 border-t border-[color:var(--line)] pt-4">
+              <Button variant="ghost" onClick={() => setConfirmDeleteReportId(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="danger" 
+                loading={actions.deleteReport.isPending} 
+                onClick={async () => {
+                  if (confirmDeleteReportId) {
+                    await actions.deleteReport.mutateAsync(confirmDeleteReportId);
+                    setConfirmDeleteReportId(null);
+                  }
+                }}
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

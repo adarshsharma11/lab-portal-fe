@@ -41,7 +41,31 @@ async function fetchApi<T>(
   }
 
   if (!res.ok) {
-    throw new Error(json.message || `Request failed with status ${res.status}`);
+    let errorMsg = json.message || "";
+    if (!errorMsg && json.error) {
+      errorMsg = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+    }
+    if (!errorMsg && json.errors && Array.isArray(json.errors)) {
+      errorMsg = json.errors.map((e: any) => e.message || (typeof e === "string" ? e : JSON.stringify(e))).join(", ");
+    }
+    if (!errorMsg) {
+      if (res.status === 409) {
+        errorMsg = "A conflict occurred. A record with this information already exists.";
+      } else if (res.status === 400) {
+        errorMsg = "Invalid input or validation error. Please check the entered fields.";
+      } else if (res.status === 404) {
+        errorMsg = "The requested resource was not found.";
+      } else if (res.status === 403) {
+        errorMsg = "Access denied for this operation.";
+      } else {
+        errorMsg = `Request failed with status ${res.status}`;
+      }
+    }
+    const err: any = new Error(errorMsg);
+    err.status = res.status;
+    err.statusCode = res.status;
+    err.response = { status: res.status, data: json };
+    throw err;
   }
 
   return {

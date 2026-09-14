@@ -11,6 +11,8 @@ import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
+import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
 interface FormFieldDef {
@@ -427,13 +429,21 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlPatientId = searchParams?.get("patientId") || searchParams?.get("patient") || "";
+  const urlPatientCode = searchParams?.get("patientCode") || "";
+  const urlDoctorId = searchParams?.get("doctorId") || "";
+  const urlFranchiseId = searchParams?.get("franchiseId") || "";
 
   const isAppointment = kind === "appointments";
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
   const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string; id?: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [activePrintLayout, setActivePrintLayout] = useState<"a4" | "thermal">("a4");
   const [printModalInvoice, setPrintModalInvoice] = useState<Invoice | null>(null);
+  const [proceedToReport, setProceedToReport] = useState(false);
+  const [selectedBillingTests, setSelectedBillingTests] = useState<Array<{ name: string; code: string; mrp: number; rate: number; department?: string; subParameters?: string[] }>>([
+    { name: "", code: "", mrp: 0, rate: 0, subParameters: [] }
+  ]);
 
   useEffect(() => {
     const s = authService.getSession();
@@ -445,6 +455,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const lab = useLaboratorySettings();
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const isTechnician = currentRole === "Technician";
+  const isBilling = currentRole === "Billing";
+  const canManage = isAdmin || isFranchise || isTechnician || isBilling;
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
   const doctorsList = useEntityList<Doctor>("doctors");
@@ -634,7 +648,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                           Print
                         </Button>
                       )}
-                      {isAdmin && (
+                      {canManage && (
                         <>
                           <Link href={`/${kind}/${row.id}/edit`}>
                             <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>Edit</Button>
@@ -819,27 +833,34 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     const rawRecord = (isAppointment ? appointment.data : invoice.data) as Record<string, any> | undefined;
 
     // Find target patient if preloaded via URL query param
-    const targetPatient = (isNew && urlPatientId && patientsList.data)
-      ? ((patientsList.data as Patient[]).find(p => p.id === urlPatientId || p.patientCode === urlPatientId) || null)
+    const targetPatient = (isNew && (urlPatientId || urlPatientCode) && patientsList.data)
+      ? ((patientsList.data as Patient[]).find(p => p.id === urlPatientId || p.patientCode === urlPatientId || (urlPatientCode && p.patientCode === urlPatientCode)) || null)
       : null;
+
+    const resolvedDoctorObj = (urlDoctorId || targetPatient?.referringDoctorId)
+      ? ((doctorsList.data ?? []).find(d => d.id === (urlDoctorId || targetPatient?.referringDoctorId) || d.name === (urlDoctorId || targetPatient?.referringDoctorId)) || null)
+      : null;
+    const initialDoctorValue = resolvedDoctorObj
+      ? `Referred by Doctor – ${resolvedDoctorObj.name}`
+      : (urlDoctorId ? `Referred by Doctor – ${urlDoctorId}` : "");
 
     const initialValues = isNew
       ? isAppointment
         ? { 
-            patientId: targetPatient ? (targetPatient.patientCode || targetPatient.id) : (urlPatientId || ""), 
-            doctorId: targetPatient?.referringDoctorId ? ((doctorsList.data ?? []).find(d => d.id === targetPatient.referringDoctorId)?.name || "") : "", 
+            patientId: targetPatient ? targetPatient.id : (urlPatientId || ""), 
+            doctorId: initialDoctorValue, 
             date: new Date().toISOString().slice(0, 10), 
             time: "10:00", 
             type: "Consultation", 
             status: "Upcoming", 
             appointmentLink: "", 
             createdBy: "Reception Desk", 
-            franchiseId: targetPatient?.franchiseId || "" 
+            franchiseId: targetPatient?.franchiseId || urlFranchiseId || "" 
           }
         : { 
-            billNumber: "", 
-            patientId: targetPatient ? (targetPatient.patientCode || targetPatient.id) : (urlPatientId || ""), 
-            doctorId: targetPatient?.referringDoctorId ? ((doctorsList.data ?? []).find(d => d.id === targetPatient.referringDoctorId)?.name || "") : "", 
+            billNumber: targetPatient?.patientCode || urlPatientCode || (urlPatientId.startsWith("BL-") ? urlPatientId : "") || "", 
+            patientId: targetPatient ? targetPatient.id : (urlPatientId || ""), 
+            doctorId: initialDoctorValue, 
             billDate: new Date().toISOString().slice(0, 10), 
             itemDescription: "", 
             itemQuantity: 1, 
@@ -849,7 +870,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             cgst: 0, 
             paymentStatus: "Paid", 
             addedBy: "Finance Desk", 
-            franchiseId: targetPatient?.franchiseId || "" 
+            franchiseId: targetPatient?.franchiseId || urlFranchiseId || "" 
           }
       : isAppointment
       ? {
@@ -903,54 +924,150 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
         : {}
     );
 
+    const updateBillingTest = (
+      idx: number, 
+      testMaster: TestMaster | null, 
+      testName: string, 
+      setFieldValue: (field: string, value: any) => void
+    ) => {
+      const updated = [...selectedBillingTests];
+      if (testMaster) {
+        const defaultSubs = getSubParametersForTest(testMaster.name);
+        updated[idx] = {
+          name: testMaster.name,
+          code: testMaster.code || "",
+          mrp: testMaster.mrp || testMaster.rate || 0,
+          rate: testMaster.rate || testMaster.mrp || 0,
+          department: testMaster.department || "",
+          subParameters: defaultSubs,
+        };
+      } else {
+        const defaultSubs = getSubParametersForTest(testName);
+        updated[idx] = {
+          name: testName,
+          code: "",
+          mrp: 0,
+          rate: 0,
+          subParameters: defaultSubs,
+        };
+      }
+      setSelectedBillingTests(updated);
+      const totalMrp = updated.reduce((sum, t) => sum + (t.mrp || 0), 0);
+      const descriptions = updated.map(t => t.name).filter(Boolean).join(", ");
+      setFieldValue("itemMrp", totalMrp);
+      setFieldValue("itemDescription", descriptions || "Diagnostic Tests");
+    };
+
+    const updateBillingSubParameters = (idx: number, subParams: string[]) => {
+      const updated = [...selectedBillingTests];
+      if (updated[idx]) {
+        updated[idx] = {
+          ...updated[idx],
+          subParameters: subParams,
+        };
+        setSelectedBillingTests(updated);
+      }
+    };
+
+    const addBillingTest = () => {
+      setSelectedBillingTests(prev => [...prev, { name: "", code: "", mrp: 0, rate: 0, subParameters: [] }]);
+    };
+
+    const removeBillingTest = (idx: number, setFieldValue: (field: string, value: any) => void) => {
+      const updated = selectedBillingTests.filter((_, i) => i !== idx);
+      const finalTests = updated.length > 0 ? updated : [{ name: "", code: "", mrp: 0, rate: 0, subParameters: [] }];
+      setSelectedBillingTests(finalTests);
+      const totalMrp = finalTests.reduce((sum, t) => sum + (t.mrp || 0), 0);
+      const descriptions = finalTests.map(t => t.name).filter(Boolean).join(", ");
+      setFieldValue("itemMrp", totalMrp);
+      setFieldValue("itemDescription", descriptions || "Diagnostic Tests");
+    };
+
     const submit = async (values: typeof initialValues) => {
+      setFormError(null);
       if (values.franchiseId === "__add_franchise__") {
         router.push("/franchises/new");
         return;
       }
 
-      if (isAppointment) {
-        if (isNew) {
-          await createAppointment.mutateAsync({
-            ...values,
-            franchiseId: values.franchiseId || undefined,
-          } as unknown as Omit<Appointment, "id">);
-        } else {
-          await updateAppointment.mutateAsync({ 
-            id, 
-            input: {
+      try {
+        if (isAppointment) {
+          if (isNew) {
+            await createAppointment.mutateAsync({
               ...values,
               franchiseId: values.franchiseId || undefined,
-            } as Partial<Appointment> 
-          });
-        }
-      } else {
-        const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity?: number; itemMrp: number; discount?: number; sgst?: number; cgst?: number; paymentStatus: string; addedBy: string; franchiseId?: string };
-        const subtotal = Number(v.itemMrp) || 0;
-        const discountVal = Number(v.discount) || 0;
-        const total = Math.max(0, subtotal - discountVal);
-
-        const payload: Omit<Invoice, "id"> = {
-          billNumber: v.billNumber || `INV-${Date.now().toString().slice(-6)}`,
-          patientId: v.patientId,
-          doctorId: v.doctorId,
-          franchiseId: v.franchiseId || undefined,
-          billDate: v.billDate,
-          items: [{ description: v.itemDescription, quantity: 1, mrp: Number(v.itemMrp) || 0 }],
-          discount: discountVal,
-          sgst: 0,
-          cgst: 0,
-          total,
-          paymentStatus: v.paymentStatus as Invoice["paymentStatus"],
-          addedBy: v.addedBy,
-        };
-        if (isNew) {
-          await createInvoice.mutateAsync(payload);
+            } as unknown as Omit<Appointment, "id">);
+          } else {
+            await updateAppointment.mutateAsync({ 
+              id, 
+              input: {
+                ...values,
+                franchiseId: values.franchiseId || undefined,
+              } as Partial<Appointment> 
+            });
+          }
+          router.push(`/${kind}`);
         } else {
-          await updateInvoice.mutateAsync({ id, input: payload });
+          const v = values as unknown as { billNumber: string; patientId: string; doctorId: string; billDate: string; itemDescription: string; itemQuantity?: number; itemMrp: number; discount?: number; sgst?: number; cgst?: number; paymentStatus: string; addedBy: string; franchiseId?: string };
+          const validTests = selectedBillingTests.filter(t => t.name.trim() !== "");
+          const subtotal = validTests.length > 0 
+            ? validTests.reduce((sum, t) => sum + (t.mrp || 0), 0)
+            : (Number(v.itemMrp) || 0);
+          const discountVal = Number(v.discount) || 0;
+          const total = Math.max(0, subtotal - discountVal);
+
+          const itemsPayload = validTests.length > 0
+            ? validTests.map(t => ({
+                description: t.name,
+                code: t.code,
+                quantity: 1,
+                mrp: Number(t.mrp) || 0,
+              }))
+            : [{ description: v.itemDescription || "Diagnostic Pathology Services", quantity: 1, mrp: Number(v.itemMrp) || 0 }];
+
+          const payload: Omit<Invoice, "id"> = {
+            billNumber: v.billNumber || `INV-${Date.now().toString().slice(-6)}`,
+            patientId: v.patientId,
+            doctorId: v.doctorId,
+            franchiseId: v.franchiseId || (currentSession?.franchiseId ?? undefined),
+            billDate: v.billDate,
+            items: itemsPayload,
+            discount: discountVal,
+            sgst: 0,
+            cgst: 0,
+            total,
+            paymentStatus: v.paymentStatus as Invoice["paymentStatus"],
+            addedBy: v.addedBy,
+          };
+
+          let createdInvoiceRes: any = null;
+          if (isNew) {
+            createdInvoiceRes = await createInvoice.mutateAsync(payload);
+          } else {
+            createdInvoiceRes = await updateInvoice.mutateAsync({ id, input: payload });
+          }
+
+          if (proceedToReport) {
+            const selectedCodes = validTests.map(t => ({
+              name: t.name,
+              code: t.code || t.name,
+              department: t.department || "General Pathology",
+              mrp: t.mrp || 0,
+              subParameters: t.subParameters && t.subParameters.length > 0 ? t.subParameters : undefined,
+            }));
+            const testsParam = encodeURIComponent(JSON.stringify(selectedCodes));
+            const targetDocId = (doctorsList.data ?? []).find(d => d.name === v.doctorId || `Referred by Doctor – ${d.name}` === v.doctorId)?.id || v.doctorId;
+            const targetPatientCode = targetPatient?.patientCode || urlPatientCode || v.billNumber || "";
+            const invId = (createdInvoiceRes as any)?.data?.id || (createdInvoiceRes as any)?.id || "";
+            router.push(`/reports/new?patientId=${encodeURIComponent(v.patientId)}&patientCode=${encodeURIComponent(targetPatientCode)}&tests=${testsParam}&doctorId=${encodeURIComponent(targetDocId)}&franchiseId=${encodeURIComponent(v.franchiseId || "")}&invoiceId=${encodeURIComponent(invId)}`);
+          } else {
+            router.push(`/${kind}`);
+          }
         }
+      } catch (err: any) {
+        const msg = err?.message || "Failed to save record. Please check the inputs.";
+        setFormError(msg);
       }
-      router.push(`/${kind}`);
     };
 
     return (
@@ -959,7 +1076,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           title={isNew ? `New ${isAppointment ? "appointment" : "invoice"}` : `Edit ${isAppointment ? "appointment" : "invoice"}`} 
           description={
             !isAppointment
-              ? "Generate patient diagnostic invoice. Select patient & tests to auto-populate charges from Test Master database."
+              ? "Generate patient diagnostic invoice. Select patient & multiple tests to auto-calculate charges from Test Master database."
               : "Coordinate patient clinical consultation and laboratory visits."
           }
           action={
@@ -969,11 +1086,21 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           }
         />
 
+        {formError && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 flex items-center gap-3 shadow-sm">
+            <AlertTriangle size={20} className="shrink-0 text-rose-600" />
+            <div>
+              <p className="font-semibold">Unable to save {isAppointment ? "appointment" : "invoice"}</p>
+              <p className="text-xs text-rose-600 mt-0.5">{formError}</p>
+            </div>
+          </div>
+        )}
+
         {!isAppointment && (
           <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#176b87]/20 bg-[#e8f4f7]/60 p-3 text-xs text-[#176b87]">
             <Sparkles size={16} className="shrink-0" />
             <span>
-              <strong>Dynamic Master Billing:</strong> Select registered patient and tests from the database. Rates and totals calculate automatically.
+              <strong>Dynamic Master Billing:</strong> Add multiple tests from the catalog. Individual test MRPs automatically add up together in real time.
             </span>
           </div>
         )}
@@ -989,14 +1116,16 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             onSubmit={submit}
           >
             {({ errors, touched, values, isSubmitting, setFieldValue }) => {
-              // Calculate live total preview
-              const mrp = Number(values.itemMrp) || 0;
+              // Calculate live total preview from multi tests
+              const validTests = selectedBillingTests.filter(t => t.name.trim() !== "");
+              const multiTestMrp = validTests.reduce((sum, t) => sum + (t.mrp || 0), 0);
+              const liveSubtotal = validTests.length > 0 ? multiTestMrp : (Number(values.itemMrp) || 0);
               const disc = Number(values.discount) || 0;
-              const liveSubtotal = mrp;
               const liveGrandTotal = Math.max(0, liveSubtotal - disc);
 
               const patientOpts = getPatientComboboxOptions(values.franchiseId);
               const doctorOpts = getDoctorComboboxOptions(values.franchiseId);
+              const isPatientLocked = Boolean(targetPatient && urlPatientId);
 
               return (
                 <Form className="space-y-6">
@@ -1016,7 +1145,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                               label={field.label} 
                               name={field.name} 
                               required={field.required}
-                              hint={isAdmin && !values.franchiseId ? "⚠️ Please select a Franchise above first to load patients for that branch." : field.hint}
+                              hint={isPatientLocked ? "🔒 Patient locked from previous registration step" : (isAdmin && !values.franchiseId ? "⚠️ Please select a Franchise above first to load patients for that branch." : field.hint)}
                               error={errorMsg}
                             >
                               <SearchableCombobox
@@ -1026,6 +1155,9 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                   setFieldValue("patientId", val);
                                   if (opt?.extra) {
                                     const p = opt.extra as Patient;
+                                    if (p.patientCode && !values.billNumber) {
+                                      setFieldValue("billNumber", p.patientCode);
+                                    }
                                     if (p.referringDoctorId) {
                                       const doc = (doctorsList.data ?? []).find(d => d.id === p.referringDoctorId);
                                       if (doc) setFieldValue("doctorId", doc.name);
@@ -1044,7 +1176,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                 }
                                 searchPlaceholder="Search by name, patient code, phone..."
                                 loading={patientsList.isLoading}
-                                disabled={isAdmin && !values.franchiseId}
+                                disabled={isPatientLocked || (isAdmin && !values.franchiseId)}
                               />
                             </UIField>
 
@@ -1111,35 +1243,116 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                         );
                       }
 
-                      // 3. Test Master item description for Invoice (Searchable Combobox)
+                      // 3. Multi-Test Selection Builder for Billing Form
                       if (!isAppointment && field.name === "itemDescription") {
+                        return (
+                          <div key={field.name} className="space-y-4 sm:col-span-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface-2)]/50 p-4">
+                            <div className="flex items-center justify-between border-b border-[color:var(--line)] pb-3">
+                              <div>
+                                <h4 className="text-sm font-bold text-[color:var(--foreground)] flex items-center gap-2">
+                                  <FlaskConical size={16} className="text-[#176b87]" />
+                                  Diagnostic Test / Service (Master Database)
+                                </h4>
+                                <p className="text-xs text-[color:var(--muted)]">
+                                  Select one or multiple tests. Rates & MRPs automatically sum together.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<Plus size={14} />}
+                                onClick={addBillingTest}
+                              >
+                                Add Another Test
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3">
+                              {selectedBillingTests.map((testItem, idx) => (
+                                <div key={idx} className="flex flex-col gap-2 bg-[color:var(--surface)] p-3 rounded-xl border border-[color:var(--line)] shadow-xs">
+                                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                    <div className="flex-1">
+                                      <SearchableCombobox
+                                        options={testMasterComboboxOptions}
+                                        value={testItem.name}
+                                        onChange={(val, opt) => {
+                                          const tm = (opt?.extra as TestMaster) || null;
+                                          updateBillingTest(idx, tm, val, setFieldValue);
+                                        }}
+                                        placeholder={`Select test ${idx + 1} from Master Database (e.g. CBC, Lipid, Calcium)...`}
+                                        searchPlaceholder="Type test name or code..."
+                                        loading={testMastersQuery.isLoading}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#e8f4f7] border border-[#176b87]/20 text-[#176b87] font-mono text-xs font-bold min-w-[90px] justify-center">
+                                        ₹{Number(testItem.mrp || 0).toFixed(2)}
+                                      </div>
+                                      {selectedBillingTests.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => removeBillingTest(idx, setFieldValue)}
+                                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                          title="Remove test"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Dynamic Sub-Parameters Selector */}
+                                  {testItem.name && (
+                                    <SubParameterSelect
+                                      testName={testItem.name}
+                                      selectedSubParameters={testItem.subParameters || []}
+                                      onChange={(newSubs) => updateBillingSubParameters(idx, newSubs)}
+                                      className="mt-1"
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Aggregated MRP Breakdown */}
+                            <div className="flex flex-wrap items-center justify-between pt-2 text-xs border-t border-[color:var(--line)] gap-2">
+                              <span className="text-[color:var(--muted)] font-medium">
+                                Total Tests Selected: <strong className="text-[color:var(--foreground)]">{selectedBillingTests.filter(t => t.name).length}</strong>
+                                {selectedBillingTests.filter(t => t.name).length > 1 && (
+                                  <span className="ml-1 text-[11px] text-[#176b87]">
+                                    ({selectedBillingTests.filter(t => t.name).map(t => `₹${t.mrp || 0}`).join(" + ")})
+                                  </span>
+                                )}
+                              </span>
+                              <div className="text-right">
+                                <span className="text-[color:var(--muted)] mr-2">Total MRP / Rate:</span>
+                                <span className="font-mono text-sm font-black text-[#176b87]">
+                                  ₹{selectedBillingTests.reduce((sum, t) => sum + (t.mrp || 0), 0).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // 4. Rate / MRP Field (Auto-calculated from tests)
+                      if (!isAppointment && field.name === "itemMrp") {
                         return (
                           <UIField 
                             key={field.name} 
                             label={field.label} 
                             name={field.name} 
                             required={field.required}
-                            hint={field.hint}
-                            className={field.colSpan === 2 ? "sm:col-span-2" : ""}
+                            hint="Auto-calculated from all selected tests"
                             error={errorMsg}
                           >
-                            <SearchableCombobox
-                              options={testMasterComboboxOptions}
-                              value={values.itemDescription}
-                              onChange={(val, opt) => {
-                                setFieldValue("itemDescription", val);
-                                if (opt?.extra) {
-                                  const tm = opt.extra as TestMaster;
-                                  const unitPrice = tm.mrp || tm.rate || 0;
-                                  setFieldValue("itemMrp", String(unitPrice));
-                                  // GST formula removed as requested: no auto tax
-                                  setFieldValue("sgst", 0);
-                                  setFieldValue("cgst", 0);
-                                }
-                              }}
-                              placeholder="Search diagnostic test from Master Database (e.g. CBC, Lipid, Calcium)..."
-                              searchPlaceholder="Type test name or code..."
-                              loading={testMastersQuery.isLoading}
+                            <Input
+                              type="number"
+                              name={field.name}
+                              value={liveSubtotal}
+                              readOnly
+                              className="font-mono font-bold text-[#176b87] bg-[color:var(--surface-2)]"
                             />
                           </UIField>
                         );
@@ -1214,10 +1427,26 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                     </div>
                   )}
 
-                  <div className="flex gap-3 pt-4 border-t border-[color:var(--line)]">
-                    <Button type="submit" variant="primary" loading={isSubmitting || createAppointment.isPending || createInvoice.isPending || updateAppointment.isPending || updateInvoice.isPending}>
+                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-[color:var(--line)]">
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      loading={isSubmitting || createAppointment.isPending || createInvoice.isPending || updateAppointment.isPending || updateInvoice.isPending}
+                      onClick={() => setProceedToReport(false)}
+                    >
                       Save {isAppointment ? "Appointment" : "Invoice"}
                     </Button>
+                    {!isAppointment && (
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        leftIcon={<FileText size={15} />}
+                        loading={isSubmitting || createInvoice.isPending}
+                        onClick={() => setProceedToReport(true)}
+                      >
+                        Save & Proceed to Report
+                      </Button>
+                    )}
                     <Link href={`/${kind}`}>
                       <Button type="button" variant="ghost">Cancel</Button>
                     </Link>
@@ -1333,7 +1562,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               Print Thermal
             </Button>
 
-            {isAdmin && (
+            {canManage && (
               <>
                 <Link href={`/${kind}/${id}/edit`}>
                   <Button variant="secondary" size="sm" leftIcon={<Edit3 size={14} />}>Edit</Button>
@@ -1403,7 +1632,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             <Link href={`/${kind}`}>
               <Button variant="ghost">← Back to appointments</Button>
             </Link>
-            {isAdmin && (
+            {canManage && (
               <>
                 <Link href={`/${kind}/${id}/edit`}>
                   <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit Appointment</Button>

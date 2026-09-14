@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AlertTriangle, Edit3, Trash2, Eye, Plus, Building2, IndianRupee } from "lucide-react";
-import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card } from "@/components/ui/index";
+import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, SearchableCombobox } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
@@ -56,7 +56,8 @@ export function calculateAgeFromDob(dob: string): number | "" {
 
 const patientFields: readonly FieldConfig[] = [
   { name: "name", label: "Full Name", type: "text", placeholder: "Maya Sharma", required: true, section: "Personal Details" },
-  { name: "patientCode", label: "Patient Code", type: "text", placeholder: "PT-82910 (auto-generated if left blank)", section: "Personal Details" },
+  { name: "patientCode", label: "Patient Code", type: "text", placeholder: "BL-01 (Auto-generated)", section: "Personal Details", hint: "Auto-generated sequential code (e.g. BL-01, BL-02)" },
+  { name: "registrationDate", label: "Registration Date", type: "date", placeholder: "YYYY-MM-DD", section: "Personal Details", hint: "Date on which patient is registered" },
   {
     name: "sex",
     label: "Gender",
@@ -97,17 +98,7 @@ const patientFields: readonly FieldConfig[] = [
   { name: "state", label: "State", type: "text", placeholder: "Karnataka", section: "Contact Details" },
   { name: "pincode", label: "Pincode", type: "text", placeholder: "560001", required: true, section: "Contact Details" },
   { name: "address", label: "Residential Address", type: "textarea", placeholder: "#42, 3rd Cross, Indiranagar", colSpan: 2, section: "Contact Details" },
-  { name: "referringDoctorId", label: "Referring Doctor Code / ID", type: "text", placeholder: "doc-01 or Dr. Menon", section: "Clinical Information" },
-  {
-    name: "status",
-    label: "Patient Status",
-    type: "select",
-    section: "Clinical Information",
-    options: [
-      { label: "Active", value: "Active" },
-      { label: "Inactive", value: "Inactive" },
-    ],
-  },
+  { name: "referringDoctorId", label: "Referring Doctor Code / ID", type: "select", placeholder: "Select Referring Doctor", section: "Clinical Information", hint: "Dynamically filtered by franchise" },
 ];
 
 const doctorFields: readonly FieldConfig[] = [
@@ -393,6 +384,7 @@ const userFields: readonly FieldConfig[] = [
 const patientSchema = Yup.object({
   name: Yup.string().trim().required("Full name is required").min(2, "Name must be at least 2 characters"),
   patientCode: Yup.string().trim(),
+  registrationDate: Yup.string(),
   sex: Yup.string().required("Please select gender").oneOf(["Female", "Male", "Other"], "Invalid gender option"),
   age: Yup.number().typeError("Age must be a valid number").required("Age is required").min(0, "Age cannot be negative").max(130, "Please enter a valid age"),
   bloodGroup: Yup.string().trim(),
@@ -402,8 +394,8 @@ const patientSchema = Yup.object({
   state: Yup.string().trim(),
   pincode: Yup.string().trim().required("Pincode is required"),
   emergencyContact: Yup.string().trim(),
-  status: Yup.string(),
   address: Yup.string().trim(),
+  referringDoctorId: Yup.string().trim(),
 });
 
 const doctorSchema = Yup.object({
@@ -506,7 +498,7 @@ const schemas = {
 };
 
 const emptyInitialValues = {
-  patients: { patientCode: "", name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", referringDoctorId: "", status: "Active", franchiseId: "" },
+  patients: { patientCode: "", registrationDate: new Date().toISOString().slice(0, 10), name: "", sex: "", dateOfBirth: "", age: "", phone: "", email: "", address: "", city: "", state: "", pincode: "", emergencyContact: "", bloodGroup: "", referringDoctorId: "", status: "Active", franchiseId: "" },
   doctors: { name: "", specialty: "", gender: "", dateOfBirth: "", phone: "", emergencyContact: "", country: "India", state: "", city: "", pincode: "", address: "", email: "", password: "", experience: "", dateOfJoining: "", description: "", status: "Active", franchiseId: "" },
   franchises: { name: "", code: "", ownerName: "", email: "", password: "", phone: "", emergencyPhone: "", country: "India", state: "Karnataka", city: "Bengaluru", pincode: "", address: "", licenseNumber: "", gstNumber: "", revenueShare: 0, status: "Active", notes: "" },
   pathologists: { name: "", gender: "", dateOfBirth: "", mobile: "", emergencyContact: "", country: "India", state: "", location: "", pincode: "", address: "", email: "", password: "", permissions: "reports:approve,results:write,qc:manage", specialty: "", experience: "", dateOfJoining: "", description: "", status: "Active", franchiseId: "" },
@@ -550,12 +542,51 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
-  const canManage = isAdmin || isFranchise;
+  const isTechnician = currentRole === "Technician";
+  const canManage = isAdmin || isFranchise || (isTechnician && kind === "patients");
 
   const list = useEntityList<Entity>(kind);
   const detail = useEntity<Entity>(kind, id);
   const mutations = useEntityMutations<Entity>(kind);
   const franchisesList = useEntityList<Franchise>("franchises");
+  const doctorsList = useEntityList<Doctor>("doctors");
+
+  // Dynamic next sequential patient code (BL-01, BL-02...)
+  const nextPatientCode = useMemo(() => {
+    if (kind !== "patients") return "BL-01";
+    const patients = (list.data ?? []) as Patient[];
+    let maxNum = 0;
+    for (const p of patients) {
+      const code = (p.patientCode || "").trim();
+      const match = code.match(/^BL-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+    const nextNum = maxNum + 1;
+    const formatted = nextNum < 10 ? `0${nextNum}` : String(nextNum);
+    return `BL-${formatted}`;
+  }, [kind, list.data]);
+
+  // Franchise-scoped doctors helper
+  const getDoctorOptions = (franchiseId?: string) => {
+    const allDocs = (doctorsList.data ?? []) as Doctor[];
+    const targetFranchise = franchiseId || currentSession?.franchiseId;
+    const filtered = targetFranchise
+      ? allDocs.filter((d) => !d.franchiseId || d.franchiseId === targetFranchise)
+      : allDocs;
+    return [
+      { label: "None / Direct Walk-in", value: "" },
+      ...filtered.map((d) => ({
+        label: `${d.name} (${d.specialty || "Practitioner"})`,
+        value: d.id,
+        secondary: d.phone ? `Phone: ${d.phone}` : undefined,
+      })),
+    ];
+  };
 
   // Dynamic franchise options for Admin assignment
   const franchiseOptions = useMemo(() => {
@@ -968,6 +999,10 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };
+    if (isNew && kind === "patients") {
+      (base as any).patientCode = nextPatientCode;
+      (base as any).registrationDate = new Date().toISOString().slice(0, 10);
+    }
     if (!isNew && detail.data) {
       const data = detail.data as unknown as Record<string, unknown>;
       const merged: Record<string, unknown> = { ...base };
@@ -988,13 +1023,18 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           merged[field.name] = val;
         }
       }
+      if (kind === "patients") {
+        if (data.createdAt) {
+          merged.registrationDate = new Date(data.createdAt as string).toISOString().slice(0, 10);
+        }
+      }
       if (kind === "users" || kind === "pathologists" || kind === "technicians") {
         merged.status = (detail.data as User).active === false ? "Inactive" : "Active";
       }
       return merged;
     }
     return base;
-  }, [kind, isNew, detail.data, effectiveFields]);
+  }, [kind, isNew, detail.data, effectiveFields, nextPatientCode]);
 
   // Group fields by section for clean rendering
   const sections = useMemo(() => {
@@ -1036,7 +1076,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       const input: Record<string, unknown> = { ...values };
 
       // Multi-tenant assignment logic
-      if (isFranchise && currentSession?.franchiseId) {
+      if ((isFranchise || isTechnician) && currentSession?.franchiseId) {
         input.franchiseId = currentSession.franchiseId;
       }
 
@@ -1063,15 +1103,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       }
 
       let createdEntityId = id;
+      let createdPatientCode = "";
       if (isNew) {
         const res = await mutations.create.mutateAsync(input as never);
-        createdEntityId = (res as any)?.data?.id || (res as any)?.id || (res as any)?.data?.patientCode || "";
+        createdEntityId = (res as any)?.data?.id || (res as any)?.id || "";
+        createdPatientCode = (res as any)?.data?.patientCode || (res as any)?.patientCode || (input.patientCode as string) || "";
       } else {
         await mutations.update.mutateAsync({ id, input: input as never });
       }
 
       if (kind === "patients" && proceedToBilling && createdEntityId) {
-        router.push(`/billing/new?patientId=${createdEntityId}`);
+        const docParam = input.referringDoctorId ? `&doctorId=${encodeURIComponent(String(input.referringDoctorId))}` : "";
+        const franchiseParam = input.franchiseId ? `&franchiseId=${encodeURIComponent(String(input.franchiseId))}` : "";
+        router.push(`/billing/new?patientId=${createdEntityId}&patientCode=${encodeURIComponent(createdPatientCode)}${docParam}${franchiseParam}`);
       } else {
         router.push(`/${kind}`);
       }
@@ -1300,7 +1344,20 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                           className={field.colSpan === 2 ? "sm:col-span-2" : ""}
                           error={errorMsg}
                         >
-                          {field.type === "select" ? (
+                          {kind === "patients" && field.name === "referringDoctorId" ? (
+                            <SearchableCombobox
+                              options={getDoctorOptions((values as any).franchiseId).map((d: any) => ({
+                                value: d.value,
+                                label: d.label,
+                                secondary: d.secondary,
+                              }))}
+                              value={((values as any).referringDoctorId as string) || ""}
+                              onChange={(val) => setFieldValue("referringDoctorId", val)}
+                              placeholder="Select Referring Doctor..."
+                              searchPlaceholder="Search doctor by name..."
+                              loading={doctorsList.isLoading}
+                            />
+                          ) : field.type === "select" ? (
                             <Field 
                               name={field.name} 
                               as={Select}

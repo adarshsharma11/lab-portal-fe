@@ -58,6 +58,7 @@ export interface Patient {
   bloodGroup?: string;
   referringDoctorId?: string;
   franchiseId?: string;
+  registrationDate?: string;
   address?: string;
   state?: string;
   pincode?: string;

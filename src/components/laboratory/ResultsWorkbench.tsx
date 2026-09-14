@@ -1,140 +1,208 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
-  Activity, AlertTriangle, CheckCircle2, ChevronRight, Download, 
-  Eye, FileBarChart, FileText, Filter, FlaskConical, Plus, Search, ShieldAlert, Sparkles 
+  Activity, AlertTriangle, CheckCircle2, ChevronRight, FileText, 
+  FlaskConical, Plus, Search, Calendar, UserCheck, Clock, ShieldAlert, Sparkles, Receipt
 } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
-import { PageHeader, StatusBadge, Button, Input, Select, Card, cn } from "@/components/ui/index";
+import { PageHeader, StatusBadge, Button, Input, Select, Card, cn, SearchableCombobox } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
-import { useResults, useSamples } from "@/features/laboratory/hooks";
 import { usePatients } from "@/features/crud/hooks";
-import type { Result, Patient, Sample } from "@/types/domain";
+import { useReports } from "@/features/reports/hooks";
+import { useTests, useSamples } from "@/features/laboratory/hooks";
+import { useInvoices } from "@/features/operations/hooks";
+import { authService } from "@/lib/auth/auth-service";
+import type { Patient, Report, Test, Sample, Invoice, UserRole } from "@/types/domain";
 
 export function ResultsWorkbench() {
   const router = useRouter();
-  const resultsQuery = useResults();
   const patientsQuery = usePatients();
+  const reportsQuery = useReports();
+  const testsQuery = useTests();
   const samplesQuery = useSamples();
+  const invoicesQuery = useInvoices();
 
-  const [selectedDept, setSelectedDept] = useState("All");
-  const [selectedFlag, setSelectedFlag] = useState<"All" | "Critical" | "Abnormal" | "Normal">("All");
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedPatientFilter, setSelectedPatientFilter] = useState<string>("");
+  const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string } | null>(null);
 
-  const patientsMap = useMemo(() => {
-    const map = new Map<string, Patient>();
-    (patientsQuery.data ?? []).forEach((p: Patient) => map.set(p.id, p));
-    return map;
-  }, [patientsQuery.data]);
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s) {
+      setCurrentSession({ role: s.role, franchiseId: s.franchiseId });
+    }
+  }, []);
 
-  const rawResults = resultsQuery.data ?? [];
+  const isAdmin = currentSession?.role === "Admin" || currentSession?.role === "Administrator";
 
-  const filteredResults = useMemo(() => {
-    return rawResults.filter(r => {
-      const test = (r as any).test;
-      const dept = test?.department || "General";
-      if (selectedDept !== "All" && dept !== selectedDept) return false;
-      if (selectedFlag === "Critical" && !r.criticalFlag) return false;
-      if (selectedFlag === "Abnormal" && (!r.abnormalFlag || r.criticalFlag)) return false;
-      if (selectedFlag === "Normal" && (r.abnormalFlag || r.criticalFlag)) return false;
-      return true;
+  const allPatients = (patientsQuery.data ?? []) as Patient[];
+  const allReports = (reportsQuery.data ?? []) as Report[];
+  const allInvoices = (invoicesQuery.data ?? []) as Invoice[];
+  const allTests = (testsQuery.data ?? []) as Test[];
+
+  // Filter patients by franchise tenancy
+  const tenantPatients = useMemo(() => {
+    if (!isAdmin && currentSession?.franchiseId) {
+      return allPatients.filter(p => !p.franchiseId || p.franchiseId === currentSession.franchiseId);
+    }
+    return allPatients;
+  }, [allPatients, isAdmin, currentSession]);
+
+  // Build pending queue: patients with pending tests/billing/reports (omit completely finished ones)
+  const pendingPatientsQueue = useMemo(() => {
+    return tenantPatients.filter(patient => {
+      // Check date filter if selected (past dates and today only)
+      if (selectedDate) {
+        const pDate = patient.createdAt ? new Date(patient.createdAt).toISOString().slice(0, 10) : "";
+        if (pDate !== selectedDate) return false;
+      }
+
+      // Check patient specific search/combobox filter
+      if (selectedPatientFilter && patient.id !== selectedPatientFilter && patient.patientCode !== selectedPatientFilter) {
+        return false;
+      }
+
+      // Check completion status: if patient has approved report and paid invoice, check if fully completed
+      const patientReports = allReports.filter(r => r.patientId === patient.id);
+      const hasApprovedReport = patientReports.some(r => r.status === "Approved");
+      
+      const patientInvoices = allInvoices.filter(inv => inv.patientId === patient.id || inv.patientId === patient.patientCode);
+      const hasPaidInvoice = patientInvoices.some(inv => inv.paymentStatus === "Paid");
+
+      // Patients whose test, billing, and report are ALL completed are omitted from pending queue
+      const isFullyCompleted = hasApprovedReport && hasPaidInvoice && patientReports.length > 0;
+      return !isFullyCompleted;
     });
-  }, [rawResults, selectedDept, selectedFlag]);
+  }, [tenantPatients, selectedDate, selectedPatientFilter, allReports, allInvoices]);
+
+  // Patient dropdown options for quick search
+  const patientComboboxOptions = useMemo(() => {
+    let list = tenantPatients;
+    if (selectedDate) {
+      list = list.filter(p => {
+        const pDate = p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : "";
+        return pDate === selectedDate;
+      });
+    }
+    return list.map(p => ({
+      value: p.id,
+      label: p.name,
+      secondary: `Code: ${p.patientCode || p.id} · Registered: ${p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN") : "Recent"}`,
+      badge: p.phone,
+      extra: p,
+    }));
+  }, [tenantPatients, selectedDate]);
 
   const columns = useMemo(() => {
-    const h = createColumnHelper<Result>();
+    const h = createColumnHelper<Patient>();
     return [
-      h.accessor("parameter", {
-        header: "Parameter / Analyte",
-        cell: ({ row, getValue }) => {
-          const test = (row.original as any).test;
-          return (
-            <div>
-              <span className="font-bold text-[color:var(--foreground)]">{getValue()}</span>
-              {test?.name && (
-                <p className="text-[11px] text-[color:var(--muted)]">{test.name}</p>
-              )}
-            </div>
-          );
-        }
+      h.accessor("patientCode", {
+        header: "Patient Code",
+        cell: ({ getValue }) => (
+          <span className="font-mono text-xs font-bold text-[#176b87] bg-[#e8f4f7] px-2 py-0.5 rounded border border-[#176b87]/20">
+            {getValue()}
+          </span>
+        ),
       }),
-      h.accessor(row => (row as any).test?.department || "Hematology", {
-        id: "department",
-        header: "Department",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue()}</span>
+      h.accessor("name", {
+        header: "Patient Details",
+        cell: ({ row, getValue }) => (
+          <div>
+            <span className="font-bold text-[color:var(--foreground)] block">{getValue()}</span>
+            <span className="text-xs text-[color:var(--muted)]">
+              {row.original.age} Yrs · {row.original.sex || "—"} {row.original.bloodGroup ? `· ${row.original.bloodGroup}` : ""}
+            </span>
+          </div>
+        ),
       }),
-      h.accessor("value", {
-        header: "Observed Value",
-        cell: ({ row, getValue }) => {
-          const isCrit = row.original.criticalFlag;
-          const isAbn = row.original.abnormalFlag;
-          return (
-            <div className="flex items-center gap-1.5">
-              <span className={cn(
-                "font-mono font-bold text-sm",
-                isCrit ? "text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" :
-                isAbn ? "text-amber-700 font-extrabold" : "text-[color:var(--foreground)]"
-              )}>
-                {getValue()}
-              </span>
-              <span className="text-xs text-[color:var(--muted)] font-mono">{row.original.unit}</span>
-            </div>
-          );
-        }
+      h.accessor("phone", {
+        header: "Contact Phone",
+        cell: ({ getValue }) => <span className="font-mono text-xs text-[color:var(--foreground)]">{getValue() || "—"}</span>,
       }),
-      h.accessor("referenceRange", {
-        header: "Bio. Ref Interval",
-        cell: ({ getValue }) => <span className="text-xs font-medium text-[color:var(--muted)]">{getValue() || "—"}</span>
+      h.accessor("createdAt", {
+        header: "Registered Date",
+        cell: ({ getValue }) => (
+          <span className="text-xs text-[color:var(--muted)] font-medium">
+            {getValue() ? new Date(getValue() as any).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today"}
+          </span>
+        ),
       }),
       h.display({
         id: "status",
-        header: "Flag / Status",
+        header: "Pending Status",
         cell: ({ row }) => {
-          const isCrit = row.original.criticalFlag;
-          const isAbn = row.original.abnormalFlag;
-          if (isCrit) return <StatusBadge tone="danger" size="sm">Critical</StatusBadge>;
-          if (isAbn) return <StatusBadge tone="warning" size="sm">Abnormal</StatusBadge>;
-          return <StatusBadge tone="success" size="sm">Normal</StatusBadge>;
-        }
+          const patientId = row.original.id;
+          const patientCode = row.original.patientCode;
+          const patientReports = allReports.filter(r => r.patientId === patientId);
+          const patientInvoices = allInvoices.filter(inv => inv.patientId === patientId || inv.patientId === patientCode);
+          const patientTests = allTests.filter(t => t.patientId === patientId);
+
+          const hasReport = patientReports.length > 0;
+          const hasInvoice = patientInvoices.length > 0;
+
+          if (!hasReport && !hasInvoice) {
+            return <StatusBadge tone="danger" size="sm">Report & Billing Pending</StatusBadge>;
+          }
+          if (!hasReport) {
+            return <StatusBadge tone="warning" size="sm">Report Pending</StatusBadge>;
+          }
+          if (!hasInvoice) {
+            return <StatusBadge tone="warning" size="sm">Billing Pending</StatusBadge>;
+          }
+          return <StatusBadge tone="info" size="sm">Report In Review</StatusBadge>;
+        },
       }),
       h.display({
         id: "actions",
-        header: "Actions",
+        header: "Action",
         cell: ({ row }) => {
-          const test = (row.original as any).test;
-          const testCode = test?.code || "CBC";
+          const p = row.original;
+          const patientInvoices = allInvoices.filter(inv => inv.patientId === p.id || inv.patientId === p.patientCode);
+          let testsQueryParam = "";
+          if (patientInvoices.length > 0) {
+            const rawItems: any = patientInvoices[0].items;
+            let itemsList: any[] = [];
+            if (typeof rawItems === "string") {
+              try { itemsList = JSON.parse(rawItems); } catch {}
+            } else if (Array.isArray(rawItems)) {
+              itemsList = rawItems;
+            }
+            if (itemsList.length > 0) {
+              const testCodes = itemsList.map(it => it.code || it.description);
+              testsQueryParam = `&tests=${encodeURIComponent(JSON.stringify(testCodes))}`;
+            }
+          }
 
           return (
             <div className="flex items-center justify-center gap-2">
-              <Link href={`/reports/new?testCode=${testCode}`}>
+              <Link href={`/reports/new?patientId=${p.id}&patientCode=${encodeURIComponent(p.patientCode)}${testsQueryParam}`}>
                 <Button size="sm" variant="primary" leftIcon={<FileText size={13} />}>
                   Generate Report
                 </Button>
               </Link>
             </div>
           );
-        }
-      })
+        },
+      }),
     ];
-  }, []);
-
-  const criticalCount = rawResults.filter(r => r.criticalFlag).length;
-  const abnormalCount = rawResults.filter(r => r.abnormalFlag && !r.criticalFlag).length;
+  }, [allReports, allInvoices, allTests]);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Laboratory Test Results Workbench"
-        description="Review analyzer-verified parameters, track clinical abnormalities, and generate test-specific diagnostic reports."
+        title="Test Results & Report Generation Queue"
+        description="Patients awaiting laboratory test reports, results entry, or diagnostic verification. Generate reports directly from queue."
         action={
           <div className="flex items-center gap-3">
             <Link href="/reports">
-              <Button variant="outline">Diagnostic Reports</Button>
+              <Button variant="outline">View All Reports</Button>
             </Link>
             <Link href="/reports/new">
               <Button variant="primary" leftIcon={<Plus size={16} />}>
-                Generate Report
+                Direct Report Form
               </Button>
             </Link>
           </div>
@@ -142,80 +210,86 @@ export function ResultsWorkbench() {
       />
 
       {/* KPI Cards Strip */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card className="p-4 border border-[color:var(--line)]">
-          <span className="text-xs text-[color:var(--muted)] font-medium">Total Parameters Verified</span>
-          <p className="text-2xl font-black text-[color:var(--foreground)] mt-1">{rawResults.length}</p>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card className="p-4 border border-rose-200 bg-rose-50/40">
           <span className="text-xs text-rose-700 font-semibold flex items-center gap-1.5">
-            <ShieldAlert size={14} /> Critical Values
+            <Clock size={14} /> Total Patients Pending Action
           </span>
-          <p className="text-2xl font-black text-rose-800 mt-1">{criticalCount}</p>
+          <p className="text-2xl font-black text-rose-800 mt-1">{pendingPatientsQueue.length}</p>
         </Card>
         <Card className="p-4 border border-amber-200 bg-amber-50/40">
           <span className="text-xs text-amber-700 font-semibold flex items-center gap-1.5">
-            <AlertTriangle size={14} /> Abnormal Values
+            <FileText size={14} /> Reports Awaiting Generation
           </span>
-          <p className="text-2xl font-black text-amber-800 mt-1">{abnormalCount}</p>
+          <p className="text-2xl font-black text-amber-800 mt-1">
+            {pendingPatientsQueue.filter(p => !allReports.some(r => r.patientId === p.id)).length}
+          </p>
         </Card>
         <Card className="p-4 border border-emerald-200 bg-emerald-50/40">
           <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
-            <CheckCircle2 size={14} /> Within Normal Range
+            <CheckCircle2 size={14} /> Total Registered Patients
           </span>
-          <p className="text-2xl font-black text-emerald-800 mt-1">
-            {Math.max(0, rawResults.length - criticalCount - abnormalCount)}
-          </p>
+          <p className="text-2xl font-black text-emerald-800 mt-1">{tenantPatients.length}</p>
         </Card>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl">
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Dynamic Date & Patient Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl shadow-xs">
+        <div className="flex flex-wrap items-center gap-4 flex-1">
+          {/* Date Filter: Today and Past Dates only */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[color:var(--muted)]">Department:</span>
-            <Select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="h-8 text-xs w-44"
-            >
-              <option value="All">All Departments</option>
-              <option value="Hematology">Hematology</option>
-              <option value="Biochemistry">Biochemistry</option>
-              <option value="Immunology">Immunology</option>
-              <option value="Clinical Pathology">Clinical Pathology</option>
-              <option value="Electrolytes">Electrolytes</option>
-            </Select>
+            <Calendar size={15} className="text-[#176b87]" />
+            <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
+            <Input
+              type="date"
+              max={todayStr}
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setSelectedPatientFilter("");
+              }}
+              className="h-8 text-xs w-44 font-medium"
+            />
+            {selectedDate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs px-2 text-rose-600"
+                onClick={() => {
+                  setSelectedDate("");
+                  setSelectedPatientFilter("");
+                }}
+              >
+                Clear Date
+              </Button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[color:var(--muted)]">Flag Filter:</span>
-            <Select
-              value={selectedFlag}
-              onChange={(e) => setSelectedFlag(e.target.value as any)}
-              className="h-8 text-xs w-36"
-            >
-              <option value="All">All Flags</option>
-              <option value="Critical">Critical Only</option>
-              <option value="Abnormal">Abnormal Only</option>
-              <option value="Normal">Normal Only</option>
-            </Select>
+          {/* Patient Filter Combobox */}
+          <div className="min-w-[260px] flex-1 max-w-md">
+            <SearchableCombobox
+              options={patientComboboxOptions}
+              value={selectedPatientFilter}
+              onChange={(val) => setSelectedPatientFilter(val)}
+              placeholder={selectedDate ? `Search patients registered on ${selectedDate}...` : "Select / search patient..."}
+              searchPlaceholder="Search by name, code, phone..."
+            />
           </div>
         </div>
 
         <span className="text-xs font-medium text-[color:var(--muted)]">
-          Showing <b>{filteredResults.length}</b> verified results
+          Showing <b>{pendingPatientsQueue.length}</b> pending patients
         </span>
       </div>
 
-      {/* Main Results Table */}
+      {/* Main Pending Patients Table */}
       <DataTable
         columns={columns}
-        data={filteredResults}
-        isLoading={resultsQuery.isLoading}
-        isError={resultsQuery.isError}
+        data={pendingPatientsQueue}
+        isLoading={patientsQuery.isLoading}
+        isError={patientsQuery.isError}
         searchable
-        searchPlaceholder="Search parameters, tests, units..."
+        searchPlaceholder="Search patient code, name, phone..."
       />
     </div>
   );

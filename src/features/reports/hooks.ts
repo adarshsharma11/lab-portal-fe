@@ -53,7 +53,11 @@ export function useReportActions() {
     mutationFn: ({ id, comments }: { id: string; comments: string }) => reportApi.update(id, { comments }),
     onSuccess: done,
   });
-  return { approveReport, rejectReport, requestRetest, updateComments };
+  const deleteReport = useMutation({
+    mutationFn: (id: string) => reportApi.delete(id),
+    onSuccess: done,
+  });
+  return { approveReport, rejectReport, requestRetest, updateComments, deleteReport };
 }
 
 export const useCreateTemplate = () => {

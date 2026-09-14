@@ -13,6 +13,8 @@ import { useCreateSample, useCreateTest, useDeleteSample, useDeleteTest, useResu
 import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
+import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Franchise, Patient, Sample, Test, TestMaster, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
@@ -168,6 +170,9 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
   const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string; id?: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedCatalogTests, setSelectedCatalogTests] = useState<Array<{ name: string; code: string; mrp: number; rate: number; department?: string; sampleType?: string; unit?: string; referenceRange?: string; subParameters?: string[] }>>([
+    { name: "", code: "", mrp: 0, rate: 0 }
+  ]);
 
   useEffect(() => {
     const s = authService.getSession();
@@ -178,6 +183,9 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   }, []);
 
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const isTechnician = currentRole === "Technician";
+  const canManage = isAdmin || isFranchise || isTechnician;
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
   const testMastersQuery = useTestMasters("", undefined, 2500);
@@ -330,7 +338,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
                 View
               </Button>
             </Link>
-            {isAdmin && (
+            {canManage && (
               <>
                 <Link href={`/${kind}/${row.original.id}/edit`}>
                   <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
@@ -479,6 +487,63 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         : {}
     );
 
+    const updateCatalogTest = (
+      idx: number,
+      testMaster: TestMaster | null,
+      testName: string,
+      setFieldValue: (field: string, value: any) => void
+    ) => {
+      const updated = [...selectedCatalogTests];
+      if (testMaster) {
+        const subParams = getSubParametersForTest(testMaster.name || testMaster.code);
+        updated[idx] = {
+          name: testMaster.name,
+          code: testMaster.code || "",
+          mrp: testMaster.mrp || testMaster.rate || 0,
+          rate: testMaster.rate || testMaster.mrp || 0,
+          department: testMaster.department || "Biochemistry",
+          sampleType: testMaster.sampleType || "Blood",
+          unit: testMaster.unit || "",
+          referenceRange: testMaster.referenceRange || "",
+          subParameters: subParams.length > 0 ? subParams : undefined,
+        };
+      } else {
+        const subParams = getSubParametersForTest(testName);
+        updated[idx] = {
+          name: testName,
+          code: "",
+          mrp: 0,
+          rate: 0,
+          subParameters: subParams.length > 0 ? subParams : undefined,
+        };
+      }
+      setSelectedCatalogTests(updated);
+      const totalMrp = updated.reduce((sum, t) => sum + (t.mrp || 0), 0);
+      const names = updated.map(t => t.name).filter(Boolean).join(", ");
+      const codes = updated.map(t => t.code).filter(Boolean).join(", ");
+      setFieldValue("price", totalMrp);
+      setFieldValue("name", names || "Diagnostic Test");
+      setFieldValue("code", codes || "TEST");
+      if (testMaster?.department) setFieldValue("department", testMaster.department);
+      if (testMaster?.sampleType) setFieldValue("sampleType", testMaster.sampleType);
+    };
+
+    const addCatalogTest = () => {
+      setSelectedCatalogTests(prev => [...prev, { name: "", code: "", mrp: 0, rate: 0 }]);
+    };
+
+    const removeCatalogTest = (idx: number, setFieldValue: (field: string, value: any) => void) => {
+      const updated = selectedCatalogTests.filter((_, i) => i !== idx);
+      const finalTests = updated.length > 0 ? updated : [{ name: "", code: "", mrp: 0, rate: 0 }];
+      setSelectedCatalogTests(finalTests);
+      const totalMrp = finalTests.reduce((sum, t) => sum + (t.mrp || 0), 0);
+      const names = finalTests.map(t => t.name).filter(Boolean).join(", ");
+      const codes = finalTests.map(t => t.code).filter(Boolean).join(", ");
+      setFieldValue("price", totalMrp);
+      setFieldValue("name", names || "Diagnostic Test");
+      setFieldValue("code", codes || "TEST");
+    };
+
     const submit = async (values: typeof initialValues) => {
       if (values.franchiseId === "__add_franchise__") {
         router.push("/franchises/new");
@@ -491,7 +556,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           accession: values.accession || `LIS-${Date.now().toString().slice(-6)}`,
           barcode: values.barcode || `BC${Date.now()}`,
           collectedAt: values.collectedAt || new Date().toISOString(),
-          franchiseId: values.franchiseId || undefined,
+          franchiseId: values.franchiseId || (currentSession?.franchiseId ?? undefined),
         };
         if (isNew) {
           await createSample.mutateAsync(payload as Omit<Sample, "id">);
@@ -499,12 +564,21 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           await updateSample.mutateAsync({ id, input: payload });
         }
       } else {
+        const validTests = selectedCatalogTests.filter(t => t.name.trim() !== "");
+        const totalPrice = validTests.length > 0 
+          ? validTests.reduce((sum, t) => sum + (t.mrp || 0), 0)
+          : (Number(values.price) || 0);
+        const compositeName = validTests.length > 0 ? validTests.map(t => t.name).join(", ") : values.name;
+        const compositeCode = validTests.length > 0 ? validTests.map(t => t.code).filter(Boolean).join(", ") : values.code;
+
         const payload = {
           ...values,
+          name: compositeName,
+          code: compositeCode || "TEST",
           patientId: values.patientId || undefined,
-          price: Number(values.price) || 0,
+          price: totalPrice,
           turnaroundHours: Number(values.turnaroundHours) || 24,
-          franchiseId: values.franchiseId || undefined,
+          franchiseId: values.franchiseId || (currentSession?.franchiseId ?? undefined),
         };
         if (isNew) {
           await createTest.mutateAsync(payload as Omit<Test, "id">);
@@ -521,7 +595,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           title={isNew ? `New ${isSample ? "sample" : "test"}` : `Edit ${isSample ? "sample" : "test"}`} 
           description={
             !isSample 
-              ? "Select patient and test from Master Database catalog. Codes, rates, and parameters auto-populate dynamically."
+              ? "Select patient and multiple tests from Master Database catalog. Rates & MRPs automatically sum together."
               : "Complete the required fields below. Select registered patient to link diagnostic sample."
           }
           action={
@@ -535,7 +609,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#176b87]/20 bg-[#e8f4f7]/60 p-3 text-xs text-[#176b87]">
             <Sparkles size={16} className="shrink-0" />
             <span>
-              <strong>Master Data Connected:</strong> Select patient, then type test full name or code to autocomplete and auto-fetch official rates, MRP, and department.
+              <strong>Multiple Tests Support:</strong> Add single or multiple tests. Test prices & MRPs automatically calculate and sum into total price.
             </span>
           </div>
         )}
@@ -555,6 +629,11 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
               const selectedPatient = (patientsList.data ?? []).find(
                 (p) => p.id === values.patientId || p.patientCode === values.patientId || p.name === values.patientId
               );
+
+              const validTests = selectedCatalogTests.filter(t => t.name.trim() !== "");
+              const calculatedPrice = validTests.length > 0 
+                ? validTests.reduce((sum, t) => sum + (t.mrp || 0), 0) 
+                : (Number(values.price) || 0);
 
               return (
                 <Form className="space-y-6">
@@ -637,42 +716,127 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
                         );
                       }
 
-                      // 2. Test Full Name selection from Master Database (Searchable Autocomplete)
+                      // 2. Multi-Test Selection Builder for Test Form
                       if (!isSample && field.name === "name") {
+                        return (
+                          <div key={field.name} className="space-y-4 sm:col-span-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface-2)]/50 p-4">
+                            <div className="flex items-center justify-between border-b border-[color:var(--line)] pb-3">
+                              <div>
+                                <h4 className="text-sm font-bold text-[color:var(--foreground)] flex items-center gap-2">
+                                  <Sparkles size={16} className="text-[#176b87]" />
+                                  Diagnostic Test / Service (Master Database)
+                                </h4>
+                                <p className="text-xs text-[color:var(--muted)]">
+                                  Select one or multiple tests. Rates & MRPs automatically sum together.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<Plus size={14} />}
+                                onClick={addCatalogTest}
+                              >
+                                Add Another Test
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3">
+                              {selectedCatalogTests.map((testItem, idx) => (
+                                <div key={idx} className="flex flex-col gap-2 bg-[color:var(--surface)] p-2.5 rounded-lg border border-[color:var(--line)] shadow-xs">
+                                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                    <div className="flex-1">
+                                      <SearchableCombobox
+                                        options={testMasterNameOptions}
+                                        value={testItem.name}
+                                        onChange={(val, opt) => {
+                                          const tm = (opt?.extra as TestMaster) || null;
+                                          updateCatalogTest(idx, tm, val, setFieldValue);
+                                        }}
+                                        placeholder={`Select test ${idx + 1} from Master Database (e.g. Calcium, CBC, Bilirubin)...`}
+                                        searchPlaceholder="Type test name (e.g. Calcium, CBC)..."
+                                        loading={testMastersQuery.isLoading}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#e8f4f7] border border-[#176b87]/20 text-[#176b87] font-mono text-xs font-bold min-w-[90px] justify-center">
+                                        ₹{Number(testItem.mrp || 0).toFixed(2)}
+                                      </div>
+                                      {selectedCatalogTests.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => removeCatalogTest(idx, setFieldValue)}
+                                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                          title="Remove test"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {testItem.name && (
+                                    <SubParameterSelect
+                                      testName={testItem.name || testItem.code}
+                                      selectedSubParameters={testItem.subParameters}
+                                      onChange={(newParams) => {
+                                        const updated = [...selectedCatalogTests];
+                                        updated[idx] = {
+                                          ...updated[idx],
+                                          subParameters: newParams,
+                                        };
+                                        setSelectedCatalogTests(updated);
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Aggregated MRP Breakdown */}
+                            <div className="flex flex-wrap items-center justify-between pt-2 text-xs border-t border-[color:var(--line)] gap-2">
+                              <span className="text-[color:var(--muted)] font-medium">
+                                Total Tests Selected: <strong className="text-[color:var(--foreground)]">{selectedCatalogTests.filter(t => t.name).length}</strong>
+                                {selectedCatalogTests.filter(t => t.name).length > 1 && (
+                                  <span className="ml-1 text-[11px] text-[#176b87]">
+                                    ({selectedCatalogTests.filter(t => t.name).map(t => `₹${t.mrp || 0}`).join(" + ")})
+                                  </span>
+                                )}
+                              </span>
+                              <div className="text-right">
+                                <span className="text-[color:var(--muted)] mr-2">Total MRP / Price:</span>
+                                <span className="font-mono text-sm font-black text-[#176b87]">
+                                  ₹{calculatedPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // 3. Price / MRP Auto-calculated Field
+                      if (!isSample && field.name === "price") {
                         return (
                           <UIField 
                             key={field.name} 
                             label={field.label} 
                             name={field.name} 
                             required={field.required}
-                            hint={field.hint}
+                            hint="Auto-calculated sum of all selected tests"
                             className={field.colSpan === 2 ? "sm:col-span-2" : ""}
                             error={errorMsg}
                           >
-                            <SearchableCombobox
-                              options={testMasterNameOptions}
-                              value={values.name}
-                              onChange={(val, opt) => {
-                                setFieldValue("name", val);
-                                if (opt?.extra) {
-                                  const tm = opt.extra as TestMaster;
-                                  setFieldValue("code", tm.code || "");
-                                  setFieldValue("department", tm.department || "Biochemistry");
-                                  setFieldValue("price", String(tm.mrp || tm.rate || 0));
-                                  if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
-                                  if (tm.unit) setFieldValue("unit", tm.unit);
-                                  if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
-                                }
-                              }}
-                              placeholder="Search & select test name from database (e.g. Calcium, CBC, Bilirubin)..."
-                              searchPlaceholder="Type test name (e.g. Calcium, CBC, Blood Glucose)..."
-                              loading={testMastersQuery.isLoading}
+                            <Input
+                              type="number"
+                              name={field.name}
+                              value={calculatedPrice}
+                              readOnly
+                              className="font-mono font-bold text-[#176b87] bg-[color:var(--surface-2)]"
                             />
                           </UIField>
                         );
                       }
 
-                      // 3. Test Code selection from Master Database (Searchable Autocomplete)
+                      // 4. Test Code field
                       if (!isSample && field.name === "code") {
                         return (
                           <UIField 
@@ -684,24 +848,11 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
                             className={field.colSpan === 2 ? "sm:col-span-2" : ""}
                             error={errorMsg}
                           >
-                            <SearchableCombobox
-                              options={testMasterCodeOptions}
+                            <Input
+                              name={field.name}
                               value={values.code}
-                              onChange={(val, opt) => {
-                                setFieldValue("code", val);
-                                if (opt?.extra) {
-                                  const tm = opt.extra as TestMaster;
-                                  setFieldValue("name", tm.name || "");
-                                  setFieldValue("department", tm.department || "Biochemistry");
-                                  setFieldValue("price", String(tm.mrp || tm.rate || 0));
-                                  if (tm.sampleType) setFieldValue("sampleType", tm.sampleType);
-                                  if (tm.unit) setFieldValue("unit", tm.unit);
-                                  if (tm.referenceRange) setFieldValue("referenceRange", tm.referenceRange);
-                                }
-                              }}
-                              placeholder="Search or enter test code (e.g. BC069, HM001)..."
-                              searchPlaceholder="Type code (e.g. HM001, BC001)..."
-                              loading={testMastersQuery.isLoading}
+                              onChange={(e) => setFieldValue("code", e.target.value)}
+                              placeholder="Test Code(s)..."
                             />
                           </UIField>
                         );
@@ -761,7 +912,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
                     <Link href={`/${kind}`}>
                       <Button type="button" variant="ghost">Cancel</Button>
                     </Link>
-                    {!isNew && isAdmin && (
+                    {!isNew && canManage && (
                       <Button 
                         type="button" 
                         variant="danger-outline"
@@ -792,7 +943,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             <Link href={`/${kind}`}>
               <Button variant="ghost">← Back to {isSample ? "samples" : "tests"}</Button>
             </Link>
-            {isAdmin && (
+            {canManage && (
               <>
                 <Link href={`/${kind}/${id}/edit`}>
                   <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {isSample ? "Sample" : "Test"}</Button>
