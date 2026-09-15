@@ -15,7 +15,7 @@ import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
-const referringDoctorValue = (name: string) => `Referred by Doctor – ${name}`;
+const referringDoctorValue = (name: string) => `Doctor – ${name}`;
 
 function findDoctorByRef(doctors: readonly Doctor[], ref?: string | null) {
   if (!ref) return null;
@@ -1136,6 +1136,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                 return opts;
               })();
               const isPatientLocked = Boolean(targetPatient && urlPatientId);
+              const isDoctorLocked = Boolean(urlDoctorId && (initialDoctorValue || values.doctorId));
 
               return (
                 <Form className="space-y-6">
@@ -1237,7 +1238,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                             label={field.label} 
                             name={field.name} 
                             required={field.required}
-                            hint={field.hint}
+                            hint={isDoctorLocked ? "🔒 Doctor locked from patient referral" : field.hint}
                             className={field.colSpan === 2 ? "sm:col-span-2" : ""}
                             error={errorMsg}
                           >
@@ -1248,6 +1249,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                               placeholder={isAppointment ? "Select consulting doctor..." : "Select referring doctor or business source (e.g. Doctor, Collection Centre, Direct)..."}
                               searchPlaceholder="Search doctor or business referral source..."
                               loading={doctorsList.isLoading}
+                              disabled={isDoctorLocked}
+                              allowClear={!isDoctorLocked}
                             />
                           </UIField>
                         );
