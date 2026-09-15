@@ -890,7 +890,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       </article>
 
       {/* Review Comments & Authorization Box (hidden on print) */}
-      <Card className="max-w-4xl mx-auto print:hidden">
+      {/* <Card className="max-w-4xl mx-auto print:hidden">
         <Formik
           initialValues={{ comments: item.comments ?? "" }}
           onSubmit={(values) => actions.updateComments.mutate({ id: item.id, comments: values.comments })}
@@ -935,7 +935,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             </Form>
           )}
         </Formik>
-      </Card>
+      </Card> */}
 
       {/* Delete Confirmation Modal in Report Detail */}
       {confirmDeleteId && (
