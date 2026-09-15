@@ -14,7 +14,6 @@ import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
-import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Franchise, Patient, Sample, Test, TestMaster, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
@@ -495,7 +494,6 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     ) => {
       const updated = [...selectedCatalogTests];
       if (testMaster) {
-        const subParams = getSubParametersForTest(testMaster.name || testMaster.code);
         updated[idx] = {
           name: testMaster.name,
           code: testMaster.code || "",
@@ -505,16 +503,15 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
           sampleType: testMaster.sampleType || "Blood",
           unit: testMaster.unit || "",
           referenceRange: testMaster.referenceRange || "",
-          subParameters: subParams.length > 0 ? subParams : undefined,
+          subParameters: [],
         };
       } else {
-        const subParams = getSubParametersForTest(testName);
         updated[idx] = {
           name: testName,
           code: "",
           mrp: 0,
           rate: 0,
-          subParameters: subParams.length > 0 ? subParams : undefined,
+          subParameters: [],
         };
       }
       setSelectedCatalogTests(updated);

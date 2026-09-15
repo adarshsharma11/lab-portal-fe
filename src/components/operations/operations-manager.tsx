@@ -12,7 +12,6 @@ import { useEntityList } from "@/features/crud/hooks";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
-import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
 const referringDoctorValue = (name: string) => `Doctor – ${name}`;
@@ -936,23 +935,21 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     ) => {
       const updated = [...selectedBillingTests];
       if (testMaster) {
-        const defaultSubs = getSubParametersForTest(testMaster.name);
         updated[idx] = {
           name: testMaster.name,
           code: testMaster.code || "",
           mrp: testMaster.mrp || testMaster.rate || 0,
           rate: testMaster.rate || testMaster.mrp || 0,
           department: testMaster.department || "",
-          subParameters: defaultSubs,
+          subParameters: [],
         };
       } else {
-        const defaultSubs = getSubParametersForTest(testName);
         updated[idx] = {
           name: testName,
           code: "",
           mrp: 0,
           rate: 0,
-          subParameters: defaultSubs,
+          subParameters: [],
         };
       }
       setSelectedBillingTests(updated);
