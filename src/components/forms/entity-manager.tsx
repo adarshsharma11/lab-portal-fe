@@ -63,6 +63,79 @@ function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "r
   return `/billing/new?${q.toString()}`;
 }
 
+const DETAIL_NA = "N/A";
+
+function isEmptyDetailValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === "string" && (!value.trim() || value === "null" || value === "undefined")) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+function namedLabel(obj: Record<string, unknown>, extraKeys: string[] = []): string {
+  const name = obj.name ?? obj.label ?? obj.title ?? obj.code;
+  if (name == null || String(name).trim() === "") return "";
+  const extras = extraKeys
+    .map((k) => obj[k])
+    .filter((v) => v != null && String(v).trim() !== "")
+    .map((v) => String(v));
+  return extras.length ? `${name} (${extras.join(" · ")})` : String(name);
+}
+
+function formatSampleLine(sample: Record<string, unknown>): string {
+  const tests = Array.isArray(sample.tests)
+    ? sample.tests.map((t: Record<string, unknown>) => t.code || t.name).filter(Boolean).join(", ")
+    : "";
+  return [sample.accession, sample.sampleType, sample.status, tests].filter(Boolean).join(" · ") || DETAIL_NA;
+}
+
+function formatReportLine(report: Record<string, unknown>): string {
+  const tests = Array.isArray(report.testIds)
+    ? report.testIds.filter((t) => typeof t === "string" && !/^[0-9a-f-]{36}$/i.test(t)).join(", ")
+    : "";
+  return [report.reportNumber, report.status, report.department, tests].filter(Boolean).join(" · ") || DETAIL_NA;
+}
+
+function formatInvoiceLine(invoice: Record<string, unknown>): string {
+  const items = Array.isArray(invoice.items)
+    ? invoice.items.map((it: Record<string, unknown>) => it.description || it.code).filter(Boolean).join(", ")
+    : "";
+  const total = invoice.total != null && invoice.total !== "" ? `₹${invoice.total}` : "";
+  return [invoice.billNumber, invoice.paymentStatus, total, items].filter(Boolean).join(" · ") || DETAIL_NA;
+}
+
+function formatAppointmentLine(appt: Record<string, unknown>): string {
+  return [appt.date, appt.time, appt.type, appt.status].filter(Boolean).join(" · ") || DETAIL_NA;
+}
+
+function formatDetailLines(key: string, value: unknown): string[] {
+  if (isEmptyDetailValue(value)) return [DETAIL_NA];
+  if (typeof value !== "object") return [String(value)];
+
+  const k = key.toLowerCase();
+
+  if (Array.isArray(value)) {
+    if (k.includes("sample")) return value.map((s) => formatSampleLine(s as Record<string, unknown>));
+    if (k.includes("report")) return value.map((r) => formatReportLine(r as Record<string, unknown>));
+    if (k.includes("invoice")) return value.map((inv) => formatInvoiceLine(inv as Record<string, unknown>));
+    if (k.includes("appointment")) return value.map((a) => formatAppointmentLine(a as Record<string, unknown>));
+    return value.map((item) => {
+      if (item == null || item === "") return DETAIL_NA;
+      if (typeof item !== "object") return String(item);
+      return namedLabel(item as Record<string, unknown>) || DETAIL_NA;
+    });
+  }
+
+  const obj = value as Record<string, unknown>;
+  if (k.includes("doctor") || k.includes("referring")) {
+    return [namedLabel(obj, ["specialty"]) || DETAIL_NA];
+  }
+  if (k.includes("franchise")) {
+    return [namedLabel(obj, ["code"]) || DETAIL_NA];
+  }
+  return [namedLabel(obj) || DETAIL_NA];
+}
+
 const patientFields: readonly FieldConfig[] = [
   { name: "name", label: "Full Name", type: "text", placeholder: "Maya Sharma", required: true, section: "Personal Details" },
   { name: "patientCode", label: "Patient Code", type: "text", placeholder: "BL-01 (Auto-generated)", section: "Personal Details", hint: "Auto-generated sequential code (e.g. BL-01, BL-02)" },
@@ -1254,14 +1327,36 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
         <Card padding={false} className="overflow-hidden">
           <dl className="grid gap-px bg-[color:var(--line)] sm:grid-cols-2">
-            {Object.entries(raw).filter(([key]) => key !== "id" && key !== "passwordHash" && key !== "password").map(([key, value]) => (
-              <div className="bg-[color:var(--surface)] p-4" key={key}>
-                <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
-                <dd className="mt-1 text-sm font-medium">
-                  {typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}
-                </dd>
-              </div>
-            ))}
+            {Object.entries(raw)
+              .filter(([key]) => {
+                if (key === "id" || key === "passwordHash" || key === "password" || key.startsWith("_")) return false;
+                if (key === "referringDoctorId" && raw.referringDoctor) return false;
+                if (key === "franchiseId" && raw.franchise) return false;
+                return true;
+              })
+              .map(([key, value]) => {
+                const lines = formatDetailLines(key, value);
+                const isEmpty = lines.length === 1 && lines[0] === DETAIL_NA;
+                const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+                return (
+                  <div className="bg-[color:var(--surface)] p-4" key={key}>
+                    <dt className="text-xs font-semibold uppercase text-[color:var(--muted)]">{label}</dt>
+                    <dd className="mt-1 text-sm font-medium">
+                      {isEmpty ? (
+                        <span className="text-[color:var(--muted)]">{DETAIL_NA}</span>
+                      ) : lines.length === 1 ? (
+                        lines[0]
+                      ) : (
+                        <ul className="space-y-1">
+                          {lines.map((line, idx) => (
+                            <li key={`${key}-${idx}`}>{line}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
           </dl>
         </Card>
 
