@@ -15,6 +15,13 @@ import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import { getSubParametersForTest } from "@/lib/laboratory/test-parameter-definitions";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
+const referringDoctorValue = (name: string) => `Referred by Doctor – ${name}`;
+
+function findDoctorByRef(doctors: readonly Doctor[], ref?: string | null) {
+  if (!ref) return null;
+  return doctors.find((d) => d.id === ref || d.name === ref || referringDoctorValue(d.name) === ref) || null;
+}
+
 interface FormFieldDef {
   name: string;
   label: string;
@@ -517,8 +524,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     }
 
     const doctorItems: ComboboxOption[] = filtered.map((d) => ({
-      value: `Referred by Doctor – ${d.name}`,
-      label: `Referred by Doctor – ${d.name}`,
+      value: referringDoctorValue(d.name),
+      label: referringDoctorValue(d.name),
       secondary: d.specialty ? `${d.specialty} · ${d.city || "Practitioner"}` : "Practitioner",
       badge: d.phone,
       extra: d,
@@ -837,12 +844,9 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
       ? ((patientsList.data as Patient[]).find(p => p.id === urlPatientId || p.patientCode === urlPatientId || (urlPatientCode && p.patientCode === urlPatientCode)) || null)
       : null;
 
-    const resolvedDoctorObj = (urlDoctorId || targetPatient?.referringDoctorId)
-      ? ((doctorsList.data ?? []).find(d => d.id === (urlDoctorId || targetPatient?.referringDoctorId) || d.name === (urlDoctorId || targetPatient?.referringDoctorId)) || null)
-      : null;
-    const initialDoctorValue = resolvedDoctorObj
-      ? `Referred by Doctor – ${resolvedDoctorObj.name}`
-      : (urlDoctorId ? `Referred by Doctor – ${urlDoctorId}` : "");
+    const patientDoctorId = targetPatient?.referringDoctorId || (targetPatient as Patient & { referringDoctor?: { id?: string } } | null)?.referringDoctor?.id;
+    const resolvedDoctorObj = findDoctorByRef(doctorsList.data ?? [], urlDoctorId || patientDoctorId);
+    const initialDoctorValue = resolvedDoctorObj ? referringDoctorValue(resolvedDoctorObj.name) : "";
 
     const initialValues = isNew
       ? isAppointment
@@ -1056,7 +1060,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               subParameters: t.subParameters && t.subParameters.length > 0 ? t.subParameters : undefined,
             }));
             const testsParam = encodeURIComponent(JSON.stringify(selectedCodes));
-            const targetDocId = (doctorsList.data ?? []).find(d => d.name === v.doctorId || `Referred by Doctor – ${d.name}` === v.doctorId)?.id || v.doctorId;
+            const targetDocId = findDoctorByRef(doctorsList.data ?? [], v.doctorId)?.id || urlDoctorId || v.doctorId;
             const targetPatientCode = targetPatient?.patientCode || urlPatientCode || v.billNumber || "";
             const invId = (createdInvoiceRes as any)?.data?.id || (createdInvoiceRes as any)?.id || "";
             router.push(`/reports/new?patientId=${encodeURIComponent(v.patientId)}&patientCode=${encodeURIComponent(targetPatientCode)}&tests=${testsParam}&doctorId=${encodeURIComponent(targetDocId)}&franchiseId=${encodeURIComponent(v.franchiseId || "")}&invoiceId=${encodeURIComponent(invId)}`);
@@ -1124,7 +1128,13 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               const liveGrandTotal = Math.max(0, liveSubtotal - disc);
 
               const patientOpts = getPatientComboboxOptions(values.franchiseId);
-              const doctorOpts = getDoctorComboboxOptions(values.franchiseId);
+              const doctorOpts = (() => {
+                const opts = getDoctorComboboxOptions(values.franchiseId);
+                if (resolvedDoctorObj && initialDoctorValue && !opts.some((o) => o.value === initialDoctorValue)) {
+                  return [{ value: initialDoctorValue, label: initialDoctorValue, extra: resolvedDoctorObj }, ...opts];
+                }
+                return opts;
+              })();
               const isPatientLocked = Boolean(targetPatient && urlPatientId);
 
               return (
@@ -1159,8 +1169,8 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                       setFieldValue("billNumber", p.patientCode);
                                     }
                                     if (p.referringDoctorId) {
-                                      const doc = (doctorsList.data ?? []).find(d => d.id === p.referringDoctorId);
-                                      if (doc) setFieldValue("doctorId", doc.name);
+                                      const doc = findDoctorByRef(doctorsList.data ?? [], p.referringDoctorId);
+                                      if (doc) setFieldValue("doctorId", referringDoctorValue(doc.name));
                                     }
                                     if (isAdmin && p.franchiseId && !values.franchiseId) {
                                       setFieldValue("franchiseId", p.franchiseId);

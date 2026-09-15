@@ -793,7 +793,7 @@ function TechnicianDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Link href={`/billing/new?patientId=${p.id}`}>
+                    <Link href={`/billing/new?patientId=${p.id}${p.referringDoctorId ? `&doctorId=${encodeURIComponent(p.referringDoctorId)}` : ""}${p.franchiseId ? `&franchiseId=${encodeURIComponent(p.franchiseId)}` : ""}`}>
                       <Button size="sm" variant="outline" leftIcon={<IndianRupee size={12} />}>Bill Patient</Button>
                     </Link>
                     <Link href={`/patients/${p.id}`}>

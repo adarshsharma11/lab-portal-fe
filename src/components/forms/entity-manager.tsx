@@ -54,6 +54,15 @@ export function calculateAgeFromDob(dob: string): number | "" {
   return age >= 0 ? age : 0;
 }
 
+function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "referringDoctorId" | "franchiseId"> & { referringDoctor?: { id?: string } }) {
+  const q = new URLSearchParams({ patientId: patient.id });
+  if (patient.patientCode) q.set("patientCode", patient.patientCode);
+  const doctorId = patient.referringDoctorId || patient.referringDoctor?.id;
+  if (doctorId) q.set("doctorId", String(doctorId));
+  if (patient.franchiseId) q.set("franchiseId", patient.franchiseId);
+  return `/billing/new?${q.toString()}`;
+}
+
 const patientFields: readonly FieldConfig[] = [
   { name: "name", label: "Full Name", type: "text", placeholder: "Maya Sharma", required: true, section: "Personal Details" },
   { name: "patientCode", label: "Patient Code", type: "text", placeholder: "BL-01 (Auto-generated)", section: "Personal Details", hint: "Auto-generated sequential code (e.g. BL-01, BL-02)" },
@@ -680,7 +689,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           header: "Actions",
           cell: ({ row }) => (
             <div className="flex items-center justify-center gap-1.5">
-              <Link href={`/billing/new?patientId=${row.original.id}`}>
+              <Link href={billingHrefFromPatient(row.original as Patient)}>
                 <Button size="sm" variant="outline" leftIcon={<IndianRupee size={13} />}>
                   Bill
                 </Button>
@@ -1219,7 +1228,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 <Button variant="ghost">← Back to {config.plural}</Button>
               </Link>
               {kind === "patients" && (
-                <Link href={`/billing/new?patientId=${id}`}>
+                <Link href={billingHrefFromPatient({ ...(record as Patient), id })}>
                   <Button variant="primary" leftIcon={<IndianRupee size={15} />}>
                     Initiate Billing
                   </Button>
