@@ -16,6 +16,29 @@ import { useInvoices } from "@/features/operations/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import type { Patient, Report, Test, Sample, Invoice, UserRole } from "@/types/domain";
 
+type DatePreset = "all" | "today" | "week" | "month" | "custom";
+
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function patientDateKey(createdAt?: string): string {
+  if (!createdAt) return "";
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return String(createdAt).slice(0, 10);
+  return toDateKey(d);
+}
+
+function isDateInRange(dateKey: string, from: string, to: string): boolean {
+  if (!dateKey) return false;
+  if (from && dateKey < from) return false;
+  if (to && dateKey > to) return false;
+  return true;
+}
+
 export function ResultsWorkbench() {
   const router = useRouter();
   const patientsQuery = usePatients();
@@ -24,9 +47,44 @@ export function ResultsWorkbench() {
   const samplesQuery = useSamples();
   const invoicesQuery = useInvoices();
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [selectedDate, setSelectedDate] = useState<string>("");
+  const todayStr = useMemo(() => toDateKey(new Date()), []);
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [selectedPatientFilter, setSelectedPatientFilter] = useState<string>("");
+
+  const dateRange = useMemo(() => {
+    if (datePreset === "all") return { from: "", to: "" };
+    if (datePreset === "today") return { from: todayStr, to: todayStr };
+    if (datePreset === "week") {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    if (datePreset === "month") {
+      const start = new Date();
+      start.setDate(start.getDate() - 29);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    let from = customFrom;
+    let to = customTo;
+    if (from && to && from > to) {
+      from = customTo;
+      to = customFrom;
+    }
+    return { from, to };
+  }, [datePreset, customFrom, customTo, todayStr]);
+
+  const hasDateFilter = Boolean(dateRange.from || dateRange.to);
+
+  const applyDatePreset = (preset: DatePreset) => {
+    setDatePreset(preset);
+    setSelectedPatientFilter("");
+    if (preset !== "custom") {
+      setCustomFrom("");
+      setCustomTo("");
+    }
+  };
   const [currentSession, setCurrentSession] = useState<{ role?: UserRole; franchiseId?: string } | null>(null);
 
   useEffect(() => {
@@ -54,10 +112,8 @@ export function ResultsWorkbench() {
   // Build pending queue: patients with pending tests/billing/reports (omit completely finished ones)
   const pendingPatientsQueue = useMemo(() => {
     return tenantPatients.filter(patient => {
-      // Check date filter if selected (past dates and today only)
-      if (selectedDate) {
-        const pDate = patient.createdAt ? new Date(patient.createdAt).toISOString().slice(0, 10) : "";
-        if (pDate !== selectedDate) return false;
+      if (hasDateFilter && !isDateInRange(patientDateKey(patient.createdAt), dateRange.from, dateRange.to)) {
+        return false;
       }
 
       // Check patient specific search/combobox filter
@@ -76,16 +132,13 @@ export function ResultsWorkbench() {
       const isFullyCompleted = hasApprovedReport && hasPaidInvoice && patientReports.length > 0;
       return !isFullyCompleted;
     });
-  }, [tenantPatients, selectedDate, selectedPatientFilter, allReports, allInvoices]);
+  }, [tenantPatients, hasDateFilter, dateRange.from, dateRange.to, selectedPatientFilter, allReports, allInvoices]);
 
   // Patient dropdown options for quick search
   const patientComboboxOptions = useMemo(() => {
     let list = tenantPatients;
-    if (selectedDate) {
-      list = list.filter(p => {
-        const pDate = p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : "";
-        return pDate === selectedDate;
-      });
+    if (hasDateFilter) {
+      list = list.filter((p) => isDateInRange(patientDateKey(p.createdAt), dateRange.from, dateRange.to));
     }
     return list.map(p => ({
       value: p.id,
@@ -94,7 +147,7 @@ export function ResultsWorkbench() {
       badge: p.phone,
       extra: p,
     }));
-  }, [tenantPatients, selectedDate]);
+  }, [tenantPatients, hasDateFilter, dateRange.from, dateRange.to]);
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Patient>();
@@ -236,29 +289,57 @@ export function ResultsWorkbench() {
       {/* Dynamic Date & Patient Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl shadow-xs">
         <div className="flex flex-wrap items-center gap-4 flex-1">
-          {/* Date Filter: Today and Past Dates only */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Calendar size={15} className="text-[#176b87]" />
             <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
-            <Input
-              type="date"
-              max={todayStr}
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setSelectedPatientFilter("");
-              }}
-              className="h-8 text-xs w-44 font-medium"
-            />
-            {selectedDate && (
+            <Select
+              value={datePreset}
+              onChange={(e) => applyDatePreset(e.target.value as DatePreset)}
+              className="h-8 text-xs w-36 font-medium"
+            >
+              <option value="all">All dates</option>
+              <option value="today">Today</option>
+              <option value="week">Last week</option>
+              <option value="month">Last month</option>
+              <option value="custom">Custom range</option>
+            </Select>
+            {datePreset === "custom" && (
+              <>
+                <Input
+                  type="date"
+                  max={customTo || todayStr}
+                  value={customFrom}
+                  onChange={(e) => {
+                    setCustomFrom(e.target.value);
+                    setSelectedPatientFilter("");
+                  }}
+                  className="h-8 text-xs w-36 font-medium"
+                />
+                <span className="text-xs text-[color:var(--muted)]">to</span>
+                <Input
+                  type="date"
+                  min={customFrom}
+                  max={todayStr}
+                  value={customTo}
+                  onChange={(e) => {
+                    setCustomTo(e.target.value);
+                    setSelectedPatientFilter("");
+                  }}
+                  className="h-8 text-xs w-36 font-medium"
+                />
+              </>
+            )}
+            {datePreset !== "all" && datePreset !== "custom" && dateRange.from && (
+              <span className="text-[11px] text-[color:var(--muted)]">
+                {dateRange.from === dateRange.to ? dateRange.from : `${dateRange.from} – ${dateRange.to}`}
+              </span>
+            )}
+            {hasDateFilter && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 text-xs px-2 text-rose-600"
-                onClick={() => {
-                  setSelectedDate("");
-                  setSelectedPatientFilter("");
-                }}
+                onClick={() => applyDatePreset("all")}
               >
                 Clear Date
               </Button>
@@ -271,7 +352,7 @@ export function ResultsWorkbench() {
               options={patientComboboxOptions}
               value={selectedPatientFilter}
               onChange={(val) => setSelectedPatientFilter(val)}
-              placeholder={selectedDate ? `Search patients registered on ${selectedDate}...` : "Select / search patient..."}
+              placeholder={hasDateFilter ? "Search patients in selected date range..." : "Select / search patient..."}
               searchPlaceholder="Search by name, code, phone..."
             />
           </div>
