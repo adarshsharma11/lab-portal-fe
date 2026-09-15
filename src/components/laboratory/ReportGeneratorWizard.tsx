@@ -90,7 +90,7 @@ export function ReportGeneratorWizard() {
   const [accession, setAccession] = useState(`LIS-${Date.now().toString().slice(-6)}`);
   const [barcode, setBarcode] = useState(`E${Date.now().toString().slice(-7)}`);
   const [sampleType, setSampleType] = useState("Whole Blood EDTA");
-  const [reportStatus, setReportStatus] = useState<"Draft" | "Pending Review" | "Approved">("Pending Review");
+  const [reportStatus, setReportStatus] = useState<"Draft" | "Pending Review" | "Approved">("Approved");
   const [pathologist, setPathologist] = useState("Dr. Pranjali Sejwal, MBBS, MD Pathology");
   const [comments, setComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -828,12 +828,12 @@ export function ReportGeneratorWizard() {
               3
             </div>
             <div>
-              <h3 className="text-base font-bold text-[color:var(--foreground)]">Clinical Impression & Pathologist Release</h3>
-              <p className="text-xs text-[color:var(--muted)]">Enter doctor comments, specimen details, and signatory sign-off.</p>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">Save or Cancel Report</h3>
+              {/* <p className="text-xs text-[color:var(--muted)]">Enter doctor comments, specimen details, and signatory sign-off.</p> */}
             </div>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-3">
+          {/* <div className="grid gap-6 sm:grid-cols-3">
             <UIField label="Accession Number" name="accession" required>
               <Input value={accession} onChange={(e) => setAccession(e.target.value)} />
             </UIField>
@@ -869,10 +869,10 @@ export function ReportGeneratorWizard() {
                 />
               </UIField>
             </div>
-          </div>
+          </div> */}
 
           {/* Action buttons */}
-          <div className="mt-8 pt-6 border-t border-[color:var(--line)] flex items-center justify-between">
+          <div className="mt-8 pt-6 border-[color:var(--line)] flex items-center justify-between">
             <Link href="/reports">
               <Button type="button" variant="ghost">Cancel</Button>
             </Link>
