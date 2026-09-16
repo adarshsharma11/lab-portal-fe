@@ -355,6 +355,7 @@ export const MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "MCH", aliasList: ["mch", "mean corp hb", "mean corp hb (mch)"], paramId: "mch" },
       { name: "MCHC", aliasList: ["mchc", "mean corp hb conc", "mean corp hb conc (mchc)"], paramId: "mchc" },
       { name: "MCV", aliasList: ["mcv", "mean corp volume", "mean corp volume (mcv)"], paramId: "mcv" },
+      { name: "Platelet", aliasList: ["platelet", "platelets", "platelet count", "plt", "platelet count (plt)"], paramId: "plt" },
     ],
   },
   {

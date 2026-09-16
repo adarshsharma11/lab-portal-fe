@@ -91,7 +91,7 @@ export function ReportGeneratorWizard() {
   const [barcode, setBarcode] = useState(`E${Date.now().toString().slice(-7)}`);
   const [sampleType, setSampleType] = useState("Whole Blood EDTA");
   const [reportStatus, setReportStatus] = useState<"Draft" | "Pending Review" | "Approved">("Approved");
-  const [pathologist, setPathologist] = useState("Dr. Pranjali Sejwal, MBBS, MD Pathology");
+  const [pathologist, setPathologist] = useState("Dr. Namrata, MBBS, MD(Pathology)");
   const [comments, setComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");

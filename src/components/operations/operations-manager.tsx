@@ -14,11 +14,24 @@ import { authService } from "@/lib/auth/auth-service";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
-const referringDoctorValue = (name: string) => `Doctor – ${name}`;
+const referringDoctorValue = (name: string) => {
+  if (!name) return "";
+  if (name.startsWith("Doctor – ") || name === "Direct / Walk-in" || name.startsWith("Referred by")) return name;
+  return `Doctor – ${name}`;
+};
 
 function findDoctorByRef(doctors: readonly Doctor[], ref?: string | null) {
   if (!ref) return null;
-  return doctors.find((d) => d.id === ref || d.name === ref || referringDoctorValue(d.name) === ref) || null;
+  const clean = ref.trim().toLowerCase();
+  const stripped = clean.replace(/^doctor\s*–\s*/i, "").trim();
+  return doctors.find((d) => 
+    d.id.toLowerCase() === clean || 
+    d.name.toLowerCase() === clean || 
+    d.name.toLowerCase() === stripped ||
+    referringDoctorValue(d.name).toLowerCase() === clean ||
+    clean.includes(d.name.toLowerCase()) ||
+    d.name.toLowerCase().includes(stripped)
+  ) || null;
 }
 
 interface FormFieldDef {
@@ -75,7 +88,7 @@ const invoiceFields: readonly FormFieldDef[] = [
   { name: "doctorId", label: "Referring Doctor / Business Source", type: "text", placeholder: "Select doctor or referral source...", required: true, hint: "E.g. Doctor, Blood Collection Centre, Direct / Walk-in" },
   { name: "itemDescription", label: "Diagnostic Test / Service (Master Database)", type: "text", placeholder: "Search test name from database...", required: true, hint: "Search test catalog to auto-populate rate and price", colSpan: 2 },
   { name: "itemMrp", label: "Unit Rate / MRP (₹)", type: "number", placeholder: "850", required: true, hint: "Auto-filled from test master" },
-  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "0" },
+  { name: "discount", label: "Discount (₹)", type: "number", placeholder: "e.g. 50 (optional)" },
   {
     name: "paymentStatus",
     label: "Payment Status",
@@ -109,7 +122,7 @@ const invoiceSchema = Yup.object({
   itemDescription: Yup.string().trim().required("Test or item description is required"),
   itemQuantity: Yup.number().typeError("Quantity must be a number").min(1, "Quantity must be at least 1").default(1),
   itemMrp: Yup.number().typeError("Price must be a number").required("Price is required").min(0, "Price cannot be negative"),
-  discount: Yup.number().typeError("Discount must be a number").min(0, "Discount cannot be negative").default(0),
+  discount: Yup.number().typeError("Discount must be a number").min(0, "Discount cannot be negative").nullable().optional(),
   sgst: Yup.number().typeError("SGST must be a number").min(0, "Tax cannot be negative").default(0),
   cgst: Yup.number().typeError("CGST must be a number").min(0, "Tax cannot be negative").default(0),
   paymentStatus: Yup.string().required("Please select payment status").oneOf(["Pending", "Paid"], "Invalid payment status"),
@@ -843,9 +856,13 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
       ? ((patientsList.data as Patient[]).find(p => p.id === urlPatientId || p.patientCode === urlPatientId || (urlPatientCode && p.patientCode === urlPatientCode)) || null)
       : null;
 
-    const patientDoctorId = targetPatient?.referringDoctorId || (targetPatient as Patient & { referringDoctor?: { id?: string } } | null)?.referringDoctor?.id;
-    const resolvedDoctorObj = findDoctorByRef(doctorsList.data ?? [], urlDoctorId || patientDoctorId);
-    const initialDoctorValue = resolvedDoctorObj ? referringDoctorValue(resolvedDoctorObj.name) : "";
+    const patientDoctorRef = (targetPatient as any)?.referringDoctor?.name 
+      ? referringDoctorValue((targetPatient as any).referringDoctor.name)
+      : (targetPatient?.referringDoctorId || "");
+    const resolvedDoctorObj = findDoctorByRef(doctorsList.data ?? [], urlDoctorId || patientDoctorRef);
+    const initialDoctorValue = resolvedDoctorObj 
+      ? referringDoctorValue(resolvedDoctorObj.name) 
+      : (urlDoctorId || patientDoctorRef || "");
 
     const initialValues = isNew
       ? isAppointment
@@ -868,7 +885,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             itemDescription: "", 
             itemQuantity: 1, 
             itemMrp: "", 
-            discount: 0, 
+            discount: "", 
             sgst: 0, 
             cgst: 0, 
             paymentStatus: "Paid", 
@@ -895,7 +912,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           itemDescription: rawRecord?.items?.[0]?.description ?? "",
           itemQuantity: rawRecord?.items?.[0]?.quantity ?? 1,
           itemMrp: rawRecord?.items?.[0]?.mrp ?? "",
-          discount: rawRecord?.discount ?? 0,
+          discount: rawRecord?.discount !== undefined && rawRecord?.discount !== null && rawRecord?.discount !== 0 ? rawRecord.discount : "",
           sgst: rawRecord?.sgst ?? 0,
           cgst: rawRecord?.cgst ?? 0,
           paymentStatus: rawRecord?.paymentStatus ?? "Paid",
@@ -1166,9 +1183,15 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                     if (p.patientCode && !values.billNumber) {
                                       setFieldValue("billNumber", p.patientCode);
                                     }
-                                    if (p.referringDoctorId) {
-                                      const doc = findDoctorByRef(doctorsList.data ?? [], p.referringDoctorId);
-                                      if (doc) setFieldValue("doctorId", referringDoctorValue(doc.name));
+                                    const refDoctor = (p as any).referringDoctor?.name 
+                                      ? referringDoctorValue((p as any).referringDoctor.name)
+                                      : p.referringDoctorId 
+                                      ? (findDoctorByRef(doctorsList.data ?? [], p.referringDoctorId)?.name 
+                                          ? referringDoctorValue(findDoctorByRef(doctorsList.data ?? [], p.referringDoctorId)!.name) 
+                                          : p.referringDoctorId)
+                                      : "";
+                                    if (refDoctor) {
+                                      setFieldValue("doctorId", refDoctor);
                                     }
                                     if (isAdmin && p.franchiseId && !values.franchiseId) {
                                       setFieldValue("franchiseId", p.franchiseId);

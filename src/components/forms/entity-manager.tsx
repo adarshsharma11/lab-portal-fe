@@ -54,11 +54,15 @@ export function calculateAgeFromDob(dob: string): number | "" {
   return age >= 0 ? age : 0;
 }
 
-function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "referringDoctorId" | "franchiseId"> & { referringDoctor?: { id?: string } }) {
+function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "referringDoctorId" | "franchiseId"> & { referringDoctor?: { id?: string; name?: string } }) {
   const q = new URLSearchParams({ patientId: patient.id });
   if (patient.patientCode) q.set("patientCode", patient.patientCode);
-  const doctorId = patient.referringDoctorId || patient.referringDoctor?.id;
-  if (doctorId) q.set("doctorId", String(doctorId));
+  const docRef = patient.referringDoctor?.name 
+    ? (patient.referringDoctor.name.startsWith("Doctor – ") || patient.referringDoctor.name === "Direct / Walk-in" || patient.referringDoctor.name.startsWith("Referred by") 
+        ? patient.referringDoctor.name 
+        : `Doctor – ${patient.referringDoctor.name}`)
+    : (patient.referringDoctorId || "");
+  if (docRef) q.set("doctorId", String(docRef));
   if (patient.franchiseId) q.set("franchiseId", patient.franchiseId);
   return `/billing/new?${q.toString()}`;
 }
@@ -653,20 +657,29 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
     return `BL-${formatted}`;
   }, [kind, list.data]);
 
-  // Franchise-scoped doctors helper
+  // Franchise-scoped doctors and all referral sources helper
   const getDoctorOptions = (franchiseId?: string) => {
     const allDocs = (doctorsList.data ?? []) as Doctor[];
     const targetFranchise = franchiseId || currentSession?.franchiseId;
     const filtered = targetFranchise
       ? allDocs.filter((d) => !d.franchiseId || d.franchiseId === targetFranchise)
       : allDocs;
+
+    const businessSources = [
+      { label: "Direct / Walk-in (Self Referral)", value: "Direct / Walk-in", secondary: "Standard OPD walk-in patient" },
+      { label: "Referred by Blood Collection Centre", value: "Referred by Blood Collection Centre", secondary: "Collection kiosk / phlebotomy centre" },
+      { label: "Referred by Health Camp / Outreach", value: "Referred by Health Camp / Outreach", secondary: "Community screening / corporate camp" },
+    ];
+
+    const doctorItems = filtered.map((d) => ({
+      label: `Doctor – ${d.name} (${d.specialty || "Practitioner"})`,
+      value: `Doctor – ${d.name}`,
+      secondary: d.phone ? `Phone: ${d.phone}` : (d.specialty || "Practitioner"),
+    }));
+
     return [
-      { label: "None / Direct Walk-in", value: "" },
-      ...filtered.map((d) => ({
-        label: `${d.name} (${d.specialty || "Practitioner"})`,
-        value: d.id,
-        secondary: d.phone ? `Phone: ${d.phone}` : undefined,
-      })),
+      ...businessSources,
+      ...doctorItems,
     ];
   };
 
@@ -1450,16 +1463,13 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                         >
                           {kind === "patients" && field.name === "referringDoctorId" ? (
                             <SearchableCombobox
-                              options={getDoctorOptions((values as any).franchiseId).map((d: any) => ({
-                                value: d.value,
-                                label: d.label,
-                                secondary: d.secondary,
-                              }))}
+                              options={getDoctorOptions((values as any).franchiseId)}
                               value={((values as any).referringDoctorId as string) || ""}
                               onChange={(val) => setFieldValue("referringDoctorId", val)}
-                              placeholder="Select Referring Doctor..."
-                              searchPlaceholder="Search doctor by name..."
+                              placeholder="Select Referring Doctor or Referral Source (e.g. Doctor, Self, Collection Centre)..."
+                              searchPlaceholder="Search doctor or business referral source..."
                               loading={doctorsList.isLoading}
+                              allowClear
                             />
                           ) : field.type === "select" ? (
                             <Field 

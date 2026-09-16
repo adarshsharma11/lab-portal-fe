@@ -4,27 +4,28 @@ import { Form, Formik, Field } from "formik";
 import * as Yup from "yup";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  AlertTriangle, Award, CheckCircle2, ChevronRight, Clock, Download, 
-  Edit3, Eye, FileText, FlaskConical, Mail, MessageCircle, Microscope, 
-  Plus, Printer, QrCode, Share2, ShieldCheck, Trash2, ArrowLeft, Loader2
+import {
+  AlertTriangle, Award, CheckCircle2, ChevronRight, Clock, Download,
+  Edit3, Eye, FileText, FlaskConical, Mail, MessageCircle, Microscope,
+  Phone, Plus, Printer, QrCode, Share2, ShieldCheck, Trash2, ArrowLeft, Loader2
 } from "lucide-react";
 import { createColumnHelper } from "@tanstack/react-table";
 import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIField, Grid2, Card, cn } from "@/components/ui/index";
 import { DataTable } from "@/components/tables/DataTable";
 import { useResults } from "@/features/laboratory/hooks";
-import { 
-  useCreateTemplate, 
-  useDeleteTemplate, 
-  useReport, 
-  useReportActions, 
-  useReports, 
-  useReportTemplate, 
-  useReportTemplates, 
-  useUpdateTemplate 
+import {
+  useCreateTemplate,
+  useDeleteTemplate,
+  useReport,
+  useReportActions,
+  useReports,
+  useReportTemplate,
+  useReportTemplates,
+  useUpdateTemplate
 } from "@/features/reports/hooks";
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
+import { LETTERHEAD_TEMPLATE_BASE64 } from "@/lib/laboratory/letterhead-template-base64";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import type { Report, ReportTemplate, Result, UserRole } from "@/types/domain";
@@ -47,7 +48,7 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
   const report = useReport(path[0] && path[0] !== "new" && path[0] !== "templates" ? path[0] : "");
   const results = useResults();
   const actions = useReportActions();
-  
+
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
   const deleteTemplate = useDeleteTemplate();
@@ -117,9 +118,9 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
                 Edit
               </Button>
             </Link>
-            <Button 
-              size="sm" 
-              variant="danger-outline" 
+            <Button
+              size="sm"
+              variant="danger-outline"
               leftIcon={<Trash2 size={13} />}
               onClick={() => setConfirmDeleteTemplateId(row.original.id)}
             >
@@ -177,9 +178,9 @@ export function ReportWorkflow({ path }: Readonly<{ path: readonly string[] }>) 
                 <Button variant="ghost" onClick={() => setConfirmDeleteTemplateId(null)}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="danger" 
-                  loading={deleteTemplate.isPending} 
+                <Button
+                  variant="danger"
+                  loading={deleteTemplate.isPending}
                   onClick={async () => {
                     await deleteTemplate.mutateAsync(confirmDeleteTemplateId);
                     setConfirmDeleteTemplateId(null);
@@ -240,7 +241,7 @@ function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }
   const submit = async (values: typeof initialValues) => {
     const payload: Omit<ReportTemplate, "id"> = {
       ...values,
-      tests: typeof values.tests === "string" 
+      tests: typeof values.tests === "string"
         ? values.tests.split(",").map((t: string) => t.trim()).filter(Boolean)
         : Array.isArray(values.tests) ? values.tests : [],
     };
@@ -276,19 +277,19 @@ function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }
           {({ errors, touched, isSubmitting }) => (
             <Form className="space-y-6">
               <Grid2>
-                <UIField 
-                  label="Template Name" 
-                  name="name" 
-                  required 
+                <UIField
+                  label="Template Name"
+                  name="name"
+                  required
                   error={touched.name ? errors.name : undefined}
                 >
                   <Field name="name" as={Input} placeholder="e.g. Standard Hematology CBC Profile" />
                 </UIField>
 
-                <UIField 
-                  label="Laboratory Department" 
-                  name="department" 
-                  required 
+                <UIField
+                  label="Laboratory Department"
+                  name="department"
+                  required
                   error={touched.department ? errors.department : undefined}
                 >
                   <Field name="department" as={Select}>
@@ -303,10 +304,10 @@ function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }
                   </Field>
                 </UIField>
 
-                <UIField 
-                  label="Included Test Codes (comma-separated)" 
-                  name="tests" 
-                  required 
+                <UIField
+                  label="Included Test Codes (comma-separated)"
+                  name="tests"
+                  required
                   hint="e.g. CBC, ESR, HB, PLATELET"
                   className="sm:col-span-2"
                   error={touched.tests ? errors.tests : undefined}
@@ -314,28 +315,28 @@ function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }
                   <Field name="tests" as={Input} placeholder="CBC, ESR, HB" />
                 </UIField>
 
-                <UIField 
-                  label="Report Header Title" 
-                  name="header" 
-                  required 
+                <UIField
+                  label="Report Header Title"
+                  name="header"
+                  required
                   className="sm:col-span-2"
                   error={touched.header ? errors.header : undefined}
                 >
                   <Field name="header" as={Input} placeholder="BL Dignostic Clinical Laboratory" />
                 </UIField>
 
-                <UIField 
-                  label="Signatory Pathologist Name & Credentials" 
-                  name="signatory" 
-                  required 
+                <UIField
+                  label="Signatory Pathologist Name & Credentials"
+                  name="signatory"
+                  required
                   error={touched.signatory ? errors.signatory : undefined}
                 >
                   <Field name="signatory" as={Input} placeholder="Dr. Ananya Rao, MD (Pathology)" />
                 </UIField>
 
-                <UIField 
-                  label="Status" 
-                  name="active" 
+                <UIField
+                  label="Status"
+                  name="active"
                 >
                   <Field name="active" as={Select}>
                     <option value="true">Active (Enabled)</option>
@@ -343,18 +344,18 @@ function TemplateFormView({ id, isNew }: Readonly<{ id: string; isNew: boolean }
                   </Field>
                 </UIField>
 
-                <UIField 
-                  label="Default Reference Ranges & Methodology Notes" 
-                  name="referenceRanges" 
+                <UIField
+                  label="Default Reference Ranges & Methodology Notes"
+                  name="referenceRanges"
                   className="sm:col-span-2"
                 >
                   <Field name="referenceRanges" as={Textarea} rows={2} placeholder="Adult Indian biological reference intervals apply." />
                 </UIField>
 
-                <UIField 
-                  label="Report Footer Disclaimer" 
-                  name="footer" 
-                  required 
+                <UIField
+                  label="Report Footer Disclaimer"
+                  name="footer"
+                  required
                   className="sm:col-span-2"
                   error={touched.footer ? errors.footer : undefined}
                 >
@@ -440,7 +441,6 @@ function TemplateDetailView({ id }: Readonly<{ id: string }>) {
   );
 }
 
-// -------------------------------------------------------------
 // REPORT DETAIL / PRINT & DIRECT PDF DOWNLOAD VIEW
 // -------------------------------------------------------------
 function ReportDetailView({ id }: Readonly<{ id: string }>) {
@@ -469,7 +469,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
 
   // Load test schema to auto-populate default results if empty
   const testSchema = getTestParameterSchema(item.testCode || (item.testIds && item.testIds[0]) || "CBC");
-  
+
   let reportResults: Result[] = (item.results ?? []) as Result[];
   if (!reportResults.length && testSchema.parameters.length) {
     reportResults = testSchema.parameters.map((p) => ({
@@ -535,21 +535,36 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         iframeDoc.head.appendChild(node.cloneNode(true));
       }
 
-      // Add print/PDF styling rules
       const customStyle = iframeDoc.createElement("style");
       customStyle.textContent = `
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background: #ffffff; width: 820px; font-family: system-ui, -apple-system, sans-serif; }
+        body { margin: 0; padding: 0; background: #ffffff; width: 820px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         #diagnostic-report-article { 
           width: 820px !important; 
           min-width: 820px !important; 
           max-width: 820px !important; 
           margin: 0 !important; 
-          padding: 32px !important; 
+          padding-top: 175px !important;
+          padding-bottom: 140px !important;
+          padding-left: 36px !important;
+          padding-right: 48px !important;
           border: none !important; 
           box-shadow: none !important; 
           border-radius: 0 !important; 
-          background: #ffffff !important;
+          background-color: #ffffff !important;
+          background-image: url('${LETTERHEAD_TEMPLATE_BASE64}') !important;
+          background-size: 100% 100% !important;
+          background-position: top center !important;
+          background-repeat: no-repeat !important;
+          min-height: 1160px !important;
+          position: relative !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+        }
+        table, tr, td, th, section, div {
+          background-color: transparent !important;
         }
       `;
       iframeDoc.head.appendChild(customStyle);
@@ -567,7 +582,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
 
       const imgData = await toPng(targetEl, {
         quality: 1.0,
-        pixelRatio: 2,
+        pixelRatio: 3,
         backgroundColor: "#ffffff",
         cacheBust: true,
         width: captureWidth,
@@ -592,9 +607,9 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
       const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-      const marginX = 10; // Equal 10mm margins on both left and right
-      const marginY = 10; // 10mm top margin
-      const contentWidth = pdfWidth - marginX * 2; // 190 mm (centered on 210mm page)
+      const marginX = 8; // Equal 8mm margins on both left and right
+      const marginY = 8; // 8mm top margin
+      const contentWidth = pdfWidth - marginX * 2; // 194 mm (centered on 210mm page)
       const contentHeight = (img.height * contentWidth) / img.width;
 
       if (contentHeight <= pdfHeight - marginY * 2) {
@@ -648,9 +663,9 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
           <Button variant="outline" onClick={() => window.print()} leftIcon={<Printer size={15} />}>
             Print Report
           </Button>
-          <Button 
-            variant="outline" 
-            onClick={downloadPdfDirectly} 
+          <Button
+            variant="outline"
+            onClick={downloadPdfDirectly}
             loading={isDownloadingPdf}
             leftIcon={<Download size={15} />}
           >
@@ -662,9 +677,9 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             </Button>
           )}
           {canManage && (
-            <Button 
-              variant="danger-outline" 
-              onClick={() => setConfirmDeleteId(item.id)} 
+            <Button
+              variant="danger-outline"
+              onClick={() => setConfirmDeleteId(item.id)}
               leftIcon={<Trash2 size={15} />}
             >
               Delete Report
@@ -674,268 +689,178 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       </div>
 
       {/* ========================================================== */}
-      {/* PROFESSIONAL DIAGNOSTIC LAB REPORT ARTICLE (A4 PRINT READY) */}
+      {/* ORIGINAL PDF LETTERHEAD BACKGROUND REPORT ARTICLE           */}
       {/* ========================================================== */}
-      <article 
+      <article
         id="diagnostic-report-article"
-        className="mx-auto max-w-4xl bg-white text-slate-900 border border-slate-200 p-8 sm:p-12 shadow-sm rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans"
-        style={{ backgroundColor: "#ffffff", color: "#0f172a" }}
+        className="mx-auto max-w-4xl text-slate-900 border border-slate-300 shadow-lg rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans relative"
+        style={{
+          backgroundColor: "#ffffff",
+          backgroundImage: `url(${LETTERHEAD_TEMPLATE_BASE64})`,
+          backgroundSize: "100% 100%",
+          backgroundPosition: "top center",
+          backgroundRepeat: "no-repeat",
+          minHeight: "1160px",
+          width: "100%",
+          maxWidth: "820px",
+          boxSizing: "border-box",
+          paddingTop: "175px",
+          paddingBottom: "140px",
+          paddingLeft: "36px",
+          paddingRight: "48px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          position: "relative",
+          color: "#0f172a"
+        }}
       >
-        
-        {/* Top Laboratory Brand & Accreditation Header */}
-        <header 
-          className="border-b-2 border-[#176b87] pb-4 mb-5 flex items-center justify-between gap-4"
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #176b87" }}
-        >
-          <div className="flex items-center shrink-0" style={{ display: "flex", alignItems: "center" }}>
-            {lab.data?.logo ? (
-              <img 
-                src={lab.data.logo} 
-                alt="BL Diagnostics Logo" 
-                className="h-20 max-h-24 w-auto max-w-[340px] object-contain" 
-                style={{ height: "5.5rem", maxHeight: "6rem", maxWidth: "340px", objectFit: "contain", display: "block" }}
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <div className="flex items-center gap-3" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <div 
-                  className="grid size-16 place-items-center rounded-xl bg-[#176b87] text-white shrink-0 overflow-hidden"
-                  style={{ backgroundColor: "#176b87", color: "#ffffff", width: "4rem", height: "4rem", borderRadius: "0.75rem", display: "grid", placeItems: "center" }}
-                >
-                  <FlaskConical size={34} color="#ffffff" />
-                </div>
+        {/* Dynamic Report Content Area (seamlessly printed onto the blank body of the letterhead) */}
+        <div className="space-y-4 flex-1 relative" style={{ zIndex: 10, backgroundColor: "transparent" }}>
+          {/* Patient Demographic & Specimen Information Table/Card */}
+          <section
+            style={{
+              borderTop: "1.5px solid #0f172a",
+              borderBottom: "1.5px solid #0f172a",
+              backgroundColor: "transparent",
+              paddingTop: "8px",
+              paddingBottom: "8px",
+              fontSize: "11px",
+              lineHeight: "1.35"
+            }}
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2.5 gap-x-4">
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Patient Name</span>
+                <span className="font-extrabold text-slate-900 text-[13px]">{patient.name || "Patient Name"}</span>
               </div>
-            )}
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Age / Gender</span>
+                <span className="font-bold text-slate-900 text-xs">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
+                <span className="font-mono font-bold text-slate-900 text-xs">{item.reportNumber}</span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Referred By</span>
+                <span className="font-bold text-slate-900 text-xs">{doctor.name || "Self / Clinical OPD"}</span>
+              </div>
+
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Type</span>
+                <span className="font-semibold text-slate-900 text-xs">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Collected On</span>
+                <span className="font-mono font-semibold text-slate-900 text-xs">
+                  {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-14")} 07:43 AM
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Report Generated On</span>
+                <span className="font-mono font-semibold text-slate-900 text-xs">
+                  {item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-14"} 02:46 PM
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Barcode</span>
+                <span className="font-mono font-bold text-slate-900 text-xs">{barcodeNumber}</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Diagnostic Investigation Section Title */}
+          <div className="text-center pt-2 pb-1" style={{ backgroundColor: "transparent" }}>
+            <span
+              className="inline-block px-3 py-0.5 text-[10.5px] font-bold uppercase tracking-widest text-[#0a534c] border-b border-[#139a8c]"
+            >
+              DEPARTMENT OF {item.department || testSchema.department}
+            </span>
+            <h2 className="text-base sm:text-lg font-black tracking-wide text-slate-900 mt-1 uppercase">
+              {testSchema.name}
+            </h2>
           </div>
 
-          <div className="flex items-center gap-4 text-right shrink-0" style={{ display: "flex", alignItems: "center", gap: "1rem", textAlign: "right" }}>
-            <div className="flex flex-col items-end text-[10px] text-slate-600" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", fontSize: "10px", color: "#475569" }}>
-              <span className="font-bold flex items-center gap-1 text-emerald-700 whitespace-nowrap" style={{ color: "#047857", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.25rem", whiteSpace: "nowrap" }}>
-                <ShieldCheck size={12} color="#047857" /> {lab.data?.accreditation || "NABL ACCREDITED"}
-              </span>
-              <span className="whitespace-nowrap">ISO 15189:2012 Certified</span>
-              <span className="text-slate-400 font-mono whitespace-nowrap" style={{ color: "#94a3b8", fontFamily: "monospace", whiteSpace: "nowrap" }}>{lab.data?.licenseNumber || "MC-4245 · CAP #9019582"}</span>
-            </div>
-            <div className="border-l border-slate-200 pl-4 text-right shrink-0" style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "1rem" }}>
-              <span 
-                className="inline-block rounded bg-[#e8f4f7] px-2.5 py-1 text-xs font-bold text-[#176b87] whitespace-nowrap"
-                style={{ backgroundColor: "#e8f4f7", color: "#176b87", borderRadius: "0.375rem", padding: "0.25rem 0.625rem", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}
+          {/* Investigation Parameter Results Table */}
+          <table className="w-full text-left text-xs border-collapse" style={{ backgroundColor: "transparent" }}>
+            <thead>
+              <tr
+                style={{
+                  backgroundColor: "transparent",
+                  borderTop: "1.5px solid #0f172a",
+                  borderBottom: "1.5px solid #0f172a",
+                  color: "#0f172a",
+                  fontSize: "11px",
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}
               >
-                Smart Report 3.0
-              </span>
-            </div>
-          </div>
-        </header>
+                <th className="py-2 px-3">Investigation Parameter</th>
+                <th className="py-2 px-3 text-right">Observed Value</th>
+                <th className="py-2 px-3">Unit</th>
+                <th className="py-2 px-3">Biological Reference Interval</th>
+                <th className="py-2 px-3 text-center">Flag</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/80" style={{ backgroundColor: "transparent" }}>
+              {reportResults.map((r, idx) => (
+                <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
+                  <td className="py-2 px-3">
+                    <p className="font-bold text-slate-900">{r.parameter}</p>
+                    {r.comments && <p className="text-[10px] text-slate-500 italic">{r.comments}</p>}
+                  </td>
+                  <td className="py-2 px-3 text-right font-mono font-black text-sm text-slate-900">
+                    {r.value}
+                  </td>
+                  <td className="py-2 px-3 font-mono font-medium text-slate-700">
+                    {r.unit || "—"}
+                  </td>
+                  <td className="py-2 px-3 font-mono font-medium text-slate-700">
+                    {r.referenceRange || "—"}
+                  </td>
+                  <td className="py-2 px-3 text-center font-bold text-xs">
+                    {r.criticalFlag ? (
+                      <span className="font-black text-rose-700 tracking-wider">
+                        CRITICAL
+                      </span>
+                    ) : r.abnormalFlag ? (
+                      <span className="font-black text-amber-700 tracking-wider">
+                        ABNORMAL
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-emerald-800">Normal</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        {/* Patient Demographic & Specimen Information Grid */}
-        <section className="rounded-lg border border-slate-200 bg-slate-50/70 p-4 mb-6 text-xs text-slate-700">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2.5 gap-x-4">
-            <div>
-              <span className="text-slate-500 text-[11px] block">Patient Name</span>
-              <span className="font-bold text-slate-900 text-sm">{patient.name || "Maya Srinivasan"}</span>
+          {/* Clinical Comments & Pathological Observations (if any) */}
+          {item.comments && (
+            <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "8px" }}>
+              <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-1 text-[10.5px]">
+                Clinical Interpretation & Pathological Notes
+              </h4>
+              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-xs">
+                {item.comments}
+              </p>
             </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Age / Gender</span>
-              <span className="font-bold text-slate-900">{patient.age || 46} Yrs / {patient.sex || "Male"}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Order / Booking ID</span>
-              <span className="font-mono font-bold text-slate-900">{item.reportNumber}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Referred By</span>
-              <span className="font-semibold text-slate-900">{doctor.name || "Self / Clinical OPD"}</span>
-            </div>
-
-            <div>
-              <span className="text-slate-500 text-[11px] block">Sample Type</span>
-              <span className="font-medium text-slate-900">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Sample Collected On</span>
-              <span className="font-mono font-medium text-slate-900">
-                {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-08-29")} 07:43 AM
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Report Generated On</span>
-              <span className="font-mono font-medium text-slate-900">
-                {item.createdAt ? item.createdAt.slice(0, 10) : "2026-08-29"} 02:46 PM
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px] block">Report Status</span>
-              <span className="font-bold text-emerald-700 flex items-center gap-1">
-                {item.status || "Approved"} ✓
-              </span>
-            </div>
-          </div>
-
-          {/* Barcode Strip */}
-          <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">Barcode:</span>
-              <span className="font-mono font-bold text-slate-900">{barcodeNumber}</span>
-            </div>
-            <div className="font-mono text-xs tracking-widest text-slate-800 font-bold">
-              ||| | |||| | |||||| || | |||| ||
-            </div>
-            <div className="text-[11px] text-slate-500 whitespace-nowrap">
-              Sample Temp: <span className="font-medium text-slate-800">Maintained (2-8°C) ✓</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Diagnostic Section Heading */}
-        <div className="mb-6 text-center">
-          <span className="inline-block rounded-full bg-[#e8f4f7] px-4 py-1 text-[11px] font-bold uppercase tracking-widest text-[#176b87]">
-            Department of {item.department || testSchema.department}
-          </span>
-          <h2 className="text-lg font-black tracking-tight text-slate-900 mt-2">
-            {testSchema.name}
-          </h2>
+          )}
         </div>
 
-        {/* Results Parameters Table */}
-        <table className="w-full text-left text-xs mb-8">
-          <thead>
-            <tr className="border-b-2 border-slate-300 bg-slate-50 text-slate-600 font-bold uppercase text-[11px]">
-              <th className="py-2.5 px-3">Test Name / Parameter</th>
-              <th className="py-2.5 px-3 text-right">Value</th>
-              <th className="py-2.5 px-3">Unit</th>
-              <th className="py-2.5 px-3">Bio. Ref Interval</th>
-              <th className="py-2.5 px-3 text-center">Flag</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {reportResults.map((r, idx) => (
-              <tr key={r.id || idx} className={r.criticalFlag ? "bg-rose-50/70" : r.abnormalFlag ? "bg-amber-50/50" : ""}>
-                <td className="py-3 px-3">
-                  <p className="font-bold text-slate-900">{r.parameter}</p>
-                  {r.comments && <p className="text-[10px] text-slate-500 italic">{r.comments}</p>}
-                </td>
-                <td className="py-3 px-3 text-right font-mono font-bold text-sm text-slate-900">
-                  {r.value}
-                </td>
-                <td className="py-3 px-3 font-mono text-slate-600">
-                  {r.unit || "—"}
-                </td>
-                <td className="py-3 px-3 text-slate-600 font-mono">
-                  {r.referenceRange || "—"}
-                </td>
-                <td className="py-3 px-3 text-center font-bold">
-                  {r.criticalFlag ? (
-                    <span className="inline-block rounded bg-rose-600 px-2 py-0.5 text-[10px] text-white">
-                      CRITICAL
-                    </span>
-                  ) : r.abnormalFlag ? (
-                    <span className="inline-block rounded bg-amber-500 px-2 py-0.5 text-[10px] text-white">
-                      ABNORMAL
-                    </span>
-                  ) : (
-                    <span className="text-emerald-700 text-[11px]">Normal</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Clinical Comments & Pathological Observations */}
-        {item.comments && (
-          <div className="mb-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
-            <h4 className="font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Clinical Interpretation & Notes
-            </h4>
-            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-              {item.comments}
-            </p>
+        {/* Bottom Overlay Row: Left side is empty for Dr. Namrata signature from background, Right side has End of Report */}
+        <div className="flex items-end justify-between pt-4" style={{ minHeight: "90px", zIndex: 10, backgroundColor: "transparent" }}>
+          <div className="w-1/2" aria-hidden="true">
+            {/* Intentionally transparent: Dr. Namrata's original signature & credentials show through cleanly from the background letterhead */}
           </div>
-        )}
-
-        {/* Pathologist Digital Authorization & Authenticity Footer */}
-        <footer className="mt-12 pt-6 border-t-2 border-slate-300">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6">
-            
-            {/* Left SIN barcode & Verification QR */}
-            <div className="flex items-center gap-4">
-              <div className="grid size-16 place-items-center rounded border border-slate-300 bg-slate-50 p-1">
-                <QrCode size={48} className="text-slate-800" />
-              </div>
-              <div className="text-[10px] text-slate-500">
-                <p className="font-mono font-bold text-slate-900">SIN No: {barcodeNumber}</p>
-                <p>Scan to verify authenticity on LIMS Portal</p>
-                <p className="text-slate-400">Cryptographically signed document</p>
-              </div>
-            </div>
-
-            {/* Pathologist Digital Signature */}
-            <div className="text-right">
-              <div className="font-serif italic text-lg font-bold text-[#176b87]">
-                Pranjali
-              </div>
-              <p className="text-xs font-bold text-slate-900">
-                {item.pathologist || "Dr. Pranjali Sejwal, MBBS, MD Pathology"}
-              </p>
-              <p className="text-[11px] text-slate-600">Consultant Pathologist & Biochemist</p>
-              <p className="text-[10px] font-mono text-slate-400">Reg. No: HN-20567 · BL Dignostic Central Lab</p>
-            </div>
+          <div className="text-right text-slate-700 text-[11px] font-bold tracking-wide">
+            Page 1 of 1 · *** End Of Report ***
           </div>
-
-          <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-            <span>BL Dignostic Laboratories (A Unit of Healthcare LIMS Diagnostics Pvt. Ltd.) · Plot 1 & 2, Healthcare City</span>
-            <span>Page 1 of 1 · *** End Of Report ***</span>
-          </div>
-        </footer>
+        </div>
       </article>
-
-      {/* Review Comments & Authorization Box (hidden on print) */}
-      {/* <Card className="max-w-4xl mx-auto print:hidden">
-        <Formik
-          initialValues={{ comments: item.comments ?? "" }}
-          onSubmit={(values) => actions.updateComments.mutate({ id: item.id, comments: values.comments })}
-        >
-          {({ isSubmitting }) => (
-            <Form className="space-y-4">
-              <h4 className="text-sm font-bold text-[color:var(--foreground)]">Pathologist Review & Observations</h4>
-              <Field 
-                as={Textarea} 
-                name="comments" 
-                rows={3} 
-                placeholder="Add or update clinical observations, peripheral smear notes, or differential diagnosis..." 
-              />
-              <div className="flex justify-between items-center pt-2">
-                <Button type="submit" variant="outline" size="sm" loading={isSubmitting}>
-                  Save Observations
-                </Button>
-                <div className="flex gap-2">
-                  <Button variant="danger-outline" size="sm" onClick={() => actions.rejectReport.mutate(item.id)}>
-                    Reject Report
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => actions.requestRetest.mutate(item.id)}>
-                    Request Retest
-                  </Button>
-                  {item.status !== "Approved" && (
-                    <Button variant="primary" size="sm" onClick={approve}>
-                      Approve & Release Report
-                    </Button>
-                  )}
-                  {canManage && (
-                    <Button 
-                      variant="danger-outline" 
-                      size="sm" 
-                      leftIcon={<Trash2 size={13} />}
-                      onClick={() => setConfirmDeleteId(item.id)}
-                    >
-                      Delete
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Form>
-          )}
-        </Formik>
-      </Card> */}
 
       {/* Delete Confirmation Modal in Report Detail */}
       {confirmDeleteId && (
@@ -957,9 +882,9 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
               <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
                 Cancel
               </Button>
-              <Button 
-                variant="danger" 
-                loading={actions.deleteReport.isPending} 
+              <Button
+                variant="danger"
+                loading={actions.deleteReport.isPending}
                 onClick={async () => {
                   await actions.deleteReport.mutateAsync(item.id);
                   setConfirmDeleteId(null);
@@ -1037,9 +962,9 @@ function ReportListView() {
               </Button>
             </Link>
             {row.original.status !== "Approved" && (
-              <Button 
-                size="sm" 
-                variant="primary" 
+              <Button
+                size="sm"
+                variant="primary"
                 leftIcon={<CheckCircle2 size={13} />}
                 onClick={() => actions.approveReport.mutate(row.original.id)}
               >
@@ -1047,9 +972,9 @@ function ReportListView() {
               </Button>
             )}
             {canManage && (
-              <Button 
-                size="sm" 
-                variant="danger-outline" 
+              <Button
+                size="sm"
+                variant="danger-outline"
                 leftIcon={<Trash2 size={13} />}
                 onClick={() => setConfirmDeleteReportId(row.original.id)}
               >
@@ -1112,9 +1037,9 @@ function ReportListView() {
               <Button variant="ghost" onClick={() => setConfirmDeleteReportId(null)}>
                 Cancel
               </Button>
-              <Button 
-                variant="danger" 
-                loading={actions.deleteReport.isPending} 
+              <Button
+                variant="danger"
+                loading={actions.deleteReport.isPending}
                 onClick={async () => {
                   if (confirmDeleteReportId) {
                     await actions.deleteReport.mutateAsync(confirmDeleteReportId);
