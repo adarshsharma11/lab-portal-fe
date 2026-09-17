@@ -478,6 +478,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const isTechnician = currentRole === "Technician";
   const isBilling = currentRole === "Billing";
   const canManage = isAdmin || isFranchise || isTechnician || isBilling;
+  const canDelete = canManage && !(isTechnician && kind === "billing");
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
   const doctorsList = useEntityList<Doctor>("doctors");
@@ -598,7 +599,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const list = isAppointment ? appointments.data : invoices.data;
 
   const handleDelete = async () => {
-    if (!confirmDeleteId) return;
+    if (!confirmDeleteId || !canDelete) return;
     if (isAppointment) {
       await deleteAppointment.mutateAsync(confirmDeleteId);
     } else {
@@ -668,19 +669,19 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                         </Button>
                       )}
                       {canManage && (
-                        <>
-                          <Link href={`/${kind}/${row.id}/edit`}>
-                            <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>Edit</Button>
-                          </Link>
-                          <Button 
-                            size="sm" 
-                            variant="danger-outline" 
-                            leftIcon={<Trash2 size={13} />}
-                            onClick={() => setConfirmDeleteId(row.id)}
-                          >
-                            Delete
-                          </Button>
-                        </>
+                        <Link href={`/${kind}/${row.id}/edit`}>
+                          <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>Edit</Button>
+                        </Link>
+                      )}
+                      {canDelete && (
+                        <Button 
+                          size="sm" 
+                          variant="danger-outline" 
+                          leftIcon={<Trash2 size={13} />}
+                          onClick={() => setConfirmDeleteId(row.id)}
+                        >
+                          Delete
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -1596,19 +1597,19 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             </Button>
 
             {canManage && (
-              <>
-                <Link href={`/${kind}/${id}/edit`}>
-                  <Button variant="secondary" size="sm" leftIcon={<Edit3 size={14} />}>Edit</Button>
-                </Link>
-                <Button 
-                  variant="danger-outline" 
-                  size="sm"
-                  leftIcon={<Trash2 size={14} />}
-                  onClick={() => setConfirmDeleteId(id)}
-                >
-                  Delete
-                </Button>
-              </>
+              <Link href={`/${kind}/${id}/edit`}>
+                <Button variant="secondary" size="sm" leftIcon={<Edit3 size={14} />}>Edit</Button>
+              </Link>
+            )}
+            {canDelete && (
+              <Button 
+                variant="danger-outline" 
+                size="sm"
+                leftIcon={<Trash2 size={14} />}
+                onClick={() => setConfirmDeleteId(id)}
+              >
+                Delete
+              </Button>
             )}
           </div>
         </div>

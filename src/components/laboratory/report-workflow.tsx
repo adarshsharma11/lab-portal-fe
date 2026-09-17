@@ -462,6 +462,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const isTechnician = currentRole === "Technician";
   const isPathologist = currentRole === "Pathologist";
   const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
+  const canDelete = canManage && !isTechnician;
 
   const item = report.data as any;
   if (report.isLoading) return <p className="text-sm text-[color:var(--muted)]">Loading report details...</p>;
@@ -676,7 +677,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
               Approve & Release
             </Button>
           )}
-          {canManage && (
+          {canDelete && (
             <Button
               variant="danger-outline"
               onClick={() => setConfirmDeleteId(item.id)}
@@ -886,6 +887,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 variant="danger"
                 loading={actions.deleteReport.isPending}
                 onClick={async () => {
+                  if (!canDelete) return;
                   await actions.deleteReport.mutateAsync(item.id);
                   setConfirmDeleteId(null);
                   router.push("/reports");
@@ -921,6 +923,7 @@ function ReportListView() {
   const isTechnician = currentRole === "Technician";
   const isPathologist = currentRole === "Pathologist";
   const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
+  const canDelete = canManage && !isTechnician;
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Report>();
@@ -971,7 +974,7 @@ function ReportListView() {
                 Approve
               </Button>
             )}
-            {canManage && (
+            {canDelete && (
               <Button
                 size="sm"
                 variant="danger-outline"
@@ -985,7 +988,7 @@ function ReportListView() {
         )
       })
     ];
-  }, [actions, canManage]);
+  }, [actions, canDelete]);
 
   return (
     <div className="space-y-6">
@@ -1041,10 +1044,9 @@ function ReportListView() {
                 variant="danger"
                 loading={actions.deleteReport.isPending}
                 onClick={async () => {
-                  if (confirmDeleteReportId) {
-                    await actions.deleteReport.mutateAsync(confirmDeleteReportId);
-                    setConfirmDeleteReportId(null);
-                  }
+                  if (!canDelete || !confirmDeleteReportId) return;
+                  await actions.deleteReport.mutateAsync(confirmDeleteReportId);
+                  setConfirmDeleteReportId(null);
                 }}
               >
                 Confirm Delete

@@ -630,6 +630,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
   const canManage = isAdmin || isFranchise || (isTechnician && kind === "patients");
+  const canDelete = canManage && !isTechnician;
 
   const list = useEntityList<Entity>(kind);
   const detail = useEntity<Entity>(kind, id);
@@ -786,21 +787,21 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 </Button>
               </Link>
               {canManage && (
-                <>
-                  <Link href={`/${kind}/${row.original.id}/edit`}>
-                    <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
-                      Edit
-                    </Button>
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="danger-outline"
-                    leftIcon={<Trash2 size={13} />}
-                    onClick={() => setConfirmDeleteId(row.original.id)}
-                  >
-                    Delete
+                <Link href={`/${kind}/${row.original.id}/edit`}>
+                  <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
+                    Edit
                   </Button>
-                </>
+                </Link>
+              )}
+              {canDelete && (
+                <Button
+                  size="sm"
+                  variant="danger-outline"
+                  leftIcon={<Trash2 size={13} />}
+                  onClick={() => setConfirmDeleteId(row.original.id)}
+                >
+                  Delete
+                </Button>
               )}
             </div>
           ),
@@ -1076,6 +1077,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                     Edit
                   </Button>
                 </Link>
+                {canDelete && (
                 <Button
                   size="sm"
                   variant="danger-outline"
@@ -1084,13 +1086,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 >
                   Delete
                 </Button>
+                )}
               </>
             )}
           </div>
         ),
       }),
     ];
-  }, [kind, isAdmin, canManage, currentSession]);
+  }, [kind, isAdmin, canManage, canDelete, currentSession]);
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };
@@ -1143,7 +1146,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   }, [effectiveFields]);
 
   const handleDelete = async () => {
-    if (!confirmDeleteId) return;
+    if (!confirmDeleteId || !canDelete) return;
     try {
       await mutations.remove.mutateAsync(confirmDeleteId);
       setConfirmDeleteId(null);
@@ -1321,18 +1324,18 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                 </Link>
               )}
               {(kind === "franchises" ? isAdmin : canManage) && (
-                <>
-                  <Link href={`/${kind}/${id}/edit`}>
-                    <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
-                  </Link>
-                  <Button
-                    variant="danger-outline"
-                    leftIcon={<Trash2 size={15} />}
-                    onClick={() => setConfirmDeleteId(id)}
-                  >
-                    Delete
-                  </Button>
-                </>
+                <Link href={`/${kind}/${id}/edit`}>
+                  <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
+                </Link>
+              )}
+              {(kind === "franchises" ? isAdmin : canDelete) && (
+                <Button
+                  variant="danger-outline"
+                  leftIcon={<Trash2 size={15} />}
+                  onClick={() => setConfirmDeleteId(id)}
+                >
+                  Delete
+                </Button>
               )}
             </div>
           }
