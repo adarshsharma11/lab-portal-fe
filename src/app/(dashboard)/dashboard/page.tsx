@@ -762,7 +762,7 @@ function TechnicianDashboard() {
         <KPICard label="My Patients" value={allPatients.length} icon={Users} iconTone="info" supportingText="Registered in franchise" />
         <KPICard label="Invoices Raised" value={allInvoices.length} icon={IndianRupee} iconTone="success" supportingText={`₹${(totalBilled / 1000).toFixed(1)}k collected`} />
         <KPICard label="Diagnostic Reports" value={allReports.length} icon={FileCheck2} iconTone="info" supportingText="Patient reports filed" />
-        <KPICard label="Active Tests" value={allTests.length} icon={FlaskConical} iconTone="warning" supportingText="Catalog tests active" />
+        {/* <KPICard label="Active Tests" value={allTests.length} icon={FlaskConical} iconTone="warning" supportingText="Catalog tests active" /> */}
       </Grid4>
 
       <div className="grid gap-6 lg:grid-cols-3">
