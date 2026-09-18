@@ -250,14 +250,22 @@ export function ReportGeneratorWizard() {
 
   // Parameter values state
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [paramUnits, setParamUnits] = useState<Record<string, string>>({});
+  const [paramRanges, setParamRanges] = useState<Record<string, string>>({});
 
   // Reset or initialize parameter values whenever test schema changes
   useEffect(() => {
     const initialVals: Record<string, string> = {};
+    const initialUnits: Record<string, string> = {};
+    const initialRanges: Record<string, string> = {};
     activeTestSchema.parameters.forEach(param => {
       initialVals[param.id] = param.defaultValue || "";
+      initialUnits[param.id] = param.unit || "";
+      initialRanges[param.id] = param.referenceRange || "";
     });
     setParamValues(initialVals);
+    setParamUnits(initialUnits);
+    setParamRanges(initialRanges);
     setSampleType(activeTestSchema.sampleType);
     
     // Set default interpretation
@@ -274,10 +282,16 @@ export function ReportGeneratorWizard() {
 
   const handleQuickFillNormal = () => {
     const normalVals: Record<string, string> = {};
+    const normalUnits: Record<string, string> = {};
+    const normalRanges: Record<string, string> = {};
     activeTestSchema.parameters.forEach(p => {
       normalVals[p.id] = p.defaultValue || "";
+      normalUnits[p.id] = p.unit || "";
+      normalRanges[p.id] = p.referenceRange || "";
     });
     setParamValues(normalVals);
+    setParamUnits(normalUnits);
+    setParamRanges(normalRanges);
   };
 
   const remainingPendingInFlow = isFlowMode
@@ -304,8 +318,8 @@ export function ReportGeneratorWizard() {
         return {
           parameter: param.name,
           value,
-          unit: param.unit,
-          referenceRange: param.referenceRange,
+          unit: paramUnits[param.id] ?? param.unit ?? "",
+          referenceRange: paramRanges[param.id] ?? param.referenceRange ?? "",
           abnormalFlag: evalResult.isAbnormal,
           criticalFlag: evalResult.isCritical,
           comments: param.method ? `Method: ${param.method}` : undefined,
@@ -759,6 +773,8 @@ export function ReportGeneratorWizard() {
               <tbody className="divide-y divide-[color:var(--line)]">
                 {activeTestSchema.parameters.map((param) => {
                   const val = paramValues[param.id] ?? "";
+                  const unitVal = paramUnits[param.id] ?? param.unit ?? "";
+                  const rangeVal = paramRanges[param.id] ?? param.referenceRange ?? "";
                   const evalResult = evaluateParameterFlag(val, param);
 
                   return (
@@ -780,6 +796,7 @@ export function ReportGeneratorWizard() {
                       </td>
                       <td className="py-2.5 px-4">
                         <Input
+                          list={param.options?.length ? `result-opts-${param.id}` : undefined}
                           value={val}
                           onChange={(e) => handleValueChange(param.id, e.target.value)}
                           placeholder="e.g. value..."
@@ -789,12 +806,29 @@ export function ReportGeneratorWizard() {
                             evalResult.isAbnormal && !evalResult.isCritical && "border-amber-500"
                           )}
                         />
+                        {param.options && param.options.length > 0 && (
+                          <datalist id={`result-opts-${param.id}`}>
+                            {param.options.map((opt) => (
+                              <option key={opt} value={opt} />
+                            ))}
+                          </datalist>
+                        )}
                       </td>
-                      <td className="py-3.5 px-4 font-mono text-[color:var(--muted)]">
-                        {param.unit || "—"}
+                      <td className="py-2.5 px-4">
+                        <Input
+                          value={unitVal}
+                          onChange={(e) => setParamUnits((prev) => ({ ...prev, [param.id]: e.target.value }))}
+                          placeholder="Unit"
+                          className="h-8 text-xs font-mono"
+                        />
                       </td>
-                      <td className="py-3.5 px-4 text-[color:var(--muted)] font-mono">
-                        {param.referenceRange}
+                      <td className="py-2.5 px-4">
+                        <Input
+                          value={rangeVal}
+                          onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
+                          placeholder="e.g. <1:80 Negative"
+                          className="h-8 text-xs font-mono"
+                        />
                       </td>
                       <td className="py-3.5 px-4">
                         {evalResult.isCritical ? (

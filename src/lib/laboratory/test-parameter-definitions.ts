@@ -322,6 +322,31 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     remarks: [
       "1. Direct ISE measurement avoids pseudohyponatremia in hyperproteinemic/hyperlipidemic specimens."
     ]
+  },
+  {
+    code: "WIDAL",
+    name: "WIDAL (SLIDE AGGLUTINATION)",
+    department: "Serology",
+    sampleType: "Serum",
+    standardPrice: 350,
+    guidelinesRef: "Standard Widal slide agglutination protocol",
+    parameters: [
+      { id: "typhi_o", name: "Salmonella typhi O", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "typhi_h", name: "Salmonella typhi H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "paratyphi_ah", name: "Salmonella paratyphi A,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "paratyphi_bh", name: "Salmonella paratyphi B,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "widal_interpretation", name: "INTERPRETATION", unit: "", referenceRange: "", method: "", defaultValue: "NON REACTIVE", options: ["NON REACTIVE", "REACTIVE"] },
+    ],
+    interpretations: [
+      {
+        heading: "Widal Slide Agglutination Interpretation",
+        content: "Titres <1:80 are considered negative. Significant agglutination (typically ≥1:160) with compatible clinical findings may indicate enteric fever. A rising titre on paired sera is more diagnostic than a single reading."
+      }
+    ],
+    remarks: [
+      "1. Widal slide agglutination performed on serum.",
+      "2. Interpret titres in clinical context; vaccination and prior infection may cause residual antibodies."
+    ]
   }
 ] as const;
 
@@ -401,6 +426,18 @@ export const MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "TRIGLYCERIDE", aliasList: ["triglyceride", "triglycerides", "serum triglycerides", "tg"], paramId: "triglycerides" },
     ],
   },
+  {
+    department: "Serology",
+    mainParameter: "WIDAL",
+    aliases: ["WIDAL", "WIDAL TEST", "WIDAL (SLIDE AGGLUTINATION)", "WIDAL SLIDE", "SLIDE AGGLUTINATION WIDAL", "TYPHOID WIDAL"],
+    subParameters: [
+      { name: "Salmonella typhi O", aliasList: ["salmonella typhi o", "typhi o", "s. typhi o", "to"], paramId: "typhi_o" },
+      { name: "Salmonella typhi H", aliasList: ["salmonella typhi h", "typhi h", "s. typhi h", "th"], paramId: "typhi_h" },
+      { name: "Salmonella paratyphi A,H", aliasList: ["salmonella paratyphi a,h", "paratyphi a,h", "paratyphi ah", "s. paratyphi a", "ah"], paramId: "paratyphi_ah" },
+      { name: "Salmonella paratyphi B,H", aliasList: ["salmonella paratyphi b,h", "paratyphi b,h", "paratyphi bh", "s. paratyphi b", "bh"], paramId: "paratyphi_bh" },
+      { name: "INTERPRETATION", aliasList: ["interpretation", "widal interpretation", "impression"], paramId: "widal_interpretation" },
+    ],
+  },
 ];
 
 /**
@@ -469,6 +506,8 @@ export function getTestParameterSchema(testNameOrCode: string, selectedSubParams
     baseSchema = STANDARD_TEST_CATALOG[7]; // Urine
   } else if (query.includes("electrolyte") || query.includes("sodium") || query.includes("potassium")) {
     baseSchema = STANDARD_TEST_CATALOG[8]; // Electrolytes
+  } else if (query.includes("widal") || query.includes("typhi") || query.includes("paratyphi")) {
+    baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 1];
   } else {
     baseSchema = {
       code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
@@ -546,10 +585,30 @@ export function evaluateParameterFlag(
 
   // Categorical string evaluations (Negative, Nil, Clear, Pale Yellow)
   const lower = str.toLowerCase();
-  if (lower === "negative" || lower === "nil" || lower === "normal" || lower === "absent" || lower === "clear" || lower === "pale yellow") {
+  if (
+    lower === "negative" ||
+    lower === "nil" ||
+    lower === "normal" ||
+    lower === "absent" ||
+    lower === "clear" ||
+    lower === "pale yellow" ||
+    lower === "non reactive" ||
+    lower === "non-reactive" ||
+    lower === "<1:80" ||
+    lower === "<1:40" ||
+    lower === "<1:20"
+  ) {
     return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "success" };
   }
-  if (lower === "positive" || lower === "present" || lower.includes("trace") || lower.includes("1+") || lower.includes("2+") || lower.includes("3+")) {
+  if (
+    lower === "positive" ||
+    lower === "present" ||
+    lower === "reactive" ||
+    lower.includes("trace") ||
+    lower.includes("1+") ||
+    lower.includes("2+") ||
+    lower.includes("3+")
+  ) {
     return { isAbnormal: true, isCritical: false, flag: "Borderline", tone: "warning" };
   }
 
