@@ -5,7 +5,7 @@ import * as Yup from "yup";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, Award, CheckCircle2, ChevronRight, Clock, Download,
+  AlertTriangle, Award, Calendar, CheckCircle2, ChevronRight, Clock, Download,
   Edit3, Eye, FileText, FlaskConical, Mail, MessageCircle, Microscope,
   Phone, Plus, Printer, QrCode, Share2, ShieldCheck, Trash2, ArrowLeft, Loader2
 } from "lucide-react";
@@ -27,8 +27,9 @@ import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWi
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
 import { LETTERHEAD_TEMPLATE_BASE64 } from "@/lib/laboratory/letterhead-template-base64";
 import { useLaboratorySettings } from "@/features/settings/hooks";
+import { useTestMasters } from "@/features/test-masters/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Report, ReportTemplate, Result, UserRole } from "@/types/domain";
+import type { Report, ReportTemplate, Result, TestMaster, UserRole } from "@/types/domain";
 
 const templateSchema = Yup.object({
   name: Yup.string().trim().required("Template name is required (. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
@@ -903,6 +904,82 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   );
 }
 
+type DatePreset = "all" | "today" | "week" | "month" | "custom";
+
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function recordDateKey(value?: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  return toDateKey(d);
+}
+
+function isDateInRange(dateKey: string, from: string, to: string): boolean {
+  if (!dateKey) return false;
+  if (from && dateKey < from) return false;
+  if (to && dateKey > to) return false;
+  return true;
+}
+
+function formatInr(amount: number): string {
+  return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function buildTestPriceIndex(masters: readonly TestMaster[]): Map<string, number> {
+  const index = new Map<string, number>();
+  for (const tm of masters) {
+    const price = Number(tm.mrp ?? tm.rate) || 0;
+    if (!price) continue;
+    if (tm.code) index.set(String(tm.code).trim().toLowerCase(), price);
+    if (tm.name) index.set(String(tm.name).trim().toLowerCase(), price);
+  }
+  return index;
+}
+
+function getReportPrice(report: Report, priceIndex: Map<string, number>): number {
+  const raw = report as Report & Record<string, unknown>;
+  const direct = Number(raw.price ?? raw.mrp ?? raw.rate ?? raw.total ?? raw.amount);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const nested = [raw.test, ...(Array.isArray(raw.tests) ? raw.tests : [])] as Array<Record<string, unknown> | undefined>;
+  const nestedSum = nested.reduce((sum, t) => sum + (Number(t?.price ?? t?.mrp ?? t?.rate) || 0), 0);
+  if (nestedSum > 0) return nestedSum;
+
+  const lookupKeys = [
+    raw.testCode,
+    raw.testName,
+    ...(Array.isArray(report.testIds) ? report.testIds : []),
+  ]
+    .filter(Boolean)
+    .map((k) => String(k).trim().toLowerCase());
+
+  let sum = 0;
+  const used = new Set<string>();
+  for (const key of lookupKeys) {
+    const exact = priceIndex.get(key);
+    if (exact != null && !used.has(key)) {
+      used.add(key);
+      sum += exact;
+      continue;
+    }
+    for (const [mk, price] of priceIndex) {
+      if (used.has(mk)) continue;
+      if (key.includes(mk) || mk.includes(key)) {
+        used.add(mk);
+        sum += price;
+        break;
+      }
+    }
+  }
+  return sum;
+}
+
 // -------------------------------------------------------------
 // DEFAULT REPORT LIST VIEW
 // -------------------------------------------------------------
@@ -910,8 +987,12 @@ function ReportListView() {
   const router = useRouter();
   const reports = useReports();
   const actions = useReportActions();
+  const testMastersQuery = useTestMasters("", undefined, 2500);
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
   const [confirmDeleteReportId, setConfirmDeleteReportId] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   useEffect(() => {
     const s = authService.getSession();
@@ -924,6 +1005,57 @@ function ReportListView() {
   const isPathologist = currentRole === "Pathologist";
   const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
   const canDelete = canManage && !isTechnician;
+
+  const todayStr = useMemo(() => toDateKey(new Date()), []);
+  const dateRange = useMemo(() => {
+    if (datePreset === "all") return { from: "", to: "" };
+    if (datePreset === "today") return { from: todayStr, to: todayStr };
+    if (datePreset === "week") {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    if (datePreset === "month") {
+      const start = new Date();
+      start.setDate(start.getDate() - 29);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    let from = customFrom;
+    let to = customTo;
+    if (from && to && from > to) {
+      from = customTo;
+      to = customFrom;
+    }
+    return { from, to };
+  }, [datePreset, customFrom, customTo, todayStr]);
+
+  const hasDateFilter = Boolean(dateRange.from || dateRange.to);
+
+  const applyDatePreset = (preset: DatePreset) => {
+    setDatePreset(preset);
+    if (preset !== "custom") {
+      setCustomFrom("");
+      setCustomTo("");
+    }
+  };
+
+  const priceIndex = useMemo(
+    () => buildTestPriceIndex(testMastersQuery.data ?? []),
+    [testMastersQuery.data]
+  );
+
+  const filteredReports = useMemo(() => {
+    const list = (reports.data ?? []) as Report[];
+    if (!hasDateFilter) return list;
+    return list.filter((report) =>
+      isDateInRange(recordDateKey(report.createdAt), dateRange.from, dateRange.to)
+    );
+  }, [reports.data, hasDateFilter, dateRange.from, dateRange.to]);
+
+  const filteredTotalPrice = useMemo(
+    () => filteredReports.reduce((sum, report) => sum + getReportPrice(report, priceIndex), 0),
+    [filteredReports, priceIndex]
+  );
 
   const columns = useMemo(() => {
     const h = createColumnHelper<Report>();
@@ -941,6 +1073,18 @@ function ReportListView() {
         id: "department",
         header: "Department / Test",
         cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
+      }),
+      h.display({
+        id: "price",
+        header: "Price",
+        cell: ({ row }) => {
+          const price = getReportPrice(row.original, priceIndex);
+          return (
+            <span className="font-mono text-xs font-semibold text-[#176b87]">
+              {price > 0 ? formatInr(price) : "N/A"}
+            </span>
+          );
+        },
       }),
       h.accessor("status", {
         header: "Report Status",
@@ -988,7 +1132,7 @@ function ReportListView() {
         )
       })
     ];
-  }, [actions, canDelete]);
+  }, [actions, canDelete, priceIndex]);
 
   return (
     <div className="space-y-6">
@@ -1010,15 +1154,76 @@ function ReportListView() {
           </div>
         }
       />
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <Calendar size={15} className="text-[#176b87]" />
+          <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
+          <Select
+            value={datePreset}
+            onChange={(e) => applyDatePreset(e.target.value as DatePreset)}
+            className="h-8 text-xs w-36 font-medium"
+          >
+            <option value="all">All dates</option>
+            <option value="today">Today</option>
+            <option value="week">Last week</option>
+            <option value="month">Last month</option>
+            <option value="custom">Custom range</option>
+          </Select>
+          {datePreset === "custom" && (
+            <>
+              <Input
+                type="date"
+                max={customTo || todayStr}
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 text-xs w-36 font-medium"
+              />
+              <span className="text-xs text-[color:var(--muted)]">to</span>
+              <Input
+                type="date"
+                min={customFrom}
+                max={todayStr}
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 text-xs w-36 font-medium"
+              />
+            </>
+          )}
+          {datePreset !== "all" && datePreset !== "custom" && dateRange.from && (
+            <span className="text-[11px] text-[color:var(--muted)]">
+              {dateRange.from === dateRange.to ? dateRange.from : `${dateRange.from} – ${dateRange.to}`}
+            </span>
+          )}
+          {hasDateFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs px-2 text-rose-600"
+              onClick={() => applyDatePreset("all")}
+            >
+              Clear Date
+            </Button>
+          )}
+        </div>
+        <span className="text-xs font-medium text-[color:var(--muted)]">
+          Showing <b>{filteredReports.length}</b> reports
+        </span>
+      </div>
       <DataTable
         columns={columns}
-        data={reports.data}
+        data={filteredReports}
         isLoading={reports.isLoading}
         isError={reports.isError}
         searchable
         searchPlaceholder="Search reports by patient, code, number..."
         emptyTitle="No diagnostic reports found"
       />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#176b87]/20 bg-[#e8f4f7]/60 px-4 py-3">
+        <span className="text-xs text-[color:var(--muted)]">
+          Total for {hasDateFilter ? "selected date range" : "all reports"}
+        </span>
+        <span className="font-mono text-base font-black text-[#176b87]">{formatInr(filteredTotalPrice)}</span>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {confirmDeleteReportId && (
