@@ -25,11 +25,12 @@ import {
 } from "@/features/reports/hooks";
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
-import { LETTERHEAD_TEMPLATE_BASE64 } from "@/lib/laboratory/letterhead-template-base64";
+import { resolveReportLetterhead } from "@/lib/laboratory/letterhead-registry";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { useTestMasters } from "@/features/test-masters/hooks";
+import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
-import type { Report, ReportTemplate, Result, TestMaster, UserRole } from "@/types/domain";
+import type { Franchise, Report, ReportTemplate, Result, TestMaster, UserRole } from "@/types/domain";
 
 const templateSchema = Yup.object({
   name: Yup.string().trim().required("Template name is required (. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
@@ -466,6 +467,16 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const canDelete = canManage && !isTechnician;
 
   const item = report.data as any;
+  const franchisesList = useEntityList<Franchise>("franchises");
+
+  const letterhead = useMemo(() => {
+    return resolveReportLetterhead({
+      report: item,
+      patient: item?.patient,
+      franchisesList: (franchisesList.data as any) || undefined,
+    });
+  }, [item, franchisesList.data]);
+
   if (report.isLoading) return <p className="text-sm text-[color:var(--muted)]">Loading report details...</p>;
   if (!item) return <p className="text-sm text-[color:var(--muted)]">Report not found.</p>;
 
@@ -505,8 +516,8 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
    * and perfectly centered A4 PDF placement with equal margins.
    */
   const downloadPdfDirectly = async () => {
-    const reportElement = document.getElementById("diagnostic-report-article");
-    if (!reportElement) return;
+    const containerElement = document.getElementById("diagnostic-report-article");
+    if (!containerElement) return;
 
     setIsDownloadingPdf(true);
 
@@ -521,7 +532,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       iframe.style.top = "0";
       iframe.style.left = "0";
       iframe.style.width = "820px";
-      iframe.style.height = "1600px";
+      iframe.style.height = "2400px";
       iframe.style.zIndex = "-99999";
       iframe.style.opacity = "0";
       iframe.style.pointerEvents = "none";
@@ -541,29 +552,33 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       customStyle.textContent = `
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; background: #ffffff; width: 820px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        #diagnostic-report-article { 
+        .report-page { 
           width: 820px !important; 
           min-width: 820px !important; 
           max-width: 820px !important; 
+          height: 1160px !important;
+          min-height: 1160px !important;
+          max-height: 1160px !important;
           margin: 0 !important; 
-          padding-top: 175px !important;
-          padding-bottom: 140px !important;
-          padding-left: 36px !important;
-          padding-right: 48px !important;
+          margin-bottom: 0 !important;
+          padding-top: ${letterhead.paddingTop} !important;
+          padding-bottom: ${letterhead.paddingBottom} !important;
+          padding-left: ${letterhead.paddingLeft} !important;
+          padding-right: ${letterhead.paddingRight} !important;
           border: none !important; 
           box-shadow: none !important; 
           border-radius: 0 !important; 
           background-color: #ffffff !important;
-          background-image: url('${LETTERHEAD_TEMPLATE_BASE64}') !important;
+          background-image: url('${letterhead.backgroundImage}') !important;
           background-size: 100% 100% !important;
           background-position: top center !important;
           background-repeat: no-repeat !important;
-          min-height: 1160px !important;
           position: relative !important;
           display: flex !important;
           flex-direction: column !important;
           justify-content: space-between !important;
           box-sizing: border-box !important;
+          overflow: hidden !important;
         }
         table, tr, td, th, section, div {
           background-color: transparent !important;
@@ -572,31 +587,14 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       iframeDoc.head.appendChild(customStyle);
 
       // Clone the report element into the iframe
-      const clone = reportElement.cloneNode(true) as HTMLElement;
+      const clone = containerElement.cloneNode(true) as HTMLElement;
       iframeDoc.body.appendChild(clone);
 
       // Allow fonts, stylesheets, and images to settle in the iframe
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const targetEl = iframeDoc.getElementById("diagnostic-report-article") || clone;
-      const captureWidth = 820;
-      const captureHeight = targetEl.scrollHeight || 1100;
-
-      const imgData = await toPng(targetEl, {
-        quality: 1.0,
-        pixelRatio: 3,
-        backgroundColor: "#ffffff",
-        cacheBust: true,
-        width: captureWidth,
-        height: captureHeight,
-      });
-
-      const img = new Image();
-      img.src = imgData;
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = (e) => reject(e);
-      });
+      const pageElements = Array.from(iframeDoc.querySelectorAll(".report-page")) as HTMLElement[];
+      const targets = pageElements.length > 0 ? pageElements : [clone];
 
       // Standard A4 dimensions in mm: 210 x 297
       const pdf = new jsPDF({
@@ -608,27 +606,32 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
 
       const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
       const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
-
       const marginX = 8; // Equal 8mm margins on both left and right
       const marginY = 8; // 8mm top margin
       const contentWidth = pdfWidth - marginX * 2; // 194 mm (centered on 210mm page)
-      const contentHeight = (img.height * contentWidth) / img.width;
+      const contentHeight = (1160 * contentWidth) / 820; // Exact A4 height proportion in mm (~274.5 mm)
 
-      if (contentHeight <= pdfHeight - marginY * 2) {
-        pdf.addImage(imgData, "PNG", marginX, marginY, contentWidth, contentHeight, undefined, "FAST");
-      } else {
-        let heightLeft = contentHeight;
-        let position = marginY;
-
-        pdf.addImage(imgData, "PNG", marginX, position, contentWidth, contentHeight, undefined, "FAST");
-        heightLeft -= (pdfHeight - marginY * 2);
-
-        while (heightLeft > 0) {
-          position = heightLeft - contentHeight + marginY;
+      for (let i = 0; i < targets.length; i++) {
+        if (i > 0) {
           pdf.addPage();
-          pdf.addImage(imgData, "PNG", marginX, position, contentWidth, contentHeight, undefined, "FAST");
-          heightLeft -= (pdfHeight - marginY * 2);
         }
+        const imgData = await toPng(targets[i], {
+          quality: 1.0,
+          pixelRatio: 3,
+          backgroundColor: "#ffffff",
+          cacheBust: true,
+          width: 820,
+          height: 1160,
+        });
+
+        const img = new Image();
+        img.src = imgData;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = (e) => reject(e);
+        });
+
+        pdf.addImage(imgData, "PNG", marginX, marginY, contentWidth, contentHeight, undefined, "FAST");
       }
 
       const filename = `Diagnostic_Report_${item.reportNumber || "RPT"}_${(patient.name || "Patient").replace(/\s+/g, "_")}.pdf`;
@@ -691,178 +694,198 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
       </div>
 
       {/* ========================================================== */}
-      {/* ORIGINAL PDF LETTERHEAD BACKGROUND REPORT ARTICLE           */}
+      {/* ORIGINAL PDF LETTERHEAD BACKGROUND REPORT ARTICLE CONTAINER */}
       {/* ========================================================== */}
-      <article
-        id="diagnostic-report-article"
-        className="mx-auto max-w-4xl text-slate-900 border border-slate-300 shadow-lg rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans relative"
-        style={{
-          backgroundColor: "#ffffff",
-          backgroundImage: `url(${LETTERHEAD_TEMPLATE_BASE64})`,
-          backgroundSize: "100% 100%",
-          backgroundPosition: "top center",
-          backgroundRepeat: "no-repeat",
-          minHeight: "1160px",
-          width: "100%",
-          maxWidth: "820px",
-          boxSizing: "border-box",
-          paddingTop: "175px",
-          paddingBottom: "140px",
-          paddingLeft: "36px",
-          paddingRight: "48px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          position: "relative",
-          color: "#0f172a"
-        }}
-      >
-        {/* Dynamic Report Content Area (seamlessly printed onto the blank body of the letterhead) */}
-        <div className="space-y-4 flex-1 relative" style={{ zIndex: 10, backgroundColor: "transparent" }}>
-          {/* Patient Demographic & Specimen Information Table/Card */}
-          <section
-            style={{
-              borderTop: "1.5px solid #0f172a",
-              borderBottom: "1.5px solid #0f172a",
-              backgroundColor: "transparent",
-              paddingTop: "8px",
-              paddingBottom: "8px",
-              fontSize: "11px",
-              lineHeight: "1.35"
+      <div id="diagnostic-report-article" className="space-y-6 print:space-y-0">
+        <article
+          className="report-page mx-auto max-w-4xl text-slate-900 border border-slate-300 shadow-lg rounded-xl print:border-0 print:shadow-none print:p-0 print:m-0 print:max-w-none print:w-full font-sans relative"
+          style={{
+            backgroundColor: "#ffffff",
+            backgroundImage: `url(${letterhead.backgroundImage})`,
+            backgroundSize: "100% 100%",
+            backgroundPosition: "top center",
+            backgroundRepeat: "no-repeat",
+            minHeight: "1160px",
+            width: "100%",
+            maxWidth: "820px",
+            boxSizing: "border-box",
+            paddingTop: letterhead.paddingTop,
+            paddingBottom: letterhead.paddingBottom,
+            paddingLeft: letterhead.paddingLeft,
+            paddingRight: letterhead.paddingRight,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            position: "relative",
+            color: "#0f172a",
+          }}
+        >
+          {/* Dynamic Report Content Area */}
+          <div className="space-y-1.5 flex-1 relative" style={{ zIndex: 10, backgroundColor: "transparent" }}>
+            {/* Patient Demographic & Specimen Information Table/Card */}
+            <section
+              style={{
+                borderTop: "1.5px solid #0f172a",
+                borderBottom: "1.5px solid #0f172a",
+                backgroundColor: "transparent",
+                paddingTop: "5px",
+                paddingBottom: "5px",
+                fontSize: "11px",
+                lineHeight: "1.3",
+              }}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-1 gap-x-3">
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Patient Name</span>
+                  <span className="font-extrabold text-slate-900 text-[11.5px]">{patient.name || "Patient Name"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Age / Gender</span>
+                  <span className="font-bold text-slate-900 text-[10.5px]">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
+                  <span className="font-mono font-bold text-slate-900 text-[10.5px]">{item.reportNumber}</span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Referred By</span>
+                  <span className="font-bold text-slate-900 text-[10.5px]">{doctor.name || "Self / Clinical OPD"}</span>
+                </div>
+
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Type</span>
+                  <span className="font-semibold text-slate-900 text-[10px]">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Collected On</span>
+                  <span className="font-mono font-semibold text-slate-900 text-[10px]">
+                    {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18")} 07:43 AM
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Report Generated On</span>
+                  <span className="font-mono font-semibold text-slate-900 text-[10px]">
+                    {item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18"} 02:46 PM
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Barcode</span>
+                  <span className="font-mono font-bold text-slate-900 text-[10px]">{barcodeNumber}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Diagnostic Investigation Section Title */}
+            <div className="text-center pt-0.5 pb-0.5" style={{ backgroundColor: "transparent" }}>
+              <span
+                className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#0a534c] border-b border-[#139a8c]"
+              >
+                DEPARTMENT OF {item.department || testSchema.department}
+              </span>
+              <h2 className="text-xs sm:text-[13px] font-black tracking-wide text-slate-900 mt-0.5 uppercase">
+                {testSchema.name}
+              </h2>
+            </div>
+
+            {/* Investigation Parameter Results Table */}
+            <table className="w-full text-left text-xs border-collapse" style={{ backgroundColor: "transparent" }}>
+              <thead>
+                <tr
+                  style={{
+                    backgroundColor: "transparent",
+                    borderTop: "1.5px solid #0f172a",
+                    borderBottom: "1.5px solid #0f172a",
+                    color: "#0f172a",
+                    fontSize: "9.5px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  <th className="py-0.5 px-2">Investigation Parameter</th>
+                  <th className="py-0.5 px-2 text-right">Observed Value</th>
+                  <th className="py-0.5 px-2">Unit</th>
+                  <th className="py-0.5 px-2">Biological Reference Interval</th>
+                  <th className="py-0.5 px-2 text-center">Flag</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200/80" style={{ backgroundColor: "transparent" }}>
+                {reportResults.map((r, idx) => (
+                  <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
+                    <td className="py-0.5 px-2">
+                      <p className="font-bold text-slate-900 text-[10px] leading-tight">{r.parameter}</p>
+                      {r.comments && <p className="text-[8.5px] text-slate-500 italic leading-none">{r.comments}</p>}
+                    </td>
+                    <td className="py-0.5 px-2 text-right font-mono font-black text-[10.5px] text-slate-900">
+                      {r.value}
+                    </td>
+                    <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                      {r.unit || "—"}
+                    </td>
+                    <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                      {r.referenceRange || "—"}
+                    </td>
+                    <td className="py-0.5 px-2 text-center font-bold text-[9.5px]">
+                      {r.criticalFlag ? (
+                        <span className="font-black text-rose-700 tracking-wider">
+                          CRITICAL
+                        </span>
+                      ) : r.abnormalFlag ? (
+                        <span className="font-black text-amber-700 tracking-wider">
+                          ABNORMAL
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-emerald-800">Normal</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Clinical Comments & Pathological Observations */}
+            {item.comments && (
+              <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "3px" }}>
+                <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[9px]">
+                  Clinical Interpretation & Pathological Notes
+                </h4>
+                <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[9.5px]">
+                  {item.comments}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Overlay Row: Doctor Signature & Page Indicator */}
+          <div 
+            className="flex items-end justify-between pt-1" 
+            style={{ 
+              minHeight: letterhead.id === "aligarh" ? "35px" : "75px", 
+              zIndex: 10, 
+              backgroundColor: "transparent" 
             }}
           >
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2.5 gap-x-4">
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Patient Name</span>
-                <span className="font-extrabold text-slate-900 text-[13px]">{patient.name || "Patient Name"}</span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Age / Gender</span>
-                <span className="font-bold text-slate-900 text-xs">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
-                <span className="font-mono font-bold text-slate-900 text-xs">{item.reportNumber}</span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Referred By</span>
-                <span className="font-bold text-slate-900 text-xs">{doctor.name || "Self / Clinical OPD"}</span>
-              </div>
-
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Type</span>
-                <span className="font-semibold text-slate-900 text-xs">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Collected On</span>
-                <span className="font-mono font-semibold text-slate-900 text-xs">
-                  {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-14")} 07:43 AM
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Report Generated On</span>
-                <span className="font-mono font-semibold text-slate-900 text-xs">
-                  {item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-14"} 02:46 PM
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-600 text-[10px] block font-bold uppercase tracking-wider">Sample Barcode</span>
-                <span className="font-mono font-bold text-slate-900 text-xs">{barcodeNumber}</span>
-              </div>
+            <div className="w-1/2" style={{ backgroundColor: "transparent" }}>
+              {letterhead.doctorSignatureArea.showOverlayDoctorTitle ? (
+                <div className="text-left leading-tight">
+                  <p className="font-extrabold text-slate-900 text-[11px] tracking-wide">
+                    {letterhead.doctorSignatureArea.doctorName}
+                  </p>
+                  <p className="text-[9.5px] font-semibold text-slate-600">
+                    {letterhead.doctorSignatureArea.doctorCredentials}
+                  </p>
+                </div>
+              ) : (
+                /* For Varanasi / Aligarh: signature area shows cleanly from background letterhead */
+                <div aria-hidden="true" />
+              )}
             </div>
-          </section>
-
-          {/* Diagnostic Investigation Section Title */}
-          <div className="text-center pt-2 pb-1" style={{ backgroundColor: "transparent" }}>
-            <span
-              className="inline-block px-3 py-0.5 text-[10.5px] font-bold uppercase tracking-widest text-[#0a534c] border-b border-[#139a8c]"
-            >
-              DEPARTMENT OF {item.department || testSchema.department}
-            </span>
-            <h2 className="text-base sm:text-lg font-black tracking-wide text-slate-900 mt-1 uppercase">
-              {testSchema.name}
-            </h2>
-          </div>
-
-          {/* Investigation Parameter Results Table */}
-          <table className="w-full text-left text-xs border-collapse" style={{ backgroundColor: "transparent" }}>
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: "transparent",
-                  borderTop: "1.5px solid #0f172a",
-                  borderBottom: "1.5px solid #0f172a",
-                  color: "#0f172a",
-                  fontSize: "11px",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px"
-                }}
-              >
-                <th className="py-2 px-3">Investigation Parameter</th>
-                <th className="py-2 px-3 text-right">Observed Value</th>
-                <th className="py-2 px-3">Unit</th>
-                <th className="py-2 px-3">Biological Reference Interval</th>
-                <th className="py-2 px-3 text-center">Flag</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/80" style={{ backgroundColor: "transparent" }}>
-              {reportResults.map((r, idx) => (
-                <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
-                  <td className="py-2 px-3">
-                    <p className="font-bold text-slate-900">{r.parameter}</p>
-                    {r.comments && <p className="text-[10px] text-slate-500 italic">{r.comments}</p>}
-                  </td>
-                  <td className="py-2 px-3 text-right font-mono font-black text-sm text-slate-900">
-                    {r.value}
-                  </td>
-                  <td className="py-2 px-3 font-mono font-medium text-slate-700">
-                    {r.unit || "—"}
-                  </td>
-                  <td className="py-2 px-3 font-mono font-medium text-slate-700">
-                    {r.referenceRange || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-center font-bold text-xs">
-                    {r.criticalFlag ? (
-                      <span className="font-black text-rose-700 tracking-wider">
-                        CRITICAL
-                      </span>
-                    ) : r.abnormalFlag ? (
-                      <span className="font-black text-amber-700 tracking-wider">
-                        ABNORMAL
-                      </span>
-                    ) : (
-                      <span className="font-semibold text-emerald-800">Normal</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Clinical Comments & Pathological Observations (if any) */}
-          {item.comments && (
-            <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "8px" }}>
-              <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-1 text-[10.5px]">
-                Clinical Interpretation & Pathological Notes
-              </h4>
-              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-xs">
-                {item.comments}
-              </p>
+            <div className="text-right text-slate-700 text-[10px] font-bold tracking-wide">
+              {letterhead.footerNoteArea.endOfReportText}
             </div>
-          )}
-        </div>
-
-        {/* Bottom Overlay Row: Left side is empty for Dr. Namrata signature from background, Right side has End of Report */}
-        <div className="flex items-end justify-between pt-4" style={{ minHeight: "90px", zIndex: 10, backgroundColor: "transparent" }}>
-          <div className="w-1/2" aria-hidden="true">
-            {/* Intentionally transparent: Dr. Namrata's original signature & credentials show through cleanly from the background letterhead */}
           </div>
-          <div className="text-right text-slate-700 text-[11px] font-bold tracking-wide">
-            Page 1 of 1 · *** End Of Report ***
-          </div>
-        </div>
-      </article>
+        </article>
+      </div>
 
       {/* Delete Confirmation Modal in Report Detail */}
       {confirmDeleteId && (
