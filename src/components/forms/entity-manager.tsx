@@ -638,25 +638,23 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const franchisesList = useEntityList<Franchise>("franchises");
   const doctorsList = useEntityList<Doctor>("doctors");
 
-  // Dynamic next sequential patient code (BL-01, BL-02...)
-  const nextPatientCode = useMemo(() => {
+  // Dynamic franchise-scoped next sequential patient code (BL-01, BL-02...)
+  const getNextPatientCodeForFranchise = (targetFranchiseId?: string) => {
     if (kind !== "patients") return "BL-01";
     const patients = (list.data ?? []) as Patient[];
-    let maxNum = 0;
-    for (const p of patients) {
-      const code = (p.patientCode || "").trim();
-      const match = code.match(/^BL-(\d+)$/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num;
-        }
-      }
-    }
-    const nextNum = maxNum + 1;
+    const franchiseId = targetFranchiseId || currentSession?.franchiseId;
+    const scopedPatients = franchiseId
+      ? patients.filter((p) => p.franchiseId === franchiseId)
+      : patients;
+    const count = scopedPatients.length;
+    const nextNum = count + 1;
     const formatted = nextNum < 10 ? `0${nextNum}` : String(nextNum);
     return `BL-${formatted}`;
-  }, [kind, list.data]);
+  };
+
+  const nextPatientCode = useMemo(() => {
+    return getNextPatientCodeForFranchise(currentSession?.franchiseId);
+  }, [kind, list.data, currentSession?.franchiseId]);
 
   // Franchise-scoped doctors and all referral sources helper
   const getDoctorOptions = (franchiseId?: string) => {
@@ -1485,6 +1483,10 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                                   return;
                                 }
                                 setFieldValue(field.name, selected);
+                                if (kind === "patients" && isNew && field.name === "franchiseId") {
+                                  const updatedCode = getNextPatientCodeForFranchise(selected);
+                                  setFieldValue("patientCode", updatedCode);
+                                }
                               }}
                             >
                               {field.options?.map((opt) => (
