@@ -4,13 +4,14 @@ import { Field, Form, Formik } from "formik";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as Yup from "yup";
-import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle, Sparkles, FlaskConical, Receipt, ShieldCheck, FileText, CheckCircle2, X, Calendar } from "lucide-react";
+import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle, Sparkles, FlaskConical, Receipt, FileText, CheckCircle2, X, Calendar, Phone, Mail } from "lucide-react";
 import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Card, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
 import { useAppointment, useAppointments, useCreateAppointment, useCreateInvoice, useDeleteAppointment, useDeleteInvoice, useInvoice, useInvoices, useUpdateAppointment, useUpdateInvoice } from "@/features/operations/hooks";
 import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { useFranchise } from "@/lib/context/franchise-context";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
@@ -69,6 +70,48 @@ function invoicePriceAfterDiscount(invoice: Invoice): number {
     0
   );
   return Math.max(0, mrpSum - (Number(invoice.discount) || 0) + (Number(invoice.sgst) || 0) + (Number(invoice.cgst) || 0));
+}
+
+const BRAND_LOGO_SRC = "/branding/bxl-diagnostic-brand.webp";
+const BRAND_LEGAL_NAME = "BL Diagnostic (A Unit of Botlif Life Sciences Pvt Ltd)";
+const BRAND_TEAL = "#149c8a";
+
+function formatFranchiseAddress(franchise: Franchise): string {
+  const chunks = [franchise.address, franchise.city, franchise.state, franchise.pincode]
+    .map((part) => (part || "").trim())
+    .filter(Boolean);
+  const unique: string[] = [];
+  for (const chunk of chunks) {
+    const already = unique.some((existing) => existing.toLowerCase().includes(chunk.toLowerCase()) || chunk.toLowerCase().includes(existing.toLowerCase()));
+    if (!already) unique.push(chunk);
+  }
+  return unique.join(", ");
+}
+
+function franchiseContactPhones(franchise: Franchise): string {
+  return [franchise.phone, franchise.emergencyPhone].filter((p) => p && String(p).trim()).join(", ");
+}
+
+function franchiseWebsite(franchise: Franchise): string {
+  const place = `${franchise.city || ""} ${franchise.name || ""} ${franchise.code || ""}`.toLowerCase();
+  if (place.includes("varanasi") || place.includes("var-01")) return "www.bldiagnostic.com";
+  const domain = (franchise.email || "").split("@")[1];
+  return domain ? `www.${domain}` : "";
+}
+
+function resolveInvoiceFranchise(
+  invoice: Invoice,
+  franchises: readonly Franchise[],
+  sessionFranchiseId?: string,
+  selectedFranchise?: Franchise | null
+): Franchise | null {
+  const nested = (invoice as Invoice & { franchise?: Franchise }).franchise;
+  const franchiseId = invoice.franchiseId || nested?.id || sessionFranchiseId;
+  const fromList = franchiseId ? franchises.find((f) => f.id === franchiseId) : undefined;
+  if (fromList && nested) return { ...fromList, ...nested };
+  if (fromList) return fromList;
+  if (nested) return nested;
+  return selectedFranchise || null;
 }
 
 interface FormFieldDef {
@@ -171,21 +214,28 @@ function InvoicePrintView({
   labData,
   patient,
   doctor,
+  franchise,
   layout,
 }: {
   invoice: Invoice;
   labData?: any;
   patient?: Patient | null;
   doctor?: Doctor | null;
+  franchise?: Franchise | null;
   layout: "a4" | "thermal";
 }) {
-  const labName = labData?.name || "BL Dignostic LIMS";
-  const labLogo = labData?.logo;
-  const labAddress = labData?.address || "142, Healthcare Avenue, Bengaluru, Karnataka 560001, India";
-  const labPhone = labData?.phone || "+91 80 4455 6677";
-  const labEmail = labData?.email || "lab@pathologylis.example";
-  const labAccreditation = labData?.accreditation || "NABL ACCREDITED ISO 15189:2012";
-  const labLicense = labData?.licenseNumber || "KAR-LAB-2024-1482";
+  const labName = franchise?.name
+    ? `BL Diagnostic — ${franchise.name}`
+    : labData?.name || BRAND_LEGAL_NAME;
+  const labLogo = labData?.logo || BRAND_LOGO_SRC;
+  const labAddress = franchise
+    ? formatFranchiseAddress(franchise)
+    : labData?.address || "Vrindavan Road, Chunar Road Amra Chauraha, Near Indian Petrol Pump, Varanasi, Uttar Pradesh 221106";
+  const labPhone = franchise
+    ? franchiseContactPhones(franchise)
+    : labData?.phone || "";
+  const labEmail = franchise?.email || labData?.email || "";
+  const labWebsite = franchise ? franchiseWebsite(franchise) : labData?.website || "";
 
   const patientName = patient?.name || (invoice as any).patient?.name || invoice.patientId || "Patient";
   const patientCode = patient?.patientCode || (invoice as any).patient?.patientCode || invoice.patientId || "PID-001";
@@ -219,19 +269,14 @@ function InvoicePrintView({
       >
         {/* Thermal Header */}
         <div className="text-center pb-2 border-b border-dashed border-slate-400">
-          {labLogo ? (
-            <img 
-              src={labLogo} 
-              alt={labName} 
-              className="max-h-12 max-w-[140px] mx-auto object-contain mb-1" 
-              crossOrigin="anonymous"
-            />
-          ) : (
-            <div className="font-black text-sm uppercase tracking-wide">{labName}</div>
-          )}
-          <p className="font-bold text-xs mt-0.5">{labName}</p>
-          <p className="text-[10px] text-slate-700">{labAddress}</p>
-          <p className="text-[10px] text-slate-700">Phone: {labPhone}</p>
+          <img
+            src={labLogo}
+            alt={BRAND_LEGAL_NAME}
+            className="max-h-10 max-w-[160px] mx-auto object-contain mb-1"
+          />
+          <p className="font-bold text-[10px] mt-0.5">{franchise?.name || labName}</p>
+          {labPhone ? <p className="text-[9px] text-slate-700">Phone: {labPhone}</p> : null}
+          {labEmail ? <p className="text-[9px] text-slate-700">{labEmail}</p> : null}
           <div className="inline-block border border-black px-1.5 py-0.5 font-bold text-[10px] mt-1 uppercase">
             *** CASH / PATIENT RECEIPT ***
           </div>
@@ -301,7 +346,7 @@ function InvoicePrintView({
         {/* Thermal Footer */}
         <div className="pt-2 text-center text-[9px] text-slate-700 space-y-0.5">
           <p>Billed by: {invoice.addedBy || "Billing Desk"}</p>
-          <p className="font-bold">Thank you for choosing {labName}!</p>
+          <p className="font-bold">Thank you for choosing {franchise?.name ? `BL Diagnostic ${franchise.name}` : labName}!</p>
           <p>*** Computer Generated Receipt ***</p>
         </div>
       </div>
@@ -316,40 +361,29 @@ function InvoicePrintView({
       style={{ color: "#0f172a", backgroundColor: "#ffffff" }}
     >
       {/* A4 Header Section */}
-      <header className="border-b-2 border-[#176b87] pb-5 mb-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="grid size-14 place-items-center rounded-xl bg-[#176b87] text-white shrink-0 overflow-hidden shadow-sm">
-            {labLogo ? (
-              <img 
-                src={labLogo} 
-                alt={labName} 
-                className="size-full object-contain bg-white p-1 rounded-xl"
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <FlaskConical size={30} color="#ffffff" />
-            )}
+      <header className="mb-5 overflow-hidden rounded-lg border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src={labLogo}
+              alt={BRAND_LEGAL_NAME}
+              className="h-14 w-auto max-w-[240px] object-contain"
+            />
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-[#176b87]" style={{ color: "#176b87" }}>
-              {labName}
-            </h1>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Clinical Diagnostics & Pathology Reference Laboratory
-            </p>
-            <p className="text-xs text-slate-600 mt-1 max-w-md leading-relaxed">
-              {labAddress}
-            </p>
+          <div className="text-right shrink-0 text-[13px] text-slate-700 space-y-1">
+            {labPhone ? (
+              <p className="flex items-center justify-end gap-2 font-semibold">
+                <Phone size={14} className="text-slate-500" />
+                <span>{labPhone}</span>
+              </p>
+            ) : null}
+            {labEmail ? (
+              <p className="flex items-center justify-end gap-2">
+                <Mail size={14} className="text-slate-500" />
+                <span>{labEmail}</span>
+              </p>
+            ) : null}
           </div>
-        </div>
-
-        <div className="text-right sm:text-right shrink-0 flex flex-col items-start sm:items-end text-xs text-slate-600 space-y-1">
-          <div className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
-            <ShieldCheck size={14} className="text-emerald-700" /> {labAccreditation}
-          </div>
-          <p><span className="text-slate-400 font-medium">Licence:</span> <span className="font-mono font-semibold text-slate-800">{labLicense}</span></p>
-          <p><span className="text-slate-400 font-medium">Phone:</span> <span className="font-semibold text-slate-800">{labPhone}</span></p>
-          <p><span className="text-slate-400 font-medium">Email:</span> <span className="text-slate-800">{labEmail}</span></p>
         </div>
       </header>
 
@@ -465,16 +499,16 @@ function InvoicePrintView({
       </section>
 
       {/* Signatory & Verification Block */}
-      <footer className="border-t border-slate-200 pt-6 flex flex-col sm:flex-row justify-between items-end gap-6 text-xs text-slate-500">
-        <div>
-          <p className="text-[11px]">Date Printed: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
-          <p className="text-[10px] text-slate-400">Generated via BL Diagnostics LIMS Workspace</p>
-        </div>
-
-        <div className="text-right sm:text-right">
-          <div className="inline-block border-b border-slate-400 w-48 mb-1.5" />
-          <p className="font-bold text-slate-800 text-xs">Authorized Signatory</p>
-          <p className="text-[11px] text-slate-500">{labName}</p>
+      <footer className="mt-6">
+        <div
+          className="rounded-md px-4 py-2.5 text-center text-white"
+          style={{ backgroundColor: BRAND_TEAL }}
+        >
+          <p className="text-sm font-bold tracking-wide">{BRAND_LEGAL_NAME}</p>
+          <p className="text-[11px] leading-relaxed mt-0.5 opacity-95">
+            {labAddress ? `Address: ${labAddress}` : ""}
+            {labWebsite ? `${labAddress ? "  Web: " : "Web: "}${labWebsite}` : ""}
+          </p>
         </div>
       </footer>
     </article>
@@ -513,6 +547,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }, []);
 
   const lab = useLaboratorySettings();
+  const { selectedFranchise } = useFranchise();
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
@@ -963,6 +998,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                   labData={lab.data}
                   patient={((patientsList.data ?? []).find((p: any) => p.id === printModalInvoice.patientId || p.patientCode === printModalInvoice.patientId || p.name === printModalInvoice.patientId) || (printModalInvoice as any).patient) as Patient}
                   doctor={((doctorsList.data ?? []).find((d: any) => d.id === printModalInvoice.doctorId || d.name === printModalInvoice.doctorId) || (printModalInvoice as any).doctor) as Doctor}
+                  franchise={resolveInvoiceFranchise(printModalInvoice, franchisesList.data ?? [], currentSession?.franchiseId, selectedFranchise)}
                   layout={activePrintLayout}
                 />
               </div>
@@ -1789,6 +1825,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             labData={lab.data}
             patient={matchedPatient}
             doctor={matchedDoctor}
+            franchise={resolveInvoiceFranchise(detail as Invoice, franchisesList.data ?? [], currentSession?.franchiseId, selectedFranchise)}
             layout={activePrintLayout}
           />
         </div>
