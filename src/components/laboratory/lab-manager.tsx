@@ -298,13 +298,6 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         header: isSample ? "Specimen" : "Department",
         cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
       }),
-      ...(!isSample ? [
-        h.accessor((row: any) => `₹${row.price || 0}`, {
-          id: "price",
-          header: "Price / MRP",
-          cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>
-        })
-      ] : []),
       ...(isAdmin
         ? [
             h.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {

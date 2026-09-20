@@ -117,6 +117,7 @@ export interface Test {
   franchiseId?: string;
   sampleType?: string;
   price?: number;
+  discountPrice?: number;
   referenceRange?: string;
   unit?: string;
   turnaroundHours: number;
@@ -134,6 +135,7 @@ export interface TestMaster {
   department: string;
   rate: number;
   mrp: number;
+  discountPrice?: number;
   sampleType?: string;
   referenceRange?: string;
   unit?: string;

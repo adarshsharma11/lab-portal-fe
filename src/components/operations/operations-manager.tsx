@@ -4,7 +4,7 @@ import { Field, Form, Formik } from "formik";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as Yup from "yup";
-import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle, Sparkles, FlaskConical, Receipt, ShieldCheck, FileText, CheckCircle2, X } from "lucide-react";
+import { Printer, ArrowLeft, Eye, Edit3, Trash2, Plus, AlertTriangle, Sparkles, FlaskConical, Receipt, ShieldCheck, FileText, CheckCircle2, X, Calendar } from "lucide-react";
 import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid2, Card, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
 import { useAppointment, useAppointments, useCreateAppointment, useCreateInvoice, useDeleteAppointment, useDeleteInvoice, useInvoice, useInvoices, useUpdateAppointment, useUpdateInvoice } from "@/features/operations/hooks";
 import { useTestMasters } from "@/features/test-masters/hooks";
@@ -32,6 +32,43 @@ function findDoctorByRef(doctors: readonly Doctor[], ref?: string | null) {
     clean.includes(d.name.toLowerCase()) ||
     d.name.toLowerCase().includes(stripped)
   ) || null;
+}
+
+type DatePreset = "all" | "today" | "week" | "month" | "custom";
+
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function recordDateKey(value?: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  return toDateKey(d);
+}
+
+function isDateInRange(dateKey: string, from: string, to: string): boolean {
+  if (!dateKey) return false;
+  if (from && dateKey < from) return false;
+  if (to && dateKey > to) return false;
+  return true;
+}
+
+function formatInr(amount: number): string {
+  return `₹${Number(amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function invoicePriceAfterDiscount(invoice: Invoice): number {
+  const total = Number(invoice.total);
+  if (Number.isFinite(total)) return Math.max(0, total);
+  const mrpSum = (invoice.items ?? []).reduce(
+    (sum, item) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 1),
+    0
+  );
+  return Math.max(0, mrpSum - (Number(invoice.discount) || 0) + (Number(invoice.sgst) || 0) + (Number(invoice.cgst) || 0));
 }
 
 interface FormFieldDef {
@@ -463,6 +500,9 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const [selectedBillingTests, setSelectedBillingTests] = useState<Array<{ name: string; code: string; mrp: number; rate: number; department?: string; subParameters?: string[] }>>([
     { name: "", code: "", mrp: 0, rate: 0, subParameters: [] }
   ]);
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   useEffect(() => {
     const s = authService.getSession();
@@ -598,6 +638,57 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const list = isAppointment ? appointments.data : invoices.data;
 
+  const todayStr = useMemo(() => toDateKey(new Date()), []);
+  const dateRange = useMemo(() => {
+    if (datePreset === "all") return { from: "", to: "" };
+    if (datePreset === "today") return { from: todayStr, to: todayStr };
+    if (datePreset === "week") {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    if (datePreset === "month") {
+      const start = new Date();
+      start.setDate(start.getDate() - 29);
+      return { from: toDateKey(start), to: todayStr };
+    }
+    let from = customFrom;
+    let to = customTo;
+    if (from && to && from > to) {
+      from = customTo;
+      to = customFrom;
+    }
+    return { from, to };
+  }, [datePreset, customFrom, customTo, todayStr]);
+
+  const hasDateFilter = Boolean(dateRange.from || dateRange.to);
+
+  const applyDatePreset = (preset: DatePreset) => {
+    setDatePreset(preset);
+    if (preset !== "custom") {
+      setCustomFrom("");
+      setCustomTo("");
+    }
+  };
+
+  const filteredList = useMemo(() => {
+    const rows = (list ?? []) as any[];
+    if (isAppointment || !hasDateFilter) return rows;
+    return rows.filter((row) =>
+      isDateInRange(recordDateKey(row.billDate || row.createdAt), dateRange.from, dateRange.to)
+    );
+  }, [list, isAppointment, hasDateFilter, dateRange.from, dateRange.to]);
+
+  const billingCollection = useMemo(() => {
+    if (isAppointment) return { count: 0, paid: 0, all: 0 };
+    const rows = filteredList as Invoice[];
+    const all = rows.reduce((sum, inv) => sum + invoicePriceAfterDiscount(inv), 0);
+    const paid = rows
+      .filter((inv) => inv.paymentStatus === "Paid")
+      .reduce((sum, inv) => sum + invoicePriceAfterDiscount(inv), 0);
+    return { count: rows.length, paid, all };
+  }, [filteredList, isAppointment]);
+
   const handleDelete = async () => {
     if (!confirmDeleteId || !canDelete) return;
     if (isAppointment) {
@@ -623,27 +714,96 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             </Link>
           } 
         />
+        {!isAppointment && (
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl shadow-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Calendar size={15} className="text-[#176b87]" />
+              <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
+              <Select
+                value={datePreset}
+                onChange={(e) => applyDatePreset(e.target.value as DatePreset)}
+                className="h-8 text-xs w-36 font-medium"
+              >
+                <option value="all">All dates</option>
+                <option value="today">Today</option>
+                <option value="week">Last week</option>
+                <option value="month">Last month</option>
+                <option value="custom">Custom range</option>
+              </Select>
+              {datePreset === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    max={customTo || todayStr}
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-8 text-xs w-36 font-medium"
+                  />
+                  <span className="text-xs text-[color:var(--muted)]">to</span>
+                  <Input
+                    type="date"
+                    min={customFrom}
+                    max={todayStr}
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-8 text-xs w-36 font-medium"
+                  />
+                </>
+              )}
+              {datePreset !== "all" && datePreset !== "custom" && dateRange.from && (
+                <span className="text-[11px] text-[color:var(--muted)]">
+                  {dateRange.from === dateRange.to ? dateRange.from : `${dateRange.from} – ${dateRange.to}`}
+                </span>
+              )}
+              {hasDateFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs px-2 text-rose-600"
+                  onClick={() => applyDatePreset("all")}
+                >
+                  Clear Date
+                </Button>
+              )}
+            </div>
+            <span className="text-xs font-medium text-[color:var(--muted)]">
+              Showing <b>{filteredList.length}</b> invoices
+            </span>
+          </div>
+        )}
         <div className="overflow-x-auto rounded-[var(--radius)] border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
           <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-b border-[color:var(--line)] text-xs uppercase text-[color:var(--muted)]">
               <tr>
                 <th className="pb-3">{isAppointment ? "Patient" : "Bill number"}</th>
                 <th className="pb-3">{isAppointment ? "Date / time" : "Patient"}</th>
+                {!isAppointment && <th className="pb-3">Bill date</th>}
                 {isAdmin && <th className="pb-3">Franchise</th>}
+                {!isAppointment && <th className="pb-3 text-right">Price after discount</th>}
                 <th className="pb-3">Status</th>
                 <th className="pb-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {(list ?? []).map((row: any) => (
+              {(filteredList ?? []).map((row: any) => (
                 <tr className="border-b border-[color:var(--line)] last:border-b-0 hover:bg-[color:var(--surface-2)]" key={row.id}>
                   <td className="py-3.5 font-semibold">{"billNumber" in row ? row.billNumber : row.patientId === "pat-01" ? "Maya Srinivasan" : row.patient?.name || row.patientId}</td>
                   <td className="py-3.5">{"billDate" in row ? row.patient?.name || row.patientId : `${row.date} · ${row.time}`}</td>
+                  {!isAppointment && (
+                    <td className="py-3.5 text-xs font-medium text-[color:var(--muted)]">
+                      {row.billDate || recordDateKey(row.createdAt) || "—"}
+                    </td>
+                  )}
                   {isAdmin && (
                     <td className="py-3.5">
                       <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
                         {row.franchise?.name || row.franchise?.code || "Central Lab"}
                       </span>
+                    </td>
+                  )}
+                  {!isAppointment && (
+                    <td className="py-3.5 text-right font-mono text-xs font-semibold text-[#176b87]">
+                      {formatInr(invoicePriceAfterDiscount(row))}
                     </td>
                   )}
                   <td className="py-3.5">
@@ -690,6 +850,14 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             </tbody>
           </table>
         </div>
+        {!isAppointment && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#176b87]/20 bg-[#e8f4f7]/60 px-4 py-3">
+            <span className="text-xs text-[color:var(--muted)]">
+              Total collection {hasDateFilter ? "for selected date range" : "for all invoices"} · {billingCollection.count} bill{billingCollection.count === 1 ? "" : "s"}
+            </span>
+            <span className="font-mono text-base font-black text-[#176b87]">{formatInr(billingCollection.paid)}</span>
+          </div>
+        )}
 
         {/* Quick Print Bill Modal */}
         {printModalInvoice && (
