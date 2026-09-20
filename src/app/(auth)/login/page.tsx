@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Field, Form, Formik } from "formik";
-import { LockKeyhole, Mail, ArrowRight } from "lucide-react";
+import { LockKeyhole, Mail, ArrowRight, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Yup from "yup";
@@ -17,6 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [initialCredentials] = useState({ email: "", password: "" });
   const [serverError, setServerError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <main className="grid min-h-screen bg-[#f4f8f9] lg:grid-cols-2">
@@ -107,10 +108,18 @@ export default function LoginPage() {
                     <LockKeyhole className="absolute left-3.5 top-3 text-[color:var(--muted)]" size={17} />
                     <Field
                       name="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="w-full rounded-xl border border-[color:var(--line)] bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#176b87] focus:ring-1 focus:ring-[#176b87]"
+                      className="w-full rounded-xl border border-[color:var(--line)] bg-white py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-[#176b87] focus:ring-1 focus:ring-[#176b87]"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-2.5 text-[color:var(--muted)] hover:text-[color:var(--foreground)]"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
                   </div>
                   {touched.password && errors.password && (
                     <p className="mt-1 text-xs text-rose-600 font-medium">{errors.password}</p>
