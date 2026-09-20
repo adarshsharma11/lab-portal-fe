@@ -434,13 +434,6 @@ function FranchiseDashboard() {
           supportingText="Registered in franchise" 
         />
         <KPICard 
-          label="Active Samples" 
-          value={pendingSamplesCount} 
-          icon={TestTube2} 
-          iconTone="warning" 
-          supportingText="In laboratory processing" 
-        />
-        <KPICard 
           label="Diagnostic Reports" 
           value={approvedReportsCount} 
           icon={FileCheck2} 
