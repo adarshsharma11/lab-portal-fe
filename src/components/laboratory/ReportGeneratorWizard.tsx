@@ -259,7 +259,7 @@ export function ReportGeneratorWizard() {
     const initialUnits: Record<string, string> = {};
     const initialRanges: Record<string, string> = {};
     activeTestSchema.parameters.forEach(param => {
-      initialVals[param.id] = param.defaultValue || "";
+      initialVals[param.id] = "";
       initialUnits[param.id] = param.unit || "";
       initialRanges[param.id] = param.referenceRange || "";
     });

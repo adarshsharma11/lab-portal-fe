@@ -331,11 +331,11 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     standardPrice: 350,
     guidelinesRef: "Standard Widal slide agglutination protocol",
     parameters: [
-      { id: "typhi_o", name: "Salmonella typhi O", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
-      { id: "typhi_h", name: "Salmonella typhi H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
-      { id: "paratyphi_ah", name: "Salmonella paratyphi A,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
-      { id: "paratyphi_bh", name: "Salmonella paratyphi B,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "<1:80", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
-      { id: "widal_interpretation", name: "INTERPRETATION", unit: "", referenceRange: "", method: "", defaultValue: "NON REACTIVE", options: ["NON REACTIVE", "REACTIVE"] },
+      { id: "typhi_o", name: "Salmonella typhi O", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "typhi_h", name: "Salmonella typhi H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "paratyphi_ah", name: "Salmonella paratyphi A,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "paratyphi_bh", name: "Salmonella paratyphi B,H", unit: "", referenceRange: "<1:80 Negative", method: "Slide Method", defaultValue: "", options: ["<1:20", "<1:40", "<1:80", "1:80", "1:160", "1:320", "1:640"] },
+      { id: "widal_interpretation", name: "INTERPRETATION", unit: "", referenceRange: "", method: "", defaultValue: "", options: ["NON REACTIVE", "REACTIVE"] },
     ],
     interpretations: [
       {
