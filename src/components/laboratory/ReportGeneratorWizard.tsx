@@ -857,15 +857,6 @@ export function ReportGeneratorWizard() {
 
         {/* Step 3: Specimen & Clinical Impression */}
         <Card className="border border-[color:var(--line)] shadow-xs">
-          <div className="border-b border-[color:var(--line)] pb-4 mb-6 flex items-center gap-2.5">
-            <div className="grid size-8 place-items-center rounded-lg bg-[#e8f4f7] text-[#176b87] font-bold">
-              3
-            </div>
-            <div>
-              {/* <p className="text-xs text-[color:var(--muted)]">Enter doctor comments, specimen details, and signatory sign-off.</p> */}
-            </div>
-          </div>
-
           {/* <div className="grid gap-6 sm:grid-cols-3">
             <UIField label="Accession Number" name="accession" required>
               <Input value={accession} onChange={(e) => setAccession(e.target.value)} />
@@ -905,7 +896,7 @@ export function ReportGeneratorWizard() {
           </div> */}
 
           {/* Action buttons */}
-          <div className="mt-8 pt-6 border-[color:var(--line)] flex items-center justify-between">
+          <div className="mt-8 pt-6 border-[color:var(--line)] flex items-center justify-end">
             <Button
               type="submit"
               variant="primary"
