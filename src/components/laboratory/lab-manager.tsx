@@ -19,6 +19,44 @@ import type { Franchise, Patient, Sample, Test, TestMaster, UserRole } from "@/t
 type Kind = "samples" | "tests";
 type Entity = Sample | Test;
 
+const DETAIL_NA = "N/A";
+
+function isEmptyDetailValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === "string" && (!value.trim() || value === "null" || value === "undefined")) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+function namedLabel(obj: Record<string, unknown>, extraKeys: string[] = []): string {
+  const name = obj.name ?? obj.label ?? obj.title ?? obj.code ?? obj.accession;
+  if (name == null || String(name).trim() === "") return "";
+  const extras = extraKeys.map((k) => obj[k]).filter((v) => v != null && String(v).trim() !== "").map((v) => String(v));
+  return extras.length ? `${name} (${extras.join(" · ")})` : String(name);
+}
+
+function formatLabDetailLines(key: string, value: unknown): string[] {
+  if (isEmptyDetailValue(value)) return [DETAIL_NA];
+  if (typeof value !== "object") return [String(value)];
+
+  const k = key.toLowerCase();
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (item == null || item === "") return DETAIL_NA;
+      if (typeof item !== "object") return String(item);
+      const o = item as Record<string, unknown>;
+      return namedLabel(o) || [o.parameter, o.value, o.unit].filter(Boolean).join(" · ") || DETAIL_NA;
+    });
+  }
+
+  const obj = value as Record<string, unknown>;
+  if (k.includes("patient")) return [namedLabel(obj, ["patientCode"]) || DETAIL_NA];
+  if (k.includes("franchise")) return [namedLabel(obj, ["code"]) || DETAIL_NA];
+  if (k.includes("sample")) return [[obj.accession, obj.sampleType, obj.status].filter(Boolean).join(" · ") || namedLabel(obj) || DETAIL_NA];
+  if (k.includes("doctor")) return [namedLabel(obj, ["specialty"]) || DETAIL_NA];
+  return [namedLabel(obj) || DETAIL_NA];
+}
+
 interface FormFieldDef {
   name: string;
   label: string;
@@ -953,12 +991,37 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
       {item && (
         <Card padding={false} className="overflow-hidden">
           <dl className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[color:var(--line)]">
-            {Object.entries(item).filter(([key]) => key !== "id").map(([key, value], i) => (
-              <div className={cn("p-4", i > 1 && "sm:border-t border-[color:var(--line)]")} key={key}>
-                <dt className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted)]">{key.replace(/([A-Z])/g, " $1")}</dt>
-                <dd className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">{typeof value === "object" ? JSON.stringify(value) : String(value || "—")}</dd>
-              </div>
-            ))}
+            {Object.entries(item)
+              .filter(([key]) => {
+                if (key === "id" || key === "password" || key.startsWith("_")) return false;
+                if (key === "patientId" && (item as any).patient) return false;
+                if (key === "sampleId" && (item as any).sample) return false;
+                if (key === "franchiseId" && (item as any).franchise) return false;
+                return true;
+              })
+              .map(([key, value], i) => {
+                const lines = formatLabDetailLines(key, value);
+                const isEmpty = lines.length === 1 && lines[0] === DETAIL_NA;
+                const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+                return (
+                  <div className={cn("p-4", i > 1 && "sm:border-t border-[color:var(--line)]")} key={key}>
+                    <dt className="text-xs font-medium uppercase tracking-wider text-[color:var(--muted)]">{label}</dt>
+                    <dd className="mt-1 text-sm font-semibold text-[color:var(--foreground)]">
+                      {isEmpty ? (
+                        <span className="text-[color:var(--muted)]">{DETAIL_NA}</span>
+                      ) : lines.length === 1 ? (
+                        lines[0]
+                      ) : (
+                        <ul className="space-y-1">
+                          {lines.map((line, idx) => (
+                            <li key={`${key}-${idx}`}>{line}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </dd>
+                  </div>
+                );
+              })}
           </dl>
         </Card>
       )}
