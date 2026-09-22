@@ -862,7 +862,6 @@ export function ReportGeneratorWizard() {
               3
             </div>
             <div>
-              <h3 className="text-base font-bold text-[color:var(--foreground)]">Save or Cancel Report</h3>
               {/* <p className="text-xs text-[color:var(--muted)]">Enter doctor comments, specimen details, and signatory sign-off.</p> */}
             </div>
           </div>
@@ -907,10 +906,6 @@ export function ReportGeneratorWizard() {
 
           {/* Action buttons */}
           <div className="mt-8 pt-6 border-[color:var(--line)] flex items-center justify-between">
-            <Link href="/reports">
-              <Button type="button" variant="ghost">Cancel</Button>
-            </Link>
-
             <Button
               type="submit"
               variant="primary"
