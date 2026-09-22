@@ -498,8 +498,19 @@ function InvoicePrintView({
         </div>
       </section>
 
-      {/* Signatory & Verification Block */}
-      <footer className="mt-6">
+      <div className="mt-6 mb-5 flex flex-col sm:flex-row justify-between items-end gap-6 text-xs text-slate-500">
+        <div>
+          <p className="text-[11px]">Date Printed: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+          <p className="text-[10px] text-slate-400">Generated via BL Diagnostics LIMS Workspace</p>
+        </div>
+        <div className="text-right">
+          <div className="inline-block border-b border-slate-400 w-48 mb-1.5" />
+          <p className="font-bold text-slate-800 text-xs">Authorized Signatory</p>
+          <p className="text-[11px] text-slate-500">{franchise?.name ? `BL Diagnostic — ${franchise.name}` : labName}</p>
+        </div>
+      </div>
+
+      <footer className="mt-2">
         <div
           className="rounded-md px-4 py-2.5 text-center text-white"
           style={{ backgroundColor: BRAND_TEAL }}
