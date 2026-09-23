@@ -211,7 +211,7 @@ const doctorFields: readonly FieldConfig[] = [
   { name: "address", label: "Office / Clinic Address", type: "textarea", placeholder: "Suite 402, Apollo Medical Center, Indiranagar", colSpan: 2, section: "Contact Details" },
   { name: "email", label: "Official Email Address", type: "text", placeholder: "dr.verma@hospital.org", section: "Login Details (Optional for account creation)", hint: "Optional: Only required if creating a login account for this doctor." },
   { name: "password", label: "Login Password", type: "password", placeholder: "Enter secure password (min 6 characters)", section: "Login Details (Optional for account creation)", hint: "Optional: Set only if creating a login account for this doctor." },
-  { name: "specialty", label: "Specialist / Clinical Department", type: "text", placeholder: "Pathology, Hematology, Internal Medicine", required: true, section: "Doctor & Professional Details" },
+  { name: "specialty", label: "Specialist / Clinical Department", type: "text", placeholder: "Pathology, Hematology, Internal Medicine", section: "Doctor & Professional Details" },
   { name: "experience", label: "Work Experience", type: "text", placeholder: "12 years", section: "Doctor & Professional Details" },
   { name: "dateOfJoining", label: "Date of Joining", type: "date", placeholder: "YYYY-MM-DD", section: "Doctor & Professional Details" },
   {
@@ -486,7 +486,7 @@ const patientSchema = Yup.object({
 
 const doctorSchema = Yup.object({
   name: Yup.string().trim().required("Doctor name is required").min(2, "Name must be at least 2 characters"),
-  specialty: Yup.string().trim().required("Specialty is required"),
+  specialty: Yup.string().trim(),
   phone: Yup.string().trim(),
   email: Yup.string().trim().email("Please enter a valid email address"),
   password: Yup.string().trim(),

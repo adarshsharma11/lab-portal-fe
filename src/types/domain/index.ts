@@ -69,7 +69,7 @@ export interface Patient {
 export interface Doctor {
   id: string;
   name: string;
-  specialty: string;
+  specialty?: string;
   phone: string;
   email?: string;
   city?: string;
