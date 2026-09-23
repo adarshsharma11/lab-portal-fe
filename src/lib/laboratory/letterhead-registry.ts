@@ -51,13 +51,13 @@ export const ALIGARH_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
   franchiseCode: "ALG-02",
   franchiseCity: "Aligarh",
   backgroundImage: LETTERHEAD_ALIGARH_BASE64,
-  paddingTop: "276px",
+  paddingTop: "205px",
   paddingBottom: "155px",
   paddingLeft: "36px",
   paddingRight: "48px",
   doctorSignatureArea: {
-    showOverlayDoctorTitle: false, // Dr. Batra Varshney credentials are pre-printed on the header of the letterhead
-    doctorName: "Dr. Batra Varshney",
+    showOverlayDoctorTitle: false, // Dr. Sarai Khirni Varshney signature and credentials are pre-printed on the background letterhead
+    doctorName: "DR. SARAI KHIRNI VARSHNEY",
     doctorCredentials: "M.B.B.S. M.D. (Pathology)",
   },
   footerNoteArea: {
