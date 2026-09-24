@@ -70,9 +70,12 @@ export const ALIGARH_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
  */
 export const FRANCHISE_LETTERHEAD_REGISTRY: Record<string, FranchiseLetterheadConfig> = {
   varanasi: VARANASI_LETTERHEAD_CONFIG,
+  "fr-varanasi": VARANASI_LETTERHEAD_CONFIG,
   aligarh: ALIGARH_LETTERHEAD_CONFIG,
   "alg-02": ALIGARH_LETTERHEAD_CONFIG,
   "var-01": VARANASI_LETTERHEAD_CONFIG,
+  "e748a2b6-2f2d-43a3-b32f-928b74906177": ALIGARH_LETTERHEAD_CONFIG,
+  "95e74dde-fec7-419c-87b1-8722721772f4": ALIGARH_LETTERHEAD_CONFIG,
 };
 
 export interface ResolveLetterheadOptions {
@@ -147,8 +150,11 @@ export function resolveReportLetterhead(options?: ResolveLetterheadOptions): Fra
     (idStr) =>
       idStr === "aligarh" ||
       idStr === "alg-02" ||
+      idStr === "e748a2b6-2f2d-43a3-b32f-928b74906177" ||
+      idStr === "95e74dde-fec7-419c-87b1-8722721772f4" ||
       idStr.includes("aligarh") ||
       idStr.includes("alg-") ||
+      idStr.includes("akshataligarh") ||
       idStr.includes("dev hospital") ||
       idStr.includes("vishakha")
   );

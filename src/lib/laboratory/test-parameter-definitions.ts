@@ -351,18 +351,30 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
 ] as const;
 
 export const ALIGARH_FRANCHISE_ID = "95e74dde-fec7-419c-87b1-8722721772f4";
+export const ALIGARH_LIVE_FRANCHISE_ID = "e748a2b6-2f2d-43a3-b32f-928b74906177";
 
 /**
  * Checks if a given franchise identifier, object, or code represents the Aligarh franchise.
  */
-export function isAligarhFranchise(franchise?: string | { id?: string; code?: string; name?: string } | null): boolean {
+export function isAligarhFranchise(franchise?: string | { id?: string; code?: string; name?: string; email?: string } | null): boolean {
   if (!franchise) return false;
   if (typeof franchise === "object") {
-    const str = `${franchise.id || ""} ${franchise.code || ""} ${franchise.name || ""}`.toLowerCase();
-    return str.includes(ALIGARH_FRANCHISE_ID.toLowerCase()) || str.includes("alg") || str.includes("aligarh");
+    const str = `${franchise.id || ""} ${franchise.code || ""} ${franchise.name || ""} ${franchise.email || ""}`.toLowerCase();
+    return (
+      str.includes(ALIGARH_FRANCHISE_ID.toLowerCase()) ||
+      str.includes(ALIGARH_LIVE_FRANCHISE_ID.toLowerCase()) ||
+      str.includes("alg") ||
+      str.includes("aligarh") ||
+      str.includes("akshataligarh")
+    );
   }
   const s = String(franchise).toLowerCase().trim();
-  return s === ALIGARH_FRANCHISE_ID.toLowerCase() || s.includes("alg-02") || s.includes("aligarh");
+  return (
+    s === ALIGARH_FRANCHISE_ID.toLowerCase() ||
+    s === ALIGARH_LIVE_FRANCHISE_ID.toLowerCase() ||
+    s.includes("alg") ||
+    s.includes("aligarh")
+  );
 }
 
 export const ALIGARH_TEST_CATALOG: readonly TestDefinition[] = [
