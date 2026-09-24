@@ -4,12 +4,15 @@ import { Filter, Sparkles } from "lucide-react";
 import { cn } from "@/components/ui/index";
 import { getSubParametersForTest, resolveMainParameter } from "@/lib/laboratory/test-parameter-definitions";
 
+import { useFranchise } from "@/lib/context/franchise-context";
+
 interface SubParameterSelectProps {
   testName: string;
   selectedSubParameters?: string[];
   onChange: (newSelection: string[]) => void;
   className?: string;
   label?: string;
+  franchiseId?: string | null;
 }
 
 export function SubParameterSelect({
@@ -18,11 +21,14 @@ export function SubParameterSelect({
   onChange,
   className = "",
   label = "Select Test Sub-Parameters",
+  franchiseId,
 }: SubParameterSelectProps) {
+  const { selectedFranchiseId } = useFranchise();
+  const effectiveFranchise = franchiseId || (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const mainConfig = useMemo(() => resolveMainParameter(testName), [testName]);
-  const availableSubParameters = useMemo(() => getSubParametersForTest(testName), [testName]);
+  const mainConfig = useMemo(() => resolveMainParameter(testName, effectiveFranchise), [testName, effectiveFranchise]);
+  const availableSubParameters = useMemo(() => getSubParametersForTest(testName, effectiveFranchise), [testName, effectiveFranchise]);
 
   const activeSelection = selectedSubParameters ?? [];
   const selectedSet = useMemo(() => new Set(activeSelection), [activeSelection]);

@@ -480,7 +480,12 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   if (!item) return <p className="text-sm text-[color:var(--muted)]">Report not found.</p>;
 
   // Load test schema to auto-populate default results if empty
-  const testSchema = getTestParameterSchema(item.testCode || (item.testIds && item.testIds[0]) || "CBC");
+  const reportFranchise = item.franchiseId || (item.patient as any)?.franchiseId || (item.franchise as any)?.id;
+  const testSchema = getTestParameterSchema(
+    item.testCode || (item.testIds && item.testIds[0]) || "CBC",
+    undefined,
+    reportFranchise
+  );
 
   let reportResults: Result[] = (item.results ?? []) as Result[];
   if (!reportResults.length && testSchema.parameters.length) {

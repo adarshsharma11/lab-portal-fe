@@ -3,11 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { testMasterApi } from "@/mocks/services/resources";
 import type { TestMaster } from "@/types/domain";
 
-export function useTestMasters(search?: string, department?: string, limit: number = 2500) {
+export function useTestMasters(search?: string, department?: string, limit: number = 2500, franchiseId?: string) {
   return useQuery({
-    queryKey: ["test-masters", search, department, limit],
+    queryKey: ["test-masters", search, department, limit, franchiseId],
     queryFn: async () => {
-      const res = await testMasterApi.list({ search, department, limit });
+      const res = await testMasterApi.list({ search, department, limit, franchiseId });
       return (res.data || []) as TestMaster[];
     },
     staleTime: 5 * 60 * 1000,

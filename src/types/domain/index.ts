@@ -141,6 +141,21 @@ export interface TestMaster {
   unit?: string;
   turnaroundHours: number;
   status: "Active" | "Inactive";
+  franchiseId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestSubParameter {
+  id: string;
+  department: string;
+  mainParameter: string;
+  subParameter: string;
+  unit?: string;
+  referenceRange?: string;
+  defaultValue?: string;
+  orderIndex: number;
+  franchiseId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

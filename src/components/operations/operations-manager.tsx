@@ -558,17 +558,18 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }, []);
 
   const lab = useLaboratorySettings();
-  const { selectedFranchise } = useFranchise();
+  const { selectedFranchise, selectedFranchiseId } = useFranchise();
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
   const isBilling = currentRole === "Billing";
   const canManage = isAdmin || isFranchise || isTechnician || isBilling;
   const canDelete = canManage && !(isTechnician && kind === "billing");
+  const effectiveFranchiseId = isFranchise ? currentSession?.franchiseId : (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined);
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
   const doctorsList = useEntityList<Doctor>("doctors");
-  const testMastersQuery = useTestMasters("", undefined, 2500);
+  const testMastersQuery = useTestMasters("", undefined, 2500, effectiveFranchiseId);
 
   const printBillDirectly = (layout: "a4" | "thermal") => {
     setActivePrintLayout(layout);
@@ -1556,6 +1557,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                                     <SubParameterSelect
                                       testName={testItem.name}
                                       selectedSubParameters={testItem.subParameters || []}
+                                      franchiseId={values.franchiseId || effectiveFranchiseId}
                                       onChange={(newSubs) => updateBillingSubParameters(idx, newSubs)}
                                       className="mt-1"
                                     />

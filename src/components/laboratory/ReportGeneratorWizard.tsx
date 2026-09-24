@@ -23,6 +23,7 @@ import {
   type TestDefinition
 } from "@/lib/laboratory/test-parameter-definitions";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
+import { useFranchise } from "@/lib/context/franchise-context";
 import type { Patient, Sample, Doctor, TestMaster } from "@/types/domain";
 
 interface PrescribedTestItem {
@@ -77,13 +78,21 @@ export function ReportGeneratorWizard() {
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>("");
 
+  const { selectedFranchiseId } = useFranchise();
   const patientsQuery = usePatients();
   const doctorsQuery = useDoctors();
   const samplesQuery = useSamples();
-  const testMastersQuery = useTestMasters("", undefined, 2500);
-  const templatesQuery = useReportTemplates();
-
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
+  const currentPatient = useMemo(() => {
+    return (patientsQuery.data ?? []).find((p: Patient) => p.id === selectedPatientId || p.patientCode === selectedPatientId);
+  }, [patientsQuery.data, selectedPatientId]);
+
+  const activeFranchiseId = useMemo(() => {
+    return currentPatient?.franchiseId || (currentPatient as any)?.franchise?.id || (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined);
+  }, [currentPatient, selectedFranchiseId]);
+
+  const testMastersQuery = useTestMasters("", undefined, 2500, activeFranchiseId);
+  const templatesQuery = useReportTemplates();
   const [selectedTestName, setSelectedTestName] = useState(defaultTestCode);
   const [customTestName, setCustomTestName] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState(initialDoctorId);
@@ -222,10 +231,6 @@ export function ReportGeneratorWizard() {
     return dbOptions;
   }, [testMastersQuery.data]);
 
-  // Current Patient
-  const currentPatient = useMemo(() => {
-    return (patientsQuery.data ?? []).find((p: Patient) => p.id === selectedPatientId || p.patientCode === selectedPatientId);
-  }, [patientsQuery.data, selectedPatientId]);
 
   // Set default doctor from patient when patient changes
   useEffect(() => {
@@ -245,8 +250,8 @@ export function ReportGeneratorWizard() {
   const activeTestSchema: TestDefinition = useMemo(() => {
     const testKey = selectedTestName === "CUSTOM" ? customTestName : selectedTestName;
     const selectedSubParams = testSubParamsMap[selectedTestName] || testSubParamsMap[testKey];
-    return getTestParameterSchema(testKey, selectedSubParams);
-  }, [selectedTestName, customTestName, testSubParamsMap]);
+    return getTestParameterSchema(testKey, selectedSubParams, activeFranchiseId);
+  }, [selectedTestName, customTestName, testSubParamsMap, activeFranchiseId]);
 
   // Parameter values state
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
@@ -749,6 +754,7 @@ export function ReportGeneratorWizard() {
             <SubParameterSelect
               testName={activeTestSchema.name || selectedTestName}
               selectedSubParameters={testSubParamsMap[selectedTestName] || testSubParamsMap[activeTestSchema.name]}
+              franchiseId={activeFranchiseId}
               onChange={(newParams) => {
                 setTestSubParamsMap(prev => ({
                   ...prev,
