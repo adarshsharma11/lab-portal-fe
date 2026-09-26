@@ -10,6 +10,7 @@ import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIFi
 import { DataTable } from "@/components/tables/DataTable";
 import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { DoctorLedgerView } from "@/components/doctors/DoctorLedgerView";
 import type { Doctor, Franchise, Patient, Supplier, User, UserRole } from "@/types/domain";
 
 type Entity = Patient | Doctor | Franchise | Supplier | User;
@@ -927,9 +928,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
             );
             return (
               <div className="flex items-center justify-center gap-1.5">
+                <Link href={`/doctors/${row.original.id}`}>
+                  <Button size="sm" variant="ghost" className="text-[#176b87] hover:bg-[#e8f4f7]" leftIcon={<IndianRupee size={13} />}>
+                    Ledger
+                  </Button>
+                </Link>
                 <Link href={`/${kind}/${row.original.id}`}>
                   <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
-                    View
+                    Profile
                   </Button>
                 </Link>
                 {canManage && (
@@ -1307,6 +1313,9 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
   // 3. DETAIL VIEW
   if (!editable && record) {
+    if (kind === "doctors") {
+      return <DoctorLedgerView doctorId={id} />;
+    }
     const raw = record as Record<string, unknown>;
     return (
       <div className="space-y-6 max-w-5xl mx-auto">

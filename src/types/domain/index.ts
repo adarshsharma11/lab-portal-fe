@@ -534,3 +534,133 @@ export interface AppSettings {
 }
 
 export type BadgeTone = "success" | "warning" | "danger" | "info" | "neutral" | "pending";
+
+// ==========================================
+// MONTHLY REVENUE / SALES REPORT TYPES
+// ==========================================
+export interface SalesReportInvoiceItem {
+  id: string;
+  billNumber: string;
+  billDate: string;
+  createdAt: string;
+  patientId: string;
+  patientName: string;
+  patientCode: string;
+  patientPhone: string;
+  doctorId?: string;
+  doctorName?: string;
+  doctorSpecialty?: string;
+  itemsSummary: string;
+  items?: any;
+  total: number;
+  discount: number;
+  paymentStatus: string;
+  franchiseId?: string;
+  franchiseName?: string;
+  franchiseCode?: string;
+  addedBy?: string;
+}
+
+export interface DateWiseSalesBreakdown {
+  date: string;
+  totalSales: number;
+  paidAmount: number;
+  pendingAmount: number;
+  invoiceCount: number;
+  uniquePatients: number;
+}
+
+export interface FranchiseWiseSalesBreakdown {
+  franchiseId: string;
+  franchiseName: string;
+  franchiseCode: string;
+  totalSales: number;
+  paidAmount: number;
+  pendingAmount: number;
+  invoiceCount: number;
+}
+
+export interface MonthlySalesReport {
+  dateRange: {
+    startDate: string | null;
+    endDate: string | null;
+  };
+  franchiseId: string | null;
+  franchiseName: string;
+  summary: {
+    totalSales: number;
+    paidAmount: number;
+    pendingAmount: number;
+    totalDiscount: number;
+    totalTax: number;
+    totalInvoices: number;
+    uniquePatients: number;
+    averageInvoiceValue: number;
+  };
+  dateWiseBreakdown: DateWiseSalesBreakdown[];
+  franchiseWiseBreakdown?: FranchiseWiseSalesBreakdown[];
+  invoices: SalesReportInvoiceItem[];
+}
+
+// ==========================================
+// DOCTOR BUSINESS / LEDGER REPORT TYPES
+// ==========================================
+export interface DoctorLedgerInvoiceItem {
+  id: string;
+  billNumber: string;
+  billDate: string;
+  createdAt: string;
+  patientId: string;
+  patientName: string;
+  patientCode: string;
+  patientPhone: string;
+  itemsSummary: string;
+  items?: any;
+  total: number;
+  discount: number;
+  paymentStatus: string;
+  franchiseName?: string;
+  franchiseCode?: string;
+}
+
+export interface DoctorLedgerDateBreakdown {
+  date: string;
+  totalBusiness: number;
+  totalPaid: number;
+  totalPending: number;
+  invoiceCount: number;
+  uniquePatients: number;
+}
+
+export interface DoctorLedgerReport {
+  doctor: {
+    id: string;
+    name: string;
+    specialty?: string | null;
+    phone: string;
+    email?: string | null;
+    city?: string | null;
+    gender?: string | null;
+    experience?: string | null;
+    dateOfJoining?: string | null;
+    franchiseId?: string | null;
+    franchiseName?: string;
+    franchiseCode?: string;
+  };
+  dateRange: {
+    startDate: string | null;
+    endDate: string | null;
+  };
+  summary: {
+    totalBusiness: number;
+    totalPaid: number;
+    totalPending: number;
+    totalDiscount: number;
+    totalInvoices: number;
+    totalPatients: number;
+    averageInvoiceValue: number;
+  };
+  dateWiseBreakdown: DoctorLedgerDateBreakdown[];
+  invoices: DoctorLedgerInvoiceItem[];
+}
+

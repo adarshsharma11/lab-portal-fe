@@ -86,3 +86,12 @@ export const usePathologists = () => useEntityList<User>("pathologists");
 export const useTechnicians = () => useEntityList<User>("technicians");
 export const useSuppliers = () => useEntityList<Supplier>("suppliers");
 export const useUsers = () => useEntityList<User>("users");
+
+export function useDoctorLedger(id: string, startDate?: string, endDate?: string) {
+  return useQuery<ApiResponse<import("@/types/domain").DoctorLedgerReport>, Error, import("@/types/domain").DoctorLedgerReport>({
+    queryKey: queryKeys.doctors.ledger(id, startDate, endDate),
+    queryFn: () => doctorApi.getLedger(id, startDate, endDate),
+    select: (result) => result.data,
+    enabled: Boolean(id && id !== "new"),
+  });
+}

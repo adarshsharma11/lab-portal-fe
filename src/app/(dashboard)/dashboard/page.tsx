@@ -24,6 +24,7 @@ import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
 import { createColumnHelper } from "@tanstack/react-table";
 import { ProfitLossSection } from "@/components/dashboard/ProfitLossSection";
+import { MonthlySalesReportSection } from "@/components/dashboard/MonthlySalesReportSection";
 import type { Doctor, Franchise, Patient, PendingWork, Report, Sample, User, UserRole } from "@/types/domain";
 
 const brandColor = "#2563eb";
@@ -253,6 +254,9 @@ function AdminDashboard() {
           </div>
         </section>
       )}
+
+      {/* MONTHLY REVENUE & SALES REPORT */}
+      <MonthlySalesReportSection isAdmin={true} />
 
       {/* MONTHLY PROFIT & LOSS REPORT */}
       <ProfitLossSection isAdmin={true} />
@@ -517,6 +521,9 @@ function FranchiseDashboard() {
           )}
         </div>
       </Card>
+
+      {/* 2.4 MONTHLY REVENUE & SALES REPORT */}
+      <MonthlySalesReportSection isAdmin={false} />
 
       {/* 2.5 MONTHLY PROFIT & LOSS REPORT */}
       <ProfitLossSection isAdmin={false} />

@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/client";
-import type { Activity, ChartPoint, CriticalResult, DashboardStats, PendingWork, ProfitLossReport } from "@/types/domain";
+import type { Activity, ChartPoint, CriticalResult, DashboardStats, PendingWork, ProfitLossReport, MonthlySalesReport } from "@/types/domain";
 
 export const dashboardApi = {
   getStats: (franchiseId?: string) =>
@@ -43,4 +43,11 @@ export const dashboardApi = {
       year,
       franchiseId: franchiseId && franchiseId !== "all" ? franchiseId : undefined,
     }),
+  getSalesReport: (startDate?: string, endDate?: string, franchiseId?: string) =>
+    apiClient.get<MonthlySalesReport>("/dashboard/sales-report", {
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      franchiseId: franchiseId && franchiseId !== "all" ? franchiseId : undefined,
+    }),
 };
+
