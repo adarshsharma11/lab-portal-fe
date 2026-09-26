@@ -167,6 +167,10 @@ const patientFields: readonly FieldConfig[] = [
     section: "Personal Details",
     options: [
       { label: "Select blood group", value: "" },
+      { label: "A", value: "A" },
+      { label: "B", value: "B" },
+      { label: "AB", value: "AB" },
+      { label: "O", value: "O" },
       { label: "A+", value: "A+" },
       { label: "A-", value: "A-" },
       { label: "B+", value: "B+" },
