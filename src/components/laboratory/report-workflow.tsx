@@ -450,6 +450,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const actions = useReportActions();
   const lab = useLaboratorySettings();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole | undefined>(undefined);
 
@@ -651,8 +652,262 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
     }
   };
 
+  /**
+   * Direct high-fidelity Print functionality that produces 100% identical output
+   * to the View page and the Download PDF (including full letterhead, logo, colors, and layout).
+   */
+  const printReportDirectly = async () => {
+    const containerElement = document.getElementById("diagnostic-report-article");
+    if (!containerElement) {
+      window.print();
+      return;
+    }
+
+    setIsPrinting(true);
+
+    let renderIframe: HTMLIFrameElement | null = null;
+    let printIframe: HTMLIFrameElement | null = null;
+
+    try {
+      const { toPng } = await import("html-to-image");
+
+      // 1. Create a hidden isolated iframe with standard desktop A4 width (820px) to render report exactly
+      renderIframe = document.createElement("iframe");
+      renderIframe.style.position = "fixed";
+      renderIframe.style.top = "0";
+      renderIframe.style.left = "0";
+      renderIframe.style.width = "820px";
+      renderIframe.style.height = "2400px";
+      renderIframe.style.zIndex = "-99999";
+      renderIframe.style.opacity = "0";
+      renderIframe.style.pointerEvents = "none";
+      renderIframe.style.border = "none";
+      document.body.appendChild(renderIframe);
+
+      const renderDoc = renderIframe.contentDocument || renderIframe.contentWindow?.document;
+      if (!renderDoc) throw new Error("Could not access render iframe document");
+
+      // Copy all stylesheets, link tags, and font definitions from parent document
+      const styleNodes = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"));
+      for (const node of styleNodes) {
+        renderDoc.head.appendChild(node.cloneNode(true));
+      }
+
+      const customStyle = renderDoc.createElement("style");
+      customStyle.textContent = `
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #ffffff; width: 820px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .report-page { 
+          width: 820px !important; 
+          min-width: 820px !important; 
+          max-width: 820px !important; 
+          height: 1160px !important;
+          min-height: 1160px !important;
+          max-height: 1160px !important;
+          margin: 0 !important; 
+          margin-bottom: 0 !important;
+          padding-top: ${letterhead.paddingTop} !important;
+          padding-bottom: ${letterhead.paddingBottom} !important;
+          padding-left: ${letterhead.paddingLeft} !important;
+          padding-right: ${letterhead.paddingRight} !important;
+          border: none !important; 
+          box-shadow: none !important; 
+          border-radius: 0 !important; 
+          background-color: #ffffff !important;
+          background-image: url('${letterhead.backgroundImage}') !important;
+          background-size: 100% 100% !important;
+          background-position: top center !important;
+          background-repeat: no-repeat !important;
+          position: relative !important;
+          display: flex !important;
+          flex-direction: column !important;
+          justify-content: space-between !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+        }
+        table, tr, td, th, section, div {
+          background-color: transparent !important;
+        }
+      `;
+      renderDoc.head.appendChild(customStyle);
+
+      // Clone the report element into the iframe
+      const clone = containerElement.cloneNode(true) as HTMLElement;
+      renderDoc.body.appendChild(clone);
+
+      // Allow fonts, stylesheets, and images to settle in the iframe
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      const pageElements = Array.from(renderDoc.querySelectorAll(".report-page")) as HTMLElement[];
+      const targets = pageElements.length > 0 ? pageElements : [clone];
+
+      const imagesData: string[] = [];
+      for (const target of targets) {
+        const imgData = await toPng(target, {
+          quality: 1.0,
+          pixelRatio: 3,
+          backgroundColor: "#ffffff",
+          cacheBust: true,
+          width: 820,
+          height: 1160,
+        });
+        imagesData.push(imgData);
+      }
+
+      // 2. Create isolated print iframe
+      printIframe = document.createElement("iframe");
+      printIframe.style.position = "fixed";
+      printIframe.style.top = "0";
+      printIframe.style.left = "0";
+      printIframe.style.width = "0";
+      printIframe.style.height = "0";
+      printIframe.style.border = "none";
+      printIframe.style.visibility = "hidden";
+      document.body.appendChild(printIframe);
+
+      const printDoc = printIframe.contentDocument || printIframe.contentWindow?.document;
+      if (!printDoc) throw new Error("Could not access print iframe document");
+
+      const imagesHtml = imagesData
+        .map(
+          (src) =>
+            `<div class="page-container"><img class="report-print-img" src="${src}" alt="Diagnostic Report" /></div>`
+        )
+        .join("\n");
+
+      printDoc.open();
+      printDoc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Diagnostic Report - ${item.reportNumber || "RPT"}</title>
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 0;
+              }
+              * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+              }
+              html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                background: #ffffff;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              .page-container {
+                width: 100vw;
+                height: 100vh;
+                page-break-after: always;
+                page-break-inside: avoid;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                background: #ffffff;
+              }
+              .page-container:last-child {
+                page-break-after: auto;
+              }
+              img.report-print-img {
+                width: 100%;
+                height: 100%;
+                object-fit: fill;
+                display: block;
+              }
+            </style>
+          </head>
+          <body>
+            ${imagesHtml}
+          </body>
+        </html>
+      `);
+      printDoc.close();
+
+      // Wait for images in printDoc to fully load
+      const printImages = Array.from(printDoc.querySelectorAll("img"));
+      await Promise.all(
+        printImages.map(
+          (img) =>
+            new Promise<void>((res) => {
+              if (img.complete) {
+                res();
+              } else {
+                img.onload = () => res();
+                img.onerror = () => res();
+              }
+            })
+        )
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      if (printIframe.contentWindow) {
+        printIframe.contentWindow.focus();
+        printIframe.contentWindow.print();
+      }
+    } catch (error) {
+      console.error("Failed to execute high-fidelity print:", error);
+      window.print();
+    } finally {
+      if (renderIframe && renderIframe.parentNode) {
+        renderIframe.parentNode.removeChild(renderIframe);
+      }
+      setTimeout(() => {
+        if (printIframe && printIframe.parentNode) {
+          printIframe.parentNode.removeChild(printIframe);
+        }
+      }, 60000);
+      setIsPrinting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Dynamic Print Styles for Direct Native Page Print */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0;
+              }
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                background: #ffffff !important;
+              }
+              header, nav, aside, footer, button, .print\\:hidden, [role="navigation"] {
+                display: none !important;
+              }
+              #diagnostic-report-article {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+              }
+              .report-page {
+                width: 100% !important;
+                max-width: 100% !important;
+                border: none !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+            }
+          `,
+        }}
+      />
+
       {/* Top Action Bar (hidden on print) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
@@ -669,7 +924,12 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => window.print()} leftIcon={<Printer size={15} />}>
+          <Button
+            variant="outline"
+            onClick={printReportDirectly}
+            loading={isPrinting}
+            leftIcon={<Printer size={15} />}
+          >
             Print Report
           </Button>
           <Button
@@ -724,6 +984,24 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             color: "#0f172a",
           }}
         >
+          {/* Explicit Letterhead Background Image (ensures print engine always renders full graphics) */}
+          <img
+            src={letterhead.backgroundImage}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "fill",
+              zIndex: 0,
+              pointerEvents: "none",
+            }}
+          />
+
           {/* Dynamic Report Content Area */}
           <div className="space-y-1.5 flex-1 relative" style={{ zIndex: 10, backgroundColor: "transparent" }}>
             {/* Patient Demographic & Specimen Information Table/Card */}
