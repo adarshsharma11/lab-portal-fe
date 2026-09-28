@@ -548,6 +548,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [doctorFilter, setDoctorFilter] = useState<string>("all");
 
   useEffect(() => {
     const s = authService.getSession();
@@ -685,6 +686,38 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const list = isAppointment ? appointments.data : invoices.data;
 
+  // Extract all unique referring doctors for franchise filter
+  const availableReferringDoctors = useMemo(() => {
+    if (isAppointment) return [];
+    const rawList = (invoices.data ?? []) as any[];
+    const doctors = (doctorsList.data ?? []) as Doctor[];
+
+    const docSet = new Map<string, string>();
+
+    // Add all registered doctors for this franchise
+    doctors.forEach((d) => {
+      if (d.name && d.name.trim()) {
+        const clean = d.name.trim();
+        docSet.set(clean, clean);
+      }
+    });
+
+    // Also collect from invoice data
+    rawList.forEach((inv) => {
+      if (inv.doctor?.name && inv.doctor.name.trim()) {
+        docSet.set(inv.doctor.name.trim(), inv.doctor.name.trim());
+      }
+      if (inv.patient?.referringDoctor?.name && inv.patient.referringDoctor.name.trim()) {
+        docSet.set(inv.patient.referringDoctor.name.trim(), inv.patient.referringDoctor.name.trim());
+      }
+      if (inv.doctorId && typeof inv.doctorId === "string" && !inv.doctorId.includes("-") && inv.doctorId.trim()) {
+        docSet.set(inv.doctorId.trim(), inv.doctorId.trim());
+      }
+    });
+
+    return Array.from(docSet.values()).sort((a, b) => a.localeCompare(b));
+  }, [isAppointment, invoices.data, doctorsList.data]);
+
   const todayStr = useMemo(() => toDateKey(new Date()), []);
   const dateRange = useMemo(() => {
     if (datePreset === "all") return { from: "", to: "" };
@@ -709,6 +742,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }, [datePreset, customFrom, customTo, todayStr]);
 
   const hasDateFilter = Boolean(dateRange.from || dateRange.to);
+  const hasDoctorFilter = !isAdmin && !isAppointment && doctorFilter !== "all" && Boolean(doctorFilter.trim());
 
   const applyDatePreset = (preset: DatePreset) => {
     setDatePreset(preset);
@@ -720,11 +754,46 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
   const filteredList = useMemo(() => {
     const rows = (list ?? []) as any[];
-    if (isAppointment || !hasDateFilter) return rows;
-    return rows.filter((row) =>
-      isDateInRange(recordDateKey(row.billDate || row.createdAt), dateRange.from, dateRange.to)
-    );
-  }, [list, isAppointment, hasDateFilter, dateRange.from, dateRange.to]);
+    if (isAppointment) return rows;
+
+    return rows.filter((row) => {
+      // 1. Date Filter (if active)
+      if (hasDateFilter) {
+        const rowDate = recordDateKey(row.billDate || row.createdAt);
+        if (!isDateInRange(rowDate, dateRange.from, dateRange.to)) {
+          return false;
+        }
+      }
+
+      // 2. Referring Doctor Filter (Franchise only)
+      if (hasDoctorFilter) {
+        const filterVal = doctorFilter.trim().toLowerCase();
+        const strippedFilter = filterVal.replace(/^doctor\s*–\s*/i, "").replace(/^dr\.?\s*/i, "").trim();
+
+        const docId = (row.doctorId || "").toLowerCase();
+        const docName = (row.doctor?.name || "").toLowerCase();
+        const strippedDocName = docName.replace(/^doctor\s*–\s*/i, "").replace(/^dr\.?\s*/i, "").trim();
+
+        const patientRefDocId = (row.patient?.referringDoctorId || "").toLowerCase();
+        const patientRefDocName = (row.patient?.referringDoctor?.name || "").toLowerCase();
+        const strippedPatientRefName = patientRefDocName.replace(/^doctor\s*–\s*/i, "").replace(/^dr\.?\s*/i, "").trim();
+
+        const matchesDoctor =
+          docId === filterVal ||
+          docName === filterVal ||
+          (strippedFilter && (strippedDocName === strippedFilter || docName.includes(strippedFilter))) ||
+          patientRefDocId === filterVal ||
+          patientRefDocName === filterVal ||
+          (strippedFilter && (strippedPatientRefName === strippedFilter || patientRefDocName.includes(strippedFilter)));
+
+        if (!matchesDoctor) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [list, isAppointment, hasDateFilter, dateRange.from, dateRange.to, hasDoctorFilter, doctorFilter]);
 
   const billingCollection = useMemo(() => {
     if (isAppointment) return { count: 0, paid: 0, all: 0 };
@@ -763,22 +832,26 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
         />
         {!isAppointment && (
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl shadow-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <Calendar size={15} className="text-[#176b87]" />
-              <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
-              <Select
-                value={datePreset}
-                onChange={(e) => applyDatePreset(e.target.value as DatePreset)}
-                className="h-8 text-xs w-36 font-medium"
-              >
-                <option value="all">All dates</option>
-                <option value="today">Today</option>
-                <option value="week">Last week</option>
-                <option value="month">Last month</option>
-                <option value="custom">Custom range</option>
-              </Select>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Date Filter */}
+              <div className="flex items-center gap-1.5">
+                <Calendar size={15} className="text-[#176b87]" />
+                <span className="text-xs font-bold text-[color:var(--foreground)]">Filter by Date:</span>
+                <Select
+                  value={datePreset}
+                  onChange={(e) => applyDatePreset(e.target.value as DatePreset)}
+                  className="h-8 text-xs w-36 font-medium"
+                >
+                  <option value="all">All dates</option>
+                  <option value="today">Today</option>
+                  <option value="week">Last week</option>
+                  <option value="month">Last month</option>
+                  <option value="custom">Custom range</option>
+                </Select>
+              </div>
+
               {datePreset === "custom" && (
-                <>
+                <div className="flex items-center gap-1.5">
                   <Input
                     type="date"
                     max={customTo || todayStr}
@@ -795,26 +868,52 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                     onChange={(e) => setCustomTo(e.target.value)}
                     className="h-8 text-xs w-36 font-medium"
                   />
-                </>
+                </div>
               )}
+
               {datePreset !== "all" && datePreset !== "custom" && dateRange.from && (
                 <span className="text-[11px] text-[color:var(--muted)]">
                   {dateRange.from === dateRange.to ? dateRange.from : `${dateRange.from} – ${dateRange.to}`}
                 </span>
               )}
-              {hasDateFilter && (
+
+              {/* Referring Doctor Filter (Franchise Accounts Only) */}
+              {!isAdmin && (
+                <div className="flex items-center gap-1.5 border-l border-[color:var(--line)] pl-3">
+                  <span className="text-xs font-bold text-[color:var(--foreground)]">Referring Doctor:</span>
+                  <Select
+                    value={doctorFilter}
+                    onChange={(e) => setDoctorFilter(e.target.value)}
+                    className="h-8 text-xs min-w-[170px] max-w-[240px] font-medium"
+                  >
+                    <option value="all">All Referring Doctors</option>
+                    {availableReferringDoctors.map((docName) => (
+                      <option key={docName} value={docName}>
+                        {docName}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+
+              {/* Reset Filters */}
+              {(hasDateFilter || hasDoctorFilter) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 text-xs px-2 text-rose-600"
-                  onClick={() => applyDatePreset("all")}
+                  className="h-8 text-xs px-2 text-rose-600 hover:bg-rose-50"
+                  onClick={() => {
+                    applyDatePreset("all");
+                    setDoctorFilter("all");
+                  }}
                 >
-                  Clear Date
+                  Reset Filters
                 </Button>
               )}
             </div>
+
             <span className="text-xs font-medium text-[color:var(--muted)]">
-              Showing <b>{filteredList.length}</b> invoices
+              Showing <b>{filteredList.length}</b> invoice{filteredList.length === 1 ? "" : "s"}
             </span>
           </div>
         )}
@@ -825,6 +924,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                 <th className="pb-3">{isAppointment ? "Patient" : "Bill number"}</th>
                 <th className="pb-3">{isAppointment ? "Date / time" : "Patient"}</th>
                 {!isAppointment && <th className="pb-3">Bill date</th>}
+                {!isAppointment && !isAdmin && <th className="pb-3">Referring Doctor</th>}
                 {isAdmin && <th className="pb-3">Franchise</th>}
                 {!isAppointment && <th className="pb-3 text-right">Price after discount</th>}
                 <th className="pb-3">Status</th>
@@ -839,6 +939,13 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                   {!isAppointment && (
                     <td className="py-3.5 text-xs font-medium text-[color:var(--muted)]">
                       {row.billDate || recordDateKey(row.createdAt) || "—"}
+                    </td>
+                  )}
+                  {!isAppointment && !isAdmin && (
+                    <td className="py-3.5">
+                      <span className="inline-flex items-center text-xs font-medium text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                        {row.doctor?.name || row.patient?.referringDoctor?.name || (row.doctorId && !row.doctorId.startsWith("doc-") && !row.doctorId.includes("-") ? row.doctorId : "Direct / Walk-in")}
+                      </span>
                     </td>
                   )}
                   {isAdmin && (
@@ -900,7 +1007,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
         {!isAppointment && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#176b87]/20 bg-[#e8f4f7]/60 px-4 py-3">
             <span className="text-xs text-[color:var(--muted)]">
-              Total collection {hasDateFilter ? "for selected date range" : "for all invoices"} · {billingCollection.count} bill{billingCollection.count === 1 ? "" : "s"}
+              Total collection {hasDateFilter || hasDoctorFilter ? "for selected filters" : "for all invoices"} · {billingCollection.count} bill{billingCollection.count === 1 ? "" : "s"}
             </span>
             <span className="font-mono text-base font-black text-[#176b87]">{formatInr(billingCollection.paid)}</span>
           </div>

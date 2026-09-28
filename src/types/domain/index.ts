@@ -632,6 +632,21 @@ export interface DoctorLedgerDateBreakdown {
   uniquePatients: number;
 }
 
+export interface DoctorLedgerPatientItem {
+  id: string;
+  patientCode: string;
+  name: string;
+  age: number;
+  sex: string;
+  phone: string;
+  email?: string | null;
+  city?: string | null;
+  createdAt: string;
+  totalInvoices: number;
+  totalSpent: number;
+  franchiseName?: string;
+}
+
 export interface DoctorLedgerReport {
   doctor: {
     id: string;
@@ -662,5 +677,6 @@ export interface DoctorLedgerReport {
   };
   dateWiseBreakdown: DoctorLedgerDateBreakdown[];
   invoices: DoctorLedgerInvoiceItem[];
+  patients?: DoctorLedgerPatientItem[];
 }
 

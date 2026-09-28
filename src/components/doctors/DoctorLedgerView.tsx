@@ -39,12 +39,13 @@ export function DoctorLedgerView({
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-  const [startDate, setStartDate] = useState<string>(formatYMD(firstDayOfMonth));
-  const [endDate, setEndDate] = useState<string>(formatYMD(today));
-  const [activePreset, setActivePreset] = useState<string>("this_month");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [activePreset, setActivePreset] = useState<string>("all_time");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [patientSearchTerm, setPatientSearchTerm] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"ledger" | "profile">("ledger");
+  const [activeTab, setActiveTab] = useState<"ledger" | "patients" | "profile">("ledger");
 
   const { data: ledgerReport, isLoading, isFetching, refetch } = useDoctorLedger(
     doctorId,
@@ -64,6 +65,7 @@ export function DoctorLedgerView({
   };
   const dateWiseBreakdown = ledgerReport?.dateWiseBreakdown || [];
   const rawInvoices = ledgerReport?.invoices || [];
+  const rawPatients = ledgerReport?.patients || [];
 
   // Quick Preset Handlers
   const handlePreset = (preset: string) => {
@@ -110,6 +112,22 @@ export function DoctorLedgerView({
       return true;
     });
   }, [rawInvoices, statusFilter, searchTerm]);
+
+  // Filtered Patients
+  const filteredPatients = useMemo(() => {
+    return rawPatients.filter((p) => {
+      if (patientSearchTerm.trim()) {
+        const q = patientSearchTerm.toLowerCase().trim();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          p.patientCode.toLowerCase().includes(q) ||
+          p.phone.toLowerCase().includes(q) ||
+          (p.city && p.city.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [rawPatients, patientSearchTerm]);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -229,7 +247,19 @@ export function DoctorLedgerView({
                 : "text-[color:var(--muted)] hover:bg-slate-100"
             )}
           >
-            📊 Business Ledger & Referrals
+            📊 Business Ledger & Invoices ({rawInvoices.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("patients")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition",
+              activeTab === "patients"
+                ? "bg-[#176b87] text-white shadow-xs"
+                : "text-[color:var(--muted)] hover:bg-slate-100"
+            )}
+          >
+            👥 Referred Patients ({rawPatients.length})
           </button>
           <button
             type="button"
@@ -293,6 +323,18 @@ export function DoctorLedgerView({
               <span className="text-[color:var(--muted)] font-semibold text-[11px]">Period Presets:</span>
               <button
                 type="button"
+                onClick={() => handlePreset("all_time")}
+                className={cn(
+                  "px-2.5 py-1 rounded font-medium transition text-xs",
+                  activePreset === "all_time"
+                    ? "bg-[#176b87] text-white"
+                    : "bg-white border border-[color:var(--line)] text-[color:var(--foreground)] hover:bg-slate-100"
+                )}
+              >
+                All Time
+              </button>
+              <button
+                type="button"
                 onClick={() => handlePreset("this_month")}
                 className={cn(
                   "px-2.5 py-1 rounded font-medium transition text-xs",
@@ -327,22 +369,10 @@ export function DoctorLedgerView({
               >
                 Last 30 Days
               </button>
-              <button
-                type="button"
-                onClick={() => handlePreset("all_time")}
-                className={cn(
-                  "px-2.5 py-1 rounded font-medium transition text-xs",
-                  activePreset === "all_time"
-                    ? "bg-[#176b87] text-white"
-                    : "bg-white border border-[color:var(--line)] text-[color:var(--foreground)] hover:bg-slate-100"
-                )}
-              >
-                All Time
-              </button>
             </div>
 
             <div className="text-[11px] text-[color:var(--muted)]">
-              Showing: <span className="font-bold text-[color:var(--foreground)]">{startDate || "Beginning"}</span> to{" "}
+              Showing: <span className="font-bold text-[color:var(--foreground)]">{startDate || "All Beginning"}</span> to{" "}
               <span className="font-bold text-[color:var(--foreground)]">{endDate || "Present"}</span>
             </div>
           </div>
@@ -622,6 +652,105 @@ export function DoctorLedgerView({
                 </tbody>
               </table>
             </div>
+          </div>
+        </Card>
+      ) : activeTab === "patients" ? (
+        /* Referred Patients Tab */
+        <Card className="p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[color:var(--line)] pb-4">
+            <div>
+              <h3 className="text-base font-bold text-[color:var(--foreground)]">
+                All Patients Referred by {doctor.name} ({filteredPatients.length})
+              </h3>
+              <p className="text-xs text-[color:var(--muted)] mt-0.5">
+                Patients registered with this doctor as the referral source.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-2.5 text-[color:var(--muted)]" />
+                <input
+                  type="text"
+                  placeholder="Search by name, code, phone..."
+                  value={patientSearchTerm}
+                  onChange={(e) => setPatientSearchTerm(e.target.value)}
+                  className="rounded-lg border border-[color:var(--line)] bg-white pl-8 pr-3 py-1.5 text-xs text-[color:var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[#176b87] w-64"
+                />
+              </div>
+              <Link href={`/patients/new?doctorId=${encodeURIComponent(doctor.name)}&franchiseId=${doctor.franchiseId || ""}`}>
+                <Button size="sm" variant="primary" leftIcon={<Plus size={14} />}>
+                  Register Patient
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-[color:var(--line)] bg-white shadow-xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-[color:var(--muted)] border-b border-[color:var(--line)] font-semibold">
+                <tr>
+                  <th className="py-2.5 px-3">Patient Code</th>
+                  <th className="py-2.5 px-3">Patient Name</th>
+                  <th className="py-2.5 px-3">Age / Sex</th>
+                  <th className="py-2.5 px-3">Contact</th>
+                  <th className="py-2.5 px-3">Registered On</th>
+                  <th className="py-2.5 px-3 text-center">Bills Created</th>
+                  <th className="py-2.5 px-3 text-right">Total Billed (₹)</th>
+                  <th className="py-2.5 px-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[color:var(--line)]">
+                {filteredPatients.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 transition">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[#176b87]">
+                      {p.patientCode}
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-[color:var(--foreground)]">
+                      {p.name}
+                    </td>
+                    <td className="py-2.5 px-3 text-[color:var(--muted)]">
+                      {p.age} Y / {p.sex}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-[color:var(--muted)]">
+                      {p.phone}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-[color:var(--muted)]">
+                      {p.createdAt ? p.createdAt.slice(0, 10) : "—"}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-semibold text-slate-800">
+                      <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 text-xs">
+                        {p.totalInvoices}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-[#176b87]">
+                      ₹{p.totalSpent.toLocaleString()}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Link href={`/patients/${p.id}`}>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" leftIcon={<Eye size={12} />}>
+                            View
+                          </Button>
+                        </Link>
+                        <Link href={`/billing/new?patientId=${p.id}&patientCode=${p.patientCode}&doctorId=${encodeURIComponent(doctor.name)}&franchiseId=${doctor.franchiseId || ""}`}>
+                          <Button size="sm" variant="secondary" className="h-7 px-2 text-[11px]" leftIcon={<Plus size={12} />}>
+                            Bill
+                          </Button>
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredPatients.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-xs text-[color:var(--muted)]">
+                      No referred patients found for this doctor.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </Card>
       ) : (
