@@ -347,6 +347,44 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
       "1. Widal slide agglutination performed on serum.",
       "2. Interpret titres in clinical context; vaccination and prior infection may cause residual antibodies."
     ]
+  },
+  {
+    code: "HM009",
+    name: "BLOOD GROUP (ABO & RH TYPING)",
+    department: "Haematology",
+    sampleType: "Whole Blood EDTA",
+    standardPrice: 100,
+    guidelinesRef: "Standard Blood Grouping Tube/Slide Agglutination Technique",
+    parameters: [
+      {
+        id: "blood_group",
+        name: "Blood Groups",
+        unit: "",
+        referenceRange: "A / B / AB / O",
+        method: "Agglutination",
+        defaultValue: "B",
+        options: ["A", "B", "AB", "O"],
+      },
+      {
+        id: "rh_typing",
+        name: "RH TYPING",
+        unit: "",
+        referenceRange: "POSITIVE / NEGATIVE",
+        method: "Slide / Tube Agglutination",
+        defaultValue: "POSITIVE",
+        options: ["POSITIVE", "NEGATIVE"],
+      },
+    ],
+    interpretations: [
+      {
+        heading: "Immunohematology & Blood Group Typing",
+        content: "ABO blood grouping and Rh (D) typing performed using monoclonal anti-A, anti-B and anti-D antisera by standard hemagglutination technique."
+      }
+    ],
+    remarks: [
+      "1. Blood group verified with standardized monoclonal agglutination reagents.",
+      "2. Cross-matching is mandatory prior to blood transfusion."
+    ]
   }
 ] as const;
 
@@ -570,6 +608,27 @@ export const MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "INTERPRETATION", aliasList: ["interpretation", "widal interpretation", "impression"], paramId: "widal_interpretation" },
     ],
   },
+  {
+    department: "Haematology",
+    mainParameter: "BLOOD GROUP (ABO & RH TYPING)",
+    aliases: [
+      "BLOOD GROUP",
+      "BLOOD GROUP (ABO & RH TYPING)",
+      "BLOOD GROUP & RH TYPING",
+      "ABO & RH TYPING",
+      "ABO AND RH TYPING",
+      "BLOOD GROUPING",
+      "BLOOD GROUPING & RH FACTOR",
+      "HM009",
+      "LSHHI302",
+      "BLOOD GROUP TEST",
+      "ABO RH TYPING",
+    ],
+    subParameters: [
+      { name: "Blood Groups", aliasList: ["blood groups", "blood group", "abo blood group", "abo group", "blood_group", "abo"], paramId: "blood_group" },
+      { name: "RH TYPING", aliasList: ["rh typing", "rh factor", "rh(d) typing", "rh typing (d)", "rh_typing", "rh factor (rh typing)"], paramId: "rh_typing" },
+    ],
+  },
 ];
 
 // 2. ALIGARH MAIN PARAMETERS CONFIGURATION
@@ -623,10 +682,31 @@ export const ALIGARH_MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "TSH", aliasList: ["tsh", "thyroid stimulating hormone"], paramId: "tsh" },
     ],
   },
+  {
+    department: "Haematology",
+    mainParameter: "BLOOD GROUP (ABO & RH TYPING)",
+    aliases: [
+      "BLOOD GROUP",
+      "BLOOD GROUP (ABO & RH TYPING)",
+      "BLOOD GROUP & RH TYPING",
+      "ABO & RH TYPING",
+      "ABO AND RH TYPING",
+      "BLOOD GROUPING",
+      "BLOOD GROUPING & RH FACTOR",
+      "HM009",
+      "LSHHI302",
+      "BLOOD GROUP TEST",
+      "ABO RH TYPING",
+    ],
+    subParameters: [
+      { name: "Blood Groups", aliasList: ["blood groups", "blood group", "abo blood group", "abo group", "blood_group", "abo"], paramId: "blood_group" },
+      { name: "RH TYPING", aliasList: ["rh typing", "rh factor", "rh(d) typing", "rh typing (d)", "rh_typing", "rh factor (rh typing)"], paramId: "rh_typing" },
+    ],
+  },
 ];
 
 /**
- * Resolves whether a test name or code maps to one of our standard Main Parameters (CBC, LFT, KFT, LIPID PROFILE, THYROID PROFILE),
+ * Resolves whether a test name or code maps to one of our standard Main Parameters (CBC, LFT, KFT, LIPID PROFILE, THYROID PROFILE, BLOOD GROUP),
  * taking into account franchise-specific configurations when specified.
  */
 export function resolveMainParameter(
@@ -707,6 +787,7 @@ export function getTestParameterSchema(
   if (!baseSchema) {
     const found = STANDARD_TEST_CATALOG.find(t => 
       t.code.toLowerCase() === query || 
+      t.name.toLowerCase() === query ||
       t.name.toLowerCase().includes(query) ||
       query.includes(t.code.toLowerCase()) ||
       query.includes(t.name.toLowerCase())
@@ -714,7 +795,9 @@ export function getTestParameterSchema(
 
     if (found) {
       baseSchema = found;
-    } else if (query.includes("blood") || query.includes("hem") || query.includes("cbc")) {
+    } else if (query.includes("group") || query.includes("abo") || query.includes("rh typing") || query.includes("hm009") || query.includes("lshhi302") || (query.includes("blood") && query.includes("rh"))) {
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "HM009" || t.name.includes("BLOOD GROUP")) || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 1];
+    } else if (query.includes("cbc") || query.includes("hemogram") || query.includes("haemogram") || query.includes("complete blood count") || query.includes("hm078")) {
       baseSchema = STANDARD_TEST_CATALOG[0]; // CBC
     } else if (query.includes("lipid") || query.includes("cholesterol") || query.includes("triglyceride")) {
       baseSchema = STANDARD_TEST_CATALOG[1]; // Lipid
@@ -733,7 +816,7 @@ export function getTestParameterSchema(
     } else if (query.includes("electrolyte") || query.includes("sodium") || query.includes("potassium")) {
       baseSchema = STANDARD_TEST_CATALOG[8]; // Electrolytes
     } else if (query.includes("widal") || query.includes("typhi") || query.includes("paratyphi")) {
-      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 1];
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
     } else {
       baseSchema = {
         code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
@@ -810,8 +893,21 @@ export function evaluateParameterFlag(
     return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "neutral" };
   }
 
-  // Categorical string evaluations (Negative, Nil, Clear, Pale Yellow)
   const lower = str.toLowerCase();
+
+  // Blood group / Rh Typing evaluations
+  if (
+    param.id === "blood_group" ||
+    param.id === "rh_typing" ||
+    param.name.toLowerCase().includes("blood group") ||
+    param.name.toLowerCase().includes("rh typing") ||
+    param.name.toLowerCase().includes("rh factor") ||
+    ["a", "b", "ab", "o", "a+", "b+", "ab+", "o+", "a-", "b-", "ab-", "o-"].includes(lower)
+  ) {
+    return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "success" };
+  }
+
+  // Categorical string evaluations (Negative, Nil, Clear, Pale Yellow)
   if (
     lower === "negative" ||
     lower === "nil" ||
@@ -862,4 +958,5 @@ export function evaluateParameterFlag(
 
   return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "success" };
 }
+
 
