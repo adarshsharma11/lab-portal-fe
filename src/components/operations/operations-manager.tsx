@@ -565,6 +565,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const isTechnician = currentRole === "Technician";
   const isBilling = currentRole === "Billing";
   const canManage = isAdmin || isFranchise || isTechnician || isBilling;
+  const canEdit = canManage && !(isTechnician && kind === "billing");
   const canDelete = canManage && !(isTechnician && kind === "billing");
   const effectiveFranchiseId = isFranchise ? currentSession?.franchiseId : (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined);
   const franchisesList = useEntityList<Franchise>("franchises");
@@ -672,6 +673,12 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const isNew = path[0] === "new";
   const id = isNew ? "" : path[0];
   const edit = path[1] === "edit";
+
+  useEffect(() => {
+    if (kind === "billing" && edit && isTechnician && id) {
+      router.replace(`/billing/${id}`);
+    }
+  }, [kind, edit, isTechnician, id, router]);
 
   const appointment = useAppointment(isAppointment && path[0] && path[0] !== "new" ? path[0] : "");
   const invoice = useInvoice(!isAppointment && path[0] && path[0] !== "new" ? path[0] : "");
@@ -982,7 +989,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                           Print
                         </Button>
                       )}
-                      {canManage && (
+                      {canEdit && (
                         <Link href={`/${kind}/${row.id}/edit`}>
                           <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>Edit</Button>
                         </Link>
@@ -1173,6 +1180,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }
 
   if (path[0] === "new" || edit) {
+    if (!isAppointment && edit && isTechnician) {
+      return <p className="text-sm text-[color:var(--muted)]">Redirecting…</p>;
+    }
+
     const rawRecord = (isAppointment ? appointment.data : invoice.data) as Record<string, any> | undefined;
 
     // Find target patient if preloaded via URL query param
@@ -1386,6 +1397,10 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
           if (isNew) {
             createdInvoiceRes = await createInvoice.mutateAsync(payload);
           } else {
+            if (isTechnician) {
+              setFormError("Technicians cannot edit billing invoices.");
+              return;
+            }
             createdInvoiceRes = await updateInvoice.mutateAsync({ id, input: payload });
           }
 
@@ -1920,7 +1935,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
               Print Thermal
             </Button>
 
-            {canManage && (
+            {canEdit && (
               <Link href={`/${kind}/${id}/edit`}>
                 <Button variant="secondary" size="sm" leftIcon={<Edit3 size={14} />}>Edit</Button>
               </Link>
