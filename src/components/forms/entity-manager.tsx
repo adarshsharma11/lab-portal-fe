@@ -635,7 +635,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
   const canManage = isAdmin || isFranchise || (isTechnician && kind === "patients");
+  const canEdit = canManage && !isTechnician;
   const canDelete = canManage && !isTechnician;
+
+  useEffect(() => {
+    if (kind === "patients" && edit && isTechnician && id) {
+      router.replace(`/patients/${id}`);
+    }
+  }, [kind, edit, isTechnician, id, router]);
 
   const list = useEntityList<Entity>(kind);
   const detail = useEntity<Entity>(kind, id);
@@ -789,7 +796,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                   View
                 </Button>
               </Link>
-              {canManage && (
+              {canEdit && (
                 <Link href={`/${kind}/${row.original.id}/edit`}>
                   <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>
                     Edit
@@ -1101,7 +1108,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         ),
       }),
     ];
-  }, [kind, isAdmin, canManage, canDelete, currentSession]);
+  }, [kind, isAdmin, canManage, canEdit, canDelete, currentSession]);
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };
@@ -1215,6 +1222,10 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         createdEntityId = (res as any)?.data?.id || (res as any)?.id || "";
         createdPatientCode = (res as any)?.data?.patientCode || (res as any)?.patientCode || (input.patientCode as string) || "";
       } else {
+        if (kind === "patients" && isTechnician) {
+          setFormError("Technicians cannot edit patient records.");
+          return;
+        }
         await mutations.update.mutateAsync({ id, input: input as never });
       }
 
@@ -1334,7 +1345,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                   </Button>
                 </Link>
               )}
-              {(kind === "franchises" ? isAdmin : canManage) && (
+              {(kind === "franchises" ? isAdmin : canEdit) && (
                 <Link href={`/${kind}/${id}/edit`}>
                   <Button variant="outline" leftIcon={<Edit3 size={15} />}>Edit {config.singular}</Button>
                 </Link>
@@ -1418,6 +1429,10 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   }
 
   // 4. CREATE / EDIT FORM VIEW
+  if (kind === "patients" && edit && isTechnician) {
+    return <p className="text-sm text-[color:var(--muted)]">Redirecting…</p>;
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <PageHeader
