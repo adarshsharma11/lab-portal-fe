@@ -11,6 +11,9 @@ export interface ParameterDefinition {
   criticalHigh?: number | null;
   defaultValue?: string;
   options?: string[]; // for categorical results like Negative/Positive or Visual color
+  isHeading?: boolean;
+  isSubItem?: boolean;
+  parentHeadingId?: string;
 }
 
 export interface TestInterpretation {
@@ -43,23 +46,23 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     standardPrice: 450,
     guidelinesRef: "International Council for Standardization in Haematology (ICSH)",
     parameters: [
-      { id: "hb", name: "Haemoglobin (HB)", unit: "g/dL", min: 13.0, max: 17.0, referenceRange: "13.0 - 17.0", criticalLow: 7.0, criticalHigh: 20.0, method: "Spectrophotometry", machine: "Horiba Yumizen H1500", defaultValue: "14.2" },
-      { id: "tlc", name: "Total Leucocyte Count (TLC / WBC)", unit: "10^3/µL", min: 4.0, max: 10.0, referenceRange: "4.0 - 10.0", criticalLow: 2.0, criticalHigh: 30.0, method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "6.8" },
-      { id: "dlc", name: "Differential Leucocyte Count (DLC)", unit: "%", referenceRange: "Differential Leucocyte Count", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "Normal" },
-      { id: "neutrophils", name: "Neutrophils", unit: "%", min: 40, max: 80, referenceRange: "40 - 80", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "62.0" },
-      { id: "lymphocytes", name: "Lymphocytes", unit: "%", min: 20, max: 40, referenceRange: "20 - 40", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "28.5" },
-      { id: "eosinophils", name: "Eosinophils", unit: "%", min: 1, max: 6, referenceRange: "1 - 6", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "3.0" },
-      { id: "monocytes", name: "Monocytes", unit: "%", min: 2, max: 10, referenceRange: "2 - 10", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "6.0" },
-      { id: "basophils", name: "Basophils", unit: "%", min: 0, max: 2, referenceRange: "0 - 2", method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "0.5" },
+      { id: "hb", name: "HAEMOGLOBIN (Hb)", unit: "GM %", min: 11.0, max: 16.0, referenceRange: "11.0 - 16.0", criticalLow: 7.0, criticalHigh: 20.0, method: "Spectrophotometry", machine: "Horiba Yumizen H1500", defaultValue: "12.1" },
+      { id: "tlc", name: "TLC (Total Leucocyte Count )", unit: "/cu mm", min: 4000, max: 11000, referenceRange: "4000 - 11000", criticalLow: 2000, criticalHigh: 30000, method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "5,800" },
+      { id: "dlc_heading", name: "DIFFERENTIAL LEUCOCYTE COUNT", unit: "", referenceRange: "HEADING", method: "", defaultValue: "", isHeading: true },
+      { id: "neutrophils", name: "NEUTROPHILS", unit: "%", min: 40, max: 80, referenceRange: "40 - 80", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "", isSubItem: true, parentHeadingId: "dlc" },
+      { id: "lymphocytes", name: "LYMPHOCYTES", unit: "%", min: 20, max: 45, referenceRange: "20 - 45", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "", isSubItem: true, parentHeadingId: "dlc" },
+      { id: "monocytes", name: "MONOCYTES", unit: "%", min: 1, max: 8, referenceRange: "1 - 8", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "", isSubItem: true, parentHeadingId: "dlc" },
+      { id: "eosinophils", name: "EOSINOPHILS", unit: "%", min: 1, max: 6, referenceRange: "1 - 6", method: "Flow-Cytometry DHSS", machine: "Horiba Yumizen H1500", defaultValue: "", isSubItem: true, parentHeadingId: "dlc" },
+      { id: "basophils", name: "BASOPHILS", unit: "%", min: 0, max: 1, referenceRange: "0 - 1", method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "", isSubItem: true, parentHeadingId: "dlc" },
+      { id: "rbc", name: "R B C (Red Blood Cell Count)", unit: "Millions/cm m", min: 3.5, max: 5.0, referenceRange: "3.5 - 5.0", method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "3.92" },
+      { id: "pcv", name: "PCV / HCt (Hematocrit)", unit: "%", min: 34, max: 47, referenceRange: "34 - 47", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "36.3" },
+      { id: "mcv", name: "M C V (Mean Corp Volume)", unit: "fl", min: 76.0, max: 96.0, referenceRange: "76.0 - 96.0", method: "Derived from RBC Histogram", machine: "Horiba Yumizen H1500", defaultValue: "92.6" },
+      { id: "mch", name: "M C H (Mean Corp Hb)", unit: "pg", min: 27.0, max: 32.0, referenceRange: "27.0 - 32.0", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "30.9" },
+      { id: "mchc", name: "M C H C (Mean Corp Hb Conc)", unit: "g/dl", min: 30.0, max: 35.0, referenceRange: "30.0 - 35.0", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "33.3" },
+      { id: "plt", name: "PLATELET COUNT", unit: "/mm", min: 150000, max: 450000, referenceRange: "150000 - 450000", criticalLow: 50000, criticalHigh: 800000, method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "1,19,000" },
       { id: "esr", name: "Erythrocyte Sedimentation Rate (ESR)", unit: "mm/hr", min: 0, max: 15, referenceRange: "0 - 15", method: "Westergren Automated", machine: "Alifax Roller 20", defaultValue: "8" },
-      { id: "rbc", name: "Red Blood Cell Count (RBC)", unit: "10^6/µL", min: 4.50, max: 5.50, referenceRange: "4.50 - 5.50", method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "4.85" },
-      { id: "mch", name: "Mean Corp Hb (MCH)", unit: "pg", min: 27.0, max: 32.0, referenceRange: "27.0 - 32.0", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "29.5" },
-      { id: "mchc", name: "Mean Corp Hb Conc (MCHC)", unit: "g/dL", min: 31.5, max: 34.5, referenceRange: "31.5 - 34.5", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "33.2" },
-      { id: "mcv", name: "Mean Corp Volume (MCV)", unit: "fL", min: 83.0, max: 101.0, referenceRange: "83.0 - 101.0", method: "Derived from RBC Histogram", machine: "Horiba Yumizen H1500", defaultValue: "88.0" },
-      { id: "pcv", name: "Hematocrit (PCV)", unit: "%", min: 40.0, max: 50.0, referenceRange: "40.0 - 50.0", method: "Calculated", machine: "Horiba Yumizen H1500", defaultValue: "42.5" },
       { id: "rdw_cv", name: "RDW - CV", unit: "%", min: 11.6, max: 14.0, referenceRange: "11.6 - 14.0", method: "Derived from RBC Histogram", machine: "Horiba Yumizen H1500", defaultValue: "13.1" },
       { id: "rdw_sd", name: "RDW - SD", unit: "fL", min: 39.0, max: 46.0, referenceRange: "39.0 - 46.0", method: "Derived from RBC Histogram", machine: "Horiba Yumizen H1500", defaultValue: "42.0" },
-      { id: "plt", name: "Platelet Count (PLT)", unit: "10^3/µL", min: 150, max: 410, referenceRange: "150 - 410", criticalLow: 50, criticalHigh: 800, method: "Impedance", machine: "Horiba Yumizen H1500", defaultValue: "245" },
     ],
     interpretations: [
       {
@@ -539,18 +542,14 @@ export const MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
     subParameters: [
       { name: "Hb", aliasList: ["hb", "haemoglobin", "hemoglobin", "hgb", "haemoglobin (hb)"], paramId: "hb" },
       { name: "TLC", aliasList: ["tlc", "total leucocyte count", "wbc", "total wbc", "total leucocyte count (tlc / wbc)"], paramId: "tlc" },
-      { name: "DLC", aliasList: ["dlc", "differential count", "differential leucocyte count", "differential leucocyte count (dlc)"], paramId: "dlc" },
-      { name: "Neutrophils", aliasList: ["neutrophils", "neutrophil", "poly", "polymorphs"], paramId: "neutrophils" },
-      { name: "Lymphocytes", aliasList: ["lymphocytes", "lymphocyte", "lympho"], paramId: "lymphocytes" },
-      { name: "Eosinophils", aliasList: ["eosinophils", "eosinophil", "eosino"], paramId: "eosinophils" },
-      { name: "Monocytes", aliasList: ["monocytes", "monocyte", "monocyrtes"], paramId: "monocytes" },
-      { name: "Basophils", aliasList: ["basophils", "basophil"], paramId: "basophils" },
-      { name: "ESR", aliasList: ["esr", "erythrocyte sedimentation rate", "erythrocyte sedimentation rate (esr)"], paramId: "esr" },
+      { name: "DIFFERENTIAL LEUCOCYTE COUNT (DLC)", aliasList: ["dlc", "differential count", "differential leucocyte count", "differential leucocyte count (dlc)", "dlc (differential leucocyte count)", "dlc_heading", "neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"], paramId: "dlc" },
       { name: "RBC", aliasList: ["rbc", "red blood cell count", "total rbc", "red blood cell count (rbc)"], paramId: "rbc" },
+      { name: "PCV", aliasList: ["pcv", "pcv / hct", "pcv / hct (hematocrit)", "hematocrit", "hct"], paramId: "pcv" },
+      { name: "MCV", aliasList: ["mcv", "mean corp volume", "mean corp volume (mcv)"], paramId: "mcv" },
       { name: "MCH", aliasList: ["mch", "mean corp hb", "mean corp hb (mch)"], paramId: "mch" },
       { name: "MCHC", aliasList: ["mchc", "mean corp hb conc", "mean corp hb conc (mchc)"], paramId: "mchc" },
-      { name: "MCV", aliasList: ["mcv", "mean corp volume", "mean corp volume (mcv)"], paramId: "mcv" },
       { name: "Platelet", aliasList: ["platelet", "platelets", "platelet count", "plt", "platelet count (plt)"], paramId: "plt" },
+      { name: "ESR", aliasList: ["esr", "erythrocyte sedimentation rate", "erythrocyte sedimentation rate (esr)"], paramId: "esr" },
     ],
   },
   {
@@ -767,7 +766,7 @@ export function getTestParameterSchema(
 ): TestDefinition {
   const query = (testNameOrCode || "").toLowerCase().trim();
   const isAligarh = isAligarhFranchise(franchiseIdentifier);
-  
+
   let baseSchema: TestDefinition | undefined;
 
   // 1. If Aligarh franchise, search Aligarh-specific catalog first
@@ -785,8 +784,8 @@ export function getTestParameterSchema(
 
   // 2. Direct match or standard catalog fallback (Varanasi / Default)
   if (!baseSchema) {
-    const found = STANDARD_TEST_CATALOG.find(t => 
-      t.code.toLowerCase() === query || 
+    const found = STANDARD_TEST_CATALOG.find(t =>
+      t.code.toLowerCase() === query ||
       t.name.toLowerCase() === query ||
       t.name.toLowerCase().includes(query) ||
       query.includes(t.code.toLowerCase()) ||
@@ -844,9 +843,20 @@ export function getTestParameterSchema(
   // If selectedSubParams are provided and non-empty, filter parameters accordingly
   if (selectedSubParams && selectedSubParams.length > 0) {
     const normSelected = selectedSubParams.map(s => s.toLowerCase().trim());
+    const isDlcSelected = normSelected.some(
+      s => s === "dlc" || s.includes("differential leucocyte count") || s === "differential count" || s.includes("(dlc)") || s === "dlc_heading"
+    );
     const mainConfig = resolveMainParameter(testNameOrCode, franchiseIdentifier);
 
     const filteredParams = baseSchema.parameters.filter(param => {
+      // 1. DLC Heading and its differential sub-parameters
+      if (param.isHeading && (param.id === "dlc_heading" || param.name.toLowerCase().includes("differential leucocyte count"))) {
+        return isDlcSelected;
+      }
+      if (param.isSubItem && (param.parentHeadingId === "dlc" || ["neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"].includes(param.id.toLowerCase()))) {
+        return isDlcSelected;
+      }
+
       const pId = param.id.toLowerCase();
       const pName = param.name.toLowerCase();
 
@@ -888,6 +898,10 @@ export function evaluateParameterFlag(
   flag: "Normal" | "High" | "Low" | "Critical" | "Borderline";
   tone: "success" | "warning" | "danger" | "neutral";
 } {
+  if (param.isHeading || param.referenceRange === "HEADING") {
+    return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "neutral" };
+  }
+
   const str = String(valueStr ?? "").trim();
   if (!str) {
     return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "neutral" };

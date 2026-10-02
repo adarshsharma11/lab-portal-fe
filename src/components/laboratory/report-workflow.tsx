@@ -1092,36 +1092,59 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80" style={{ backgroundColor: "transparent" }}>
-                {reportResults.map((r, idx) => (
-                  <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
-                    <td className="py-0.5 px-2">
-                      <p className="font-bold text-slate-900 text-[10px] leading-tight">{r.parameter}</p>
-                      {r.comments && <p className="text-[8.5px] text-slate-500 italic leading-none">{r.comments}</p>}
-                    </td>
-                    <td className="py-0.5 px-2 text-right font-mono font-black text-[10.5px] text-slate-900">
-                      {r.value}
-                    </td>
-                    <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
-                      {r.unit || "—"}
-                    </td>
-                    <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
-                      {r.referenceRange || "—"}
-                    </td>
-                    <td className="py-0.5 px-2 text-center font-bold text-[9.5px]">
-                      {r.criticalFlag ? (
-                        <span className="font-black text-rose-700 tracking-wider">
-                          CRITICAL
-                        </span>
-                      ) : r.abnormalFlag ? (
-                        <span className="font-black text-amber-700 tracking-wider">
-                          ABNORMAL
-                        </span>
-                      ) : (
-                        <span className="font-semibold text-emerald-800">Normal</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {reportResults.map((r, idx) => {
+                  const paramUpper = (r.parameter || "").trim().toUpperCase();
+                  const isHeadingRow = 
+                    r.referenceRange === "HEADING" || 
+                    paramUpper === "DIFFERENTIAL LEUCOCYTE COUNT" ||
+                    paramUpper === "DIFFERENTIAL LEUCOCYTE COUNT (DLC)" ||
+                    (paramUpper.includes("DIFFERENTIAL LEUCOCYTE COUNT") && !r.value && !r.unit);
+
+                  const isSubItem = ["NEUTROPHILS", "LYMPHOCYTES", "MONOCYTES", "EOSINOPHILS", "BASOPHILS"].includes(paramUpper);
+
+                  if (isHeadingRow) {
+                    return (
+                      <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
+                        <td colSpan={5} className="pt-1.5 pb-0.5 px-2">
+                          <p className="font-black text-slate-900 text-[10.5px] uppercase tracking-wide">
+                            {r.parameter.replace(/\s*\(dlc\)\s*/i, "")}
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
+                      <td className={cn("py-0.5 px-2", isSubItem && "pl-4")}>
+                        <p className="font-bold text-slate-900 text-[10px] leading-tight">{r.parameter}</p>
+                        {r.comments && <p className="text-[8.5px] text-slate-500 italic leading-none">{r.comments}</p>}
+                      </td>
+                      <td className="py-0.5 px-2 text-right font-mono font-black text-[10.5px] text-slate-900">
+                        {r.value}
+                      </td>
+                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                        {r.unit || "—"}
+                      </td>
+                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                        {r.referenceRange || "—"}
+                      </td>
+                      <td className="py-0.5 px-2 text-center font-bold text-[9.5px]">
+                        {r.criticalFlag ? (
+                          <span className="font-black text-rose-700 tracking-wider">
+                            CRITICAL
+                          </span>
+                        ) : r.abnormalFlag ? (
+                          <span className="font-black text-amber-700 tracking-wider">
+                            ABNORMAL
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-emerald-800">Normal</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 

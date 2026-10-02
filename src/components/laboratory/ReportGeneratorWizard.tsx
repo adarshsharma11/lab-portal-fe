@@ -318,6 +318,17 @@ export function ReportGeneratorWizard() {
     try {
       // Build results payload
       const resultsPayload = activeTestSchema.parameters.map(param => {
+        if (param.isHeading) {
+          return {
+            parameter: param.name,
+            value: "",
+            unit: "",
+            referenceRange: "HEADING",
+            abnormalFlag: false,
+            criticalFlag: false,
+            comments: undefined,
+          };
+        }
         const value = paramValues[param.id] ?? "";
         const evalResult = evaluateParameterFlag(value, param);
         return {
@@ -778,6 +789,19 @@ export function ReportGeneratorWizard() {
               </thead>
               <tbody className="divide-y divide-[color:var(--line)]">
                 {activeTestSchema.parameters.map((param) => {
+                  if (param.isHeading) {
+                    return (
+                      <tr key={param.id} className="bg-slate-100/90 border-y-2 border-slate-300">
+                        <td colSpan={5} className="py-2.5 px-4 font-black uppercase text-slate-800 text-[11px] tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <span className="size-2 rounded-full bg-[#176b87]" />
+                            <span>{param.name}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const val = paramValues[param.id] ?? "";
                   const unitVal = paramUnits[param.id] ?? param.unit ?? "";
                   const rangeVal = paramRanges[param.id] ?? param.referenceRange ?? "";
@@ -792,8 +816,11 @@ export function ReportGeneratorWizard() {
                         evalResult.isAbnormal && !evalResult.isCritical && "bg-amber-50/40"
                       )}
                     >
-                      <td className="py-3.5 px-4 font-semibold text-[color:var(--foreground)]">
-                        <div>{param.name}</div>
+                      <td className={cn("py-3.5 px-4 font-semibold text-[color:var(--foreground)]", param.isSubItem && "pl-8")}>
+                        <div className="flex items-center gap-2">
+                          {param.isSubItem && <span className="text-slate-400 font-normal">↳</span>}
+                          <span>{param.name}</span>
+                        </div>
                         {param.method && (
                           <span className="text-[10px] text-[color:var(--muted)]">
                             {param.method}
