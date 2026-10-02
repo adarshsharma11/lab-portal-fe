@@ -38,7 +38,7 @@ export const VARANASI_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
     showOverlayDoctorTitle: false, // Dr. Namrata's signature and credentials are pre-printed on the background
   },
   footerNoteArea: {
-    endOfReportText: "Page 1 of 1 · *** End Of Report ***",
+    endOfReportText: "",
   },
 };
 
@@ -56,12 +56,12 @@ export const ALIGARH_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
   paddingLeft: "36px",
   paddingRight: "48px",
   doctorSignatureArea: {
-    showOverlayDoctorTitle: false, // Dr. Sarai Khirni Varshney signature and credentials are pre-printed on the background letterhead
-    doctorName: "DR. SARAI KHIRNI VARSHNEY",
-    doctorCredentials: "M.B.B.S. M.D. (Pathology)",
+    showOverlayDoctorTitle: false, // Dr. Bharat Varshney signature and credentials are pre-printed on the background letterhead
+    doctorName: "DR. BHARAT VARSHNEY",
+    doctorCredentials: "M.B.B.S M.D. (Pathology)",
   },
   footerNoteArea: {
-    endOfReportText: "Page 1 of 1 · *** End Of Report ***",
+    endOfReportText: "",
   },
 };
 
