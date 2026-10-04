@@ -1012,47 +1012,47 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 backgroundColor: "transparent",
                 paddingTop: "5px",
                 paddingBottom: "5px",
-                fontSize: "11px",
+                fontSize: "16px",
                 lineHeight: "1.3",
               }}
             >
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-1 gap-x-3">
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Patient Name</span>
-                  <span className="font-extrabold text-slate-900 text-[11.5px]">{patient.name || "Patient Name"}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Patient Name</span>
+                  <span className="font-extrabold text-slate-900 text-[13.5px]">{patient.name || "Patient Name"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Age / Gender</span>
-                  <span className="font-bold text-slate-900 text-[10.5px]">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Age / Gender</span>
+                  <span className="font-bold text-slate-900 text-[12.5px]">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
-                  <span className="font-mono font-bold text-slate-900 text-[10.5px]">{item.reportNumber}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
+                  <span className="font-mono font-bold text-slate-900 text-[12.5px]">{item.reportNumber}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Referred By</span>
-                  <span className="font-bold text-slate-900 text-[10.5px]">{doctor.name || "Self / Clinical OPD"}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Referred By</span>
+                  <span className="font-bold text-slate-900 text-[12.5px]">{doctor.name || "Self / Clinical OPD"}</span>
                 </div>
 
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Type</span>
-                  <span className="font-semibold text-slate-900 text-[10px]">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Sample Type</span>
+                  <span className="font-semibold text-slate-900 text-[12px]">{sample.sampleType || testSchema.sampleType || "Whole Blood EDTA"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Collected On</span>
-                  <span className="font-mono font-semibold text-slate-900 text-[10px]">
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Sample Collected On</span>
+                  <span className="font-mono font-semibold text-slate-900 text-[12px]">
                     {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18")} 07:43 AM
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Report Generated On</span>
-                  <span className="font-mono font-semibold text-slate-900 text-[10px]">
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Report Generated On</span>
+                  <span className="font-mono font-semibold text-slate-900 text-[12px]">
                     {item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18"} 02:46 PM
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-600 text-[9px] block font-bold uppercase tracking-wider">Sample Barcode</span>
-                  <span className="font-mono font-bold text-slate-900 text-[10px]">{barcodeNumber}</span>
+                  <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Sample Barcode</span>
+                  <span className="font-mono font-bold text-slate-900 text-[12px]">{barcodeNumber}</span>
                 </div>
               </div>
             </section>
@@ -1060,17 +1060,17 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             {/* Diagnostic Investigation Section Title */}
             <div className="text-center pt-0.5 pb-0.5" style={{ backgroundColor: "transparent" }}>
               <span
-                className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#0a534c] border-b border-[#139a8c]"
+                className="inline-block px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-widest text-[#0a534c] border-b border-[#139a8c]"
               >
                 DEPARTMENT OF {item.department || testSchema.department}
               </span>
-              <h2 className="text-xs sm:text-[13px] font-black tracking-wide text-slate-900 mt-0.5 uppercase">
+              <h2 className="text-[14px] sm:text-[15.5px] font-black tracking-wide text-slate-900 mt-0.5 uppercase">
                 {testSchema.name}
               </h2>
             </div>
 
             {/* Investigation Parameter Results Table */}
-            <table className="w-full text-left text-xs border-collapse" style={{ backgroundColor: "transparent" }}>
+            <table className="w-full text-left text-[14px] border-collapse" style={{ backgroundColor: "transparent" }}>
               <thead>
                 <tr
                   style={{
@@ -1078,7 +1078,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                     borderTop: "1.5px solid #0f172a",
                     borderBottom: "1.5px solid #0f172a",
                     color: "#0f172a",
-                    fontSize: "9.5px",
+                    fontSize: "11px",
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px",
@@ -1106,7 +1106,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                     return (
                       <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
                         <td colSpan={5} className="pt-1.5 pb-0.5 px-2">
-                          <p className="font-black text-slate-900 text-[10.5px] uppercase tracking-wide">
+                          <p className="font-black text-slate-900 text-[12.5px] uppercase tracking-wide">
                             {r.parameter.replace(/\s*\(dlc\)\s*/i, "")}
                           </p>
                         </td>
@@ -1117,24 +1117,24 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                   return (
                     <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
                       <td className={cn("py-0.5 px-2", isSubItem && "pl-4")}>
-                        <p className="font-bold text-slate-900 text-[10px] leading-tight">{r.parameter}</p>
-                        {r.comments && <p className="text-[8.5px] text-slate-500 italic leading-none">{r.comments}</p>}
+                        <p className="font-bold text-slate-900 text-[12px] leading-tight">{r.parameter}</p>
+                        {r.comments && <p className="text-[10px] text-slate-500 italic leading-none">{r.comments}</p>}
                       </td>
                       <td
-                        className="py-0.5 px-2 text-right font-mono text-[10.5px] text-slate-900"
+                        className="py-0.5 px-2 text-right font-mono text-[12.5px] text-slate-900"
                         style={{
                           fontWeight: r.value && (r.abnormalFlag || r.criticalFlag) ? 700 : 400,
                         }}
                       >
                         {r.value}
                       </td>
-                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px]">
                         {r.unit || "—"}
                       </td>
-                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
+                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px]">
                         {r.referenceRange || "—"}
                       </td>
-                      <td className="py-0.5 px-2 text-center font-bold text-[9.5px]">
+                      <td className="py-0.5 px-2 text-center font-bold text-[11px]">
                         {r.criticalFlag ? (
                           <span className="font-black text-rose-700 tracking-wider">
                             CRITICAL
@@ -1156,10 +1156,10 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             {/* Clinical Comments & Pathological Observations */}
             {item.comments && (
               <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "3px" }}>
-                <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[9px]">
+                <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[10.5px]">
                   Clinical Interpretation & Pathological Notes
                 </h4>
-                <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[9.5px]">
+                <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[11px]">
                   {item.comments}
                 </p>
               </div>
@@ -1178,10 +1178,10 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             <div className="w-1/2" style={{ backgroundColor: "transparent" }}>
               {letterhead.doctorSignatureArea.showOverlayDoctorTitle ? (
                 <div className="text-left leading-tight">
-                  <p className="font-extrabold text-slate-900 text-[11px] tracking-wide">
+                  <p className="font-extrabold text-slate-900 text-[13px] tracking-wide">
                     {letterhead.doctorSignatureArea.doctorName}
                   </p>
-                  <p className="text-[9.5px] font-semibold text-slate-600">
+                  <p className="text-[11px] font-semibold text-slate-600">
                     {letterhead.doctorSignatureArea.doctorCredentials}
                   </p>
                 </div>
@@ -1190,7 +1190,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 <div aria-hidden="true" />
               )}
             </div>
-            <div className="text-right text-slate-700 text-[10px] font-bold tracking-wide">
+            <div className="text-right text-slate-700 text-[12px] font-bold tracking-wide">
               {letterhead.footerNoteArea.endOfReportText}
             </div>
           </div>
