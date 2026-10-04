@@ -1120,7 +1120,12 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                         <p className="font-bold text-slate-900 text-[10px] leading-tight">{r.parameter}</p>
                         {r.comments && <p className="text-[8.5px] text-slate-500 italic leading-none">{r.comments}</p>}
                       </td>
-                      <td className="py-0.5 px-2 text-right font-mono font-black text-[10.5px] text-slate-900">
+                      <td
+                        className="py-0.5 px-2 text-right font-mono text-[10.5px] text-slate-900"
+                        style={{
+                          fontWeight: r.value && (r.abnormalFlag || r.criticalFlag) ? 700 : 400,
+                        }}
+                      >
                         {r.value}
                       </td>
                       <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[9.5px]">
