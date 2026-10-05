@@ -900,29 +900,29 @@ export function getTestParameterSchema(
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "MALARIA") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
     } else if (query.includes("crp") || query.includes("c-reactive") || query.includes("c reactive") || query.includes("reactive protein")) {
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "CRP");
-    } else {
-      baseSchema = {
-        code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
-        name: testNameOrCode || "Diagnostic Clinical Test",
-        department: "Clinical Pathology",
-        sampleType: "Serum / Blood",
-        standardPrice: 350,
-        parameters: [
-          {
-            id: "param_1",
-            name: testNameOrCode || "Test Result Parameter",
-            unit: "mg/dL",
-            referenceRange: "Normal",
-            method: "Automated Clinical Analyzer",
-            defaultValue: "Normal",
-          }
-        ],
-        remarks: [
-          "1. Test analyzed according to standard clinical laboratory operating procedures."
-        ]
-      };
     }
   }
+
+  const resolvedSchema: TestDefinition = baseSchema ?? {
+    code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
+    name: testNameOrCode || "Diagnostic Clinical Test",
+    department: "Clinical Pathology",
+    sampleType: "Serum / Blood",
+    standardPrice: 350,
+    parameters: [
+      {
+        id: "param_1",
+        name: testNameOrCode || "Test Result Parameter",
+        unit: "mg/dL",
+        referenceRange: "Normal",
+        method: "Automated Clinical Analyzer",
+        defaultValue: "Normal",
+      }
+    ],
+    remarks: [
+      "1. Test analyzed according to standard clinical laboratory operating procedures."
+    ]
+  };
 
   // If selectedSubParams are provided and non-empty, filter parameters accordingly
   if (selectedSubParams && selectedSubParams.length > 0) {
@@ -932,7 +932,7 @@ export function getTestParameterSchema(
     );
     const mainConfig = resolveMainParameter(testNameOrCode, franchiseIdentifier);
 
-    const filteredParams = baseSchema.parameters.filter(param => {
+    const filteredParams = resolvedSchema.parameters.filter(param => {
       // 1. DLC Heading and its differential sub-parameters
       if (param.isHeading && (param.id === "dlc_heading" || param.name.toLowerCase().includes("differential leucocyte count"))) {
         return isDlcSelected;
@@ -964,13 +964,13 @@ export function getTestParameterSchema(
 
     if (filteredParams.length > 0) {
       return {
-        ...baseSchema,
+        ...resolvedSchema,
         parameters: filteredParams,
       };
     }
   }
 
-  return baseSchema;
+  return resolvedSchema;
 }
 
 export function evaluateParameterFlag(
