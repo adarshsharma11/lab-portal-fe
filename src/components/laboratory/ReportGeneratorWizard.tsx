@@ -19,6 +19,7 @@ import {
   getTestParameterSchema, 
   getSubParametersForTest,
   evaluateParameterFlag,
+  crpMaxForPatient,
   type ParameterDefinition,
   type TestDefinition
 } from "@/lib/laboratory/test-parameter-definitions";
@@ -337,7 +338,11 @@ export function ReportGeneratorWizard() {
           };
         }
         const value = paramValues[param.id] ?? "";
-        const evalResult = evaluateParameterFlag(value, param);
+        const evalParam =
+          param.id === "crp"
+            ? { ...param, max: crpMaxForPatient(currentPatient) }
+            : param;
+        const evalResult = evaluateParameterFlag(value, evalParam);
         return {
           parameter: param.name,
           value,
@@ -812,7 +817,11 @@ export function ReportGeneratorWizard() {
                   const val = paramValues[param.id] ?? "";
                   const unitVal = paramUnits[param.id] ?? param.unit ?? "";
                   const rangeVal = paramRanges[param.id] ?? param.referenceRange ?? "";
-                  const evalResult = evaluateParameterFlag(val, param);
+                  const evalParam =
+                    param.id === "crp"
+                      ? { ...param, max: crpMaxForPatient(currentPatient) }
+                      : param;
+                  const evalResult = evaluateParameterFlag(val, evalParam);
 
                   return (
                     <tr 
@@ -874,12 +883,21 @@ export function ReportGeneratorWizard() {
                         />
                       </td>
                       <td className="py-2.5 px-4">
-                        <Input
-                          value={rangeVal}
-                          onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
-                          placeholder="e.g. <1:80 Negative"
-                          className="h-8 text-xs font-mono"
-                        />
+                        {rangeVal.includes("\n") ? (
+                          <Textarea
+                            rows={3}
+                            value={rangeVal}
+                            onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
+                            className="text-xs font-mono leading-snug"
+                          />
+                        ) : (
+                          <Input
+                            value={rangeVal}
+                            onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
+                            placeholder="e.g. <1:80 Negative"
+                            className="h-8 text-xs font-mono"
+                          />
+                        )}
                       </td>
                       <td className="py-3.5 px-4">
                         {evalResult.isCritical ? (

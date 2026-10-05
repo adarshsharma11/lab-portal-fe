@@ -381,6 +381,36 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     ]
   },
   {
+    code: "CRP",
+    name: "C-REACTIVE PROTEIN (CRP)",
+    department: "Serology",
+    sampleType: "Serum",
+    standardPrice: 350,
+    guidelinesRef: "Age-stratified CRP biological reference intervals",
+    parameters: [
+      {
+        id: "crp",
+        name: "C-REACTIVE PROTEIN",
+        unit: "mg/L",
+        min: 0,
+        max: 6,
+        referenceRange: "ADULTS : Up to 6 mg/L\nNEW BORNS UPTO 3 WEEKS : < 4.1 mg/L\nINFANTS AND CHILDREN : < 2.8 mg/L",
+        method: "Immunoturbidimetry",
+        defaultValue: "",
+      },
+    ],
+    interpretations: [
+      {
+        heading: "C-Reactive Protein",
+        content: "CRP is an acute-phase reactant. Interpret against age-specific reference intervals (adults, newborns up to 3 weeks, infants and children) and correlate clinically."
+      }
+    ],
+    remarks: [
+      "1. Reference intervals vary by age group as printed on the report.",
+      "2. Markedly elevated CRP suggests significant inflammation or infection; clinical correlation is advised."
+    ]
+  },
+  {
     code: "HM009",
     name: "BLOOD GROUP (ABO & RH TYPING)",
     department: "Haematology",
@@ -806,6 +836,11 @@ export function getTestParameterSchema(
     query.includes("mp smear") ||
     query.includes("malaria antigen") ||
     query.includes("malaria card");
+  const isCrpQuery =
+    query.includes("crp") ||
+    query.includes("c-reactive") ||
+    query.includes("c reactive") ||
+    query.includes("reactive protein");
 
   // 1. If Aligarh franchise, search Aligarh-specific catalog first
   if (isAligarh) {
@@ -823,6 +858,9 @@ export function getTestParameterSchema(
   // 2. Direct match or standard catalog fallback (Varanasi / Default)
   if (!baseSchema && isMalariaQuery) {
     baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "MALARIA");
+  }
+  if (!baseSchema && isCrpQuery) {
+    baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "CRP");
   }
 
   if (!baseSchema) {
@@ -860,6 +898,8 @@ export function getTestParameterSchema(
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
     } else if (query.includes("malaria") || query.includes("plasmodium") || query === "mp" || query.includes("mp smear") || query.includes("malaria antigen") || query.includes("malaria card")) {
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "MALARIA") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
+    } else if (query.includes("crp") || query.includes("c-reactive") || query.includes("c reactive") || query.includes("reactive protein")) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "CRP");
     } else {
       baseSchema = {
         code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
@@ -1015,6 +1055,20 @@ export function evaluateParameterFlag(
   }
 
   return { isAbnormal: false, isCritical: false, flag: "Normal", tone: "success" };
+}
+
+/** Age-stratified CRP upper limit (mg/L) matching the printed reference card. */
+export function crpMaxForPatient(patient?: { age?: number; dateOfBirth?: string } | null): number {
+  if (patient?.dateOfBirth) {
+    const dob = new Date(patient.dateOfBirth);
+    if (!Number.isNaN(dob.getTime())) {
+      const weeks = (Date.now() - dob.getTime()) / (7 * 24 * 60 * 60 * 1000);
+      if (weeks >= 0 && weeks <= 3) return 4.1;
+    }
+  }
+  const age = Number(patient?.age);
+  if (!Number.isNaN(age) && age < 18) return 2.8;
+  return 6;
 }
 
 

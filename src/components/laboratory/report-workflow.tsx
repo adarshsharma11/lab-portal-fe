@@ -1131,7 +1131,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                       <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px]">
                         {r.unit || "—"}
                       </td>
-                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px]">
+                      <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px] whitespace-pre-line leading-snug">
                         {r.referenceRange || "—"}
                       </td>
                       <td className="py-0.5 px-2 text-center font-bold text-[11px]">
