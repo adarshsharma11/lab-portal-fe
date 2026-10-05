@@ -64,6 +64,7 @@ export interface Patient {
   pincode?: string;
   emergencyContact?: string;
   dateOfBirth?: string;
+  createdBy?: string;
 }
 
 export interface Doctor {
@@ -79,6 +80,7 @@ export interface Doctor {
   dateOfJoining?: string;
   franchiseId?: string;
   franchise?: Franchise;
+  createdBy?: string;
 }
 
 export interface Supplier {
@@ -90,6 +92,7 @@ export interface Supplier {
   pincode: string;
   description?: string;
   emergencyContact?: string;
+  createdBy?: string;
 }
 
 export interface Sample {
@@ -105,6 +108,7 @@ export interface Sample {
   priority?: "Routine" | "Urgent" | "STAT";
   notes?: string;
   status: "Collected" | "Received" | "Processing" | "Completed" | "Rejected";
+  createdBy?: string;
 }
 
 export interface Test {
@@ -125,6 +129,7 @@ export interface Test {
   patient?: Patient;
   sample?: Sample;
   franchise?: Franchise;
+  createdBy?: string;
 }
 
 export interface TestMaster {
@@ -142,6 +147,7 @@ export interface TestMaster {
   turnaroundHours: number;
   status: "Active" | "Inactive";
   franchiseId?: string;
+  createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -187,6 +193,7 @@ export interface Report {
   createdAt: string;
   pathologist?: string;
   comments?: string;
+  createdBy?: string;
 }
 
 export interface ReportTemplate {
@@ -302,6 +309,7 @@ export interface Invoice {
   total: number;
   paymentStatus: "Paid" | "Pending" | "Partially Paid";
   addedBy: string;
+  createdBy?: string;
 }
 
 export interface InventoryItem {
@@ -315,6 +323,7 @@ export interface InventoryItem {
   expiryDate: string;
   reorderLevel: number;
   franchiseId?: string;
+  createdBy?: string;
 }
 
 export type QCStatus = "Passed" | "Failed" | "Warning" | "Pending";

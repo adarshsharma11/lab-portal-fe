@@ -1,11 +1,12 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
 import { PageHeader, StatusBadge, Button, Input, Select, Field as UIField, Grid4, Card } from "@/components/ui/index";
 import { useCreateInventory, useDeleteInventory, useInventory } from "@/features/operations/hooks";
 import { useEntityList } from "@/features/crud/hooks";
+import { authService } from "@/lib/auth/auth-service";
 import type { Franchise } from "@/types/domain";
 
 const inventorySchema = Yup.object({
@@ -34,6 +35,17 @@ export default function InventoryPage() {
   const inventory = useInventory();
   const create = useCreateInventory();
   const remove = useDeleteInventory();
+
+  const [currentRole, setCurrentRole] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const s = authService.getSession();
+    if (s?.role) setCurrentRole(s.role);
+  }, []);
+
+  const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
+  const isFranchise = currentRole === "Franchise";
+  const canViewCreatedBy = isAdmin || isFranchise;
 
   const franchiseList = useEntityList<Franchise>("franchises");
   const franchises = franchiseList.data ?? [];
@@ -96,6 +108,7 @@ export default function InventoryPage() {
                 <th className="pb-3 font-semibold">Storage Location / Hub</th>
                 <th className="pb-3 font-semibold">Batch</th>
                 <th className="pb-3 font-semibold">Expiry Date</th>
+                {canViewCreatedBy && <th className="pb-3 font-semibold">Created By</th>}
                 <th className="pb-3 font-semibold">Status</th>
                 <th className="pb-3 text-center font-semibold">Action</th>
               </tr>
@@ -112,6 +125,13 @@ export default function InventoryPage() {
                     <td className="py-3.5 text-xs font-medium text-[color:var(--foreground)]">{item.stockHolder}</td>
                     <td className="py-3.5 text-xs font-mono">{item.batchNumber}</td>
                     <td className="py-3.5 text-xs font-mono">{item.expiryDate}</td>
+                    {canViewCreatedBy && (
+                      <td className="py-3.5">
+                        <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {item.createdBy || "System"}
+                        </span>
+                      </td>
+                    )}
                     <td className="py-3.5">
                       <StatusBadge tone={isLow ? "warning" : "success"} size="sm">
                         {isLow ? "Low Stock" : "In Stock"}
@@ -132,7 +152,7 @@ export default function InventoryPage() {
               })}
               {(!inventory.data || inventory.data.length === 0) && !inventory.isLoading && (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-xs text-[color:var(--muted)]">
+                  <td colSpan={canViewCreatedBy ? 10 : 9} className="py-8 text-center text-xs text-[color:var(--muted)]">
                     No inventory items found. Add your first reagent or consumable below.
                   </td>
                 </tr>

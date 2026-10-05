@@ -634,6 +634,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
+  const canViewCreatedBy = isAdmin || isFranchise;
   const canManage = isAdmin || isFranchise || (isTechnician && kind === "patients");
   const canEdit = canManage && !isTechnician;
   const canDelete = canManage && !isTechnician;
@@ -751,7 +752,6 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>,
         }),
         p.accessor("sex", { header: "Gender" }),
-        p.accessor("age", { header: "Age" }),
         p.accessor("bloodGroup", {
           header: "Blood Group",
           cell: ({ getValue }) => <span className="font-semibold text-rose-600">{getValue() || "—"}</span>,
@@ -761,6 +761,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           header: "Pincode",
           cell: ({ getValue }) => <span className="font-mono text-xs">{getValue() || "—"}</span>,
         }),
+        ...(canViewCreatedBy
+          ? [
+              p.accessor((row: any) => row.createdBy || "System", {
+                id: "createdBy",
+                header: "Created By",
+                cell: ({ getValue }) => (
+                  <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {getValue()}
+                  </span>
+                ),
+              }),
+            ]
+          : []),
         ...(isAdmin
           ? [
               p.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
@@ -910,6 +923,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() || "—"}</span>,
         }),
         d.accessor("city", { header: "Branch / City" }),
+        ...(canViewCreatedBy
+          ? [
+              d.accessor((row: any) => row.createdBy || "System", {
+                id: "createdBy",
+                header: "Created By",
+                cell: ({ getValue }) => (
+                  <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {getValue()}
+                  </span>
+                ),
+              }),
+            ]
+          : []),
         ...(isAdmin
           ? [
               d.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
@@ -1075,6 +1101,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       s.accessor("phone", { header: "Contact Phone" }),
       s.accessor("city", { header: "City" }),
       s.accessor("country", { header: "Country" }),
+      ...(canViewCreatedBy
+        ? [
+            s.accessor((row: any) => row.createdBy || "System", {
+              id: "createdBy",
+              header: "Created By",
+              cell: ({ getValue }) => (
+                <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {getValue()}
+                </span>
+              ),
+            }),
+          ]
+        : []),
       s.display({
         id: "actions",
         header: "Actions",
@@ -1108,7 +1147,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
         ),
       }),
     ];
-  }, [kind, isAdmin, canManage, canEdit, canDelete, currentSession]);
+  }, [kind, isAdmin, canViewCreatedBy, canManage, canEdit, canDelete, currentSession]);
 
   const formInitialValues = useMemo(() => {
     const base = { ...emptyInitialValues[kind] };

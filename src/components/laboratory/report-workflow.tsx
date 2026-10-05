@@ -1282,6 +1282,7 @@ function ReportListView() {
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
   const isPathologist = currentRole === "Pathologist";
+  const canViewCreatedBy = isAdmin || isFranchise;
   const canManage = isAdmin || isFranchise || isTechnician || isPathologist;
   const canDelete = canManage && !isTechnician;
 
@@ -1331,37 +1332,67 @@ function ReportListView() {
     return [
       h.accessor("reportNumber", {
         header: "Report No.",
-        cell: ({ getValue }) => <span className="font-mono font-bold text-[color:var(--foreground)]">{getValue()}</span>
+        cell: ({ getValue }) => <span className="font-mono font-bold text-[color:var(--foreground)] whitespace-nowrap">{getValue()}</span>
       }),
       h.accessor(row => (row as any).patient?.name || row.patientId, {
         id: "patient",
         header: "Patient",
-        cell: ({ getValue }) => <span className="font-medium text-[color:var(--foreground)]">{getValue()}</span>
+        cell: ({ getValue }) => <span className="font-medium text-[color:var(--foreground)] whitespace-nowrap">{getValue()}</span>
       }),
       h.accessor(row => (row as any).department || (row.testIds && row.testIds[0]) || "General", {
         id: "department",
         header: "Department / Test",
-        cell: ({ getValue }) => <span className="text-[color:var(--muted)]">{getValue()}</span>
+        cell: ({ getValue }) => <span className="text-[color:var(--muted)] whitespace-nowrap">{getValue()}</span>
       }),
+      ...(isAdmin
+        ? [
+            h.accessor((row: any) => row.franchise?.name || row.franchise?.code || "Central Lab", {
+              id: "franchise",
+              header: "Franchise",
+              cell: ({ getValue }) => (
+                <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87] whitespace-nowrap">
+                  {getValue()}
+                </span>
+              ),
+            }),
+          ]
+        : []),
+      ...(canViewCreatedBy
+        ? [
+            h.accessor((row: any) => row.createdBy || row.pathologist || "System", {
+              id: "createdBy",
+              header: "Created By",
+              cell: ({ getValue }) => (
+                <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap">
+                  {getValue()}
+                </span>
+              ),
+            }),
+          ]
+        : []),
       h.accessor("status", {
         header: "Report Status",
         cell: ({ getValue }) => {
           const val = getValue();
           const tone = val === "Approved" ? "success" : val === "Draft" ? "neutral" : val === "Rejected" ? "danger" : "warning";
-          return <StatusBadge tone={tone} size="sm">{val}</StatusBadge>;
+          return (
+            <div className="whitespace-nowrap">
+              <StatusBadge tone={tone} size="sm">{val}</StatusBadge>
+            </div>
+          );
         }
       }),
       h.accessor("createdAt", {
         header: "Generated Date",
-        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)]">{getValue() ? String(getValue()).slice(0, 10) : "—"}</span>
+        cell: ({ getValue }) => <span className="text-xs text-[color:var(--muted)] font-mono whitespace-nowrap">{getValue() ? String(getValue()).slice(0, 10) : "—"}</span>
       }),
       h.display({
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1.5 justify-center">
+          <div className="flex items-center gap-2 justify-end whitespace-nowrap">
             <Link href={`/reports/${row.original.id}`}>
-              <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>
+              <Button size="sm" variant="ghost" className="whitespace-nowrap hover:bg-slate-100" leftIcon={<Eye size={13} />}>
                 View / Print
               </Button>
             </Link>
@@ -1369,6 +1400,7 @@ function ReportListView() {
               <Button
                 size="sm"
                 variant="primary"
+                className="whitespace-nowrap"
                 leftIcon={<CheckCircle2 size={13} />}
                 onClick={() => actions.approveReport.mutate(row.original.id)}
               >
@@ -1379,6 +1411,7 @@ function ReportListView() {
               <Button
                 size="sm"
                 variant="danger-outline"
+                className="whitespace-nowrap text-rose-600 bg-rose-50/50 hover:bg-rose-100/80 border-rose-200"
                 leftIcon={<Trash2 size={13} />}
                 onClick={() => setConfirmDeleteReportId(row.original.id)}
               >
@@ -1389,7 +1422,7 @@ function ReportListView() {
         )
       })
     ];
-  }, [actions, canDelete]);
+  }, [isAdmin, canViewCreatedBy, actions, canDelete]);
 
   return (
     <div className="space-y-6">

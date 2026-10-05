@@ -564,6 +564,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
   const isBilling = currentRole === "Billing";
+  const canViewCreatedBy = isAdmin || isFranchise;
   const canManage = isAdmin || isFranchise || isTechnician || isBilling;
   const canEdit = canManage && !(isTechnician && kind === "billing");
   const canDelete = canManage && !(isTechnician && kind === "billing");
@@ -924,63 +925,72 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             </span>
           </div>
         )}
-        <div className="overflow-x-auto rounded-[var(--radius)] border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
-          <table className="w-full min-w-[700px] text-left text-sm">
+        <div className="overflow-x-auto rounded-[var(--radius)] border border-[color:var(--line)] bg-[color:var(--surface)] p-4 scrollbar-thin">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="border-b border-[color:var(--line)] text-xs uppercase text-[color:var(--muted)]">
               <tr>
-                <th className="pb-3">{isAppointment ? "Patient" : "Bill number"}</th>
-                <th className="pb-3">{isAppointment ? "Date / time" : "Patient"}</th>
-                {!isAppointment && <th className="pb-3">Bill date</th>}
-                {!isAppointment && !isAdmin && <th className="pb-3">Referring Doctor</th>}
-                {isAdmin && <th className="pb-3">Franchise</th>}
-                {!isAppointment && <th className="pb-3 text-right">Price after discount</th>}
-                <th className="pb-3">Status</th>
-                <th className="pb-3 text-center">Actions</th>
+                <th className="px-4 pb-3 font-semibold whitespace-nowrap">{isAppointment ? "Patient" : "Bill number"}</th>
+                <th className="px-4 pb-3 font-semibold whitespace-nowrap">{isAppointment ? "Date / time" : "Patient"}</th>
+                {!isAppointment && <th className="px-4 pb-3 font-semibold whitespace-nowrap">Bill date</th>}
+                {!isAppointment && !isAdmin && <th className="px-4 pb-3 font-semibold whitespace-nowrap">Referring Doctor</th>}
+                {isAdmin && <th className="px-4 pb-3 font-semibold whitespace-nowrap">Franchise</th>}
+                {canViewCreatedBy && <th className="px-4 pb-3 font-semibold whitespace-nowrap">Created By</th>}
+                {!isAppointment && <th className="px-4 pb-3 font-semibold text-right whitespace-nowrap">Price after discount</th>}
+                <th className="px-4 pb-3 font-semibold text-center whitespace-nowrap">Status</th>
+                <th className="px-4 pb-3 font-semibold text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {(filteredList ?? []).map((row: any) => (
-                <tr className="border-b border-[color:var(--line)] last:border-b-0 hover:bg-[color:var(--surface-2)]" key={row.id}>
-                  <td className="py-3.5 font-semibold">{"billNumber" in row ? row.billNumber : row.patientId === "pat-01" ? "Maya Srinivasan" : row.patient?.name || row.patientId}</td>
-                  <td className="py-3.5">{"billDate" in row ? row.patient?.name || row.patientId : `${row.date} · ${row.time}`}</td>
+                <tr className="border-b border-[color:var(--line)] last:border-b-0 hover:bg-[color:var(--surface-2)] transition-colors" key={row.id}>
+                  <td className="px-4 py-3.5 font-semibold whitespace-nowrap">{"billNumber" in row ? row.billNumber : row.patientId === "pat-01" ? "Maya Srinivasan" : row.patient?.name || row.patientId}</td>
+                  <td className="px-4 py-3.5 font-medium whitespace-nowrap">{"billDate" in row ? row.patient?.name || row.patientId : `${row.date} · ${row.time}`}</td>
                   {!isAppointment && (
-                    <td className="py-3.5 text-xs font-medium text-[color:var(--muted)]">
+                    <td className="px-4 py-3.5 text-xs font-medium text-[color:var(--muted)] font-mono whitespace-nowrap">
                       {row.billDate || recordDateKey(row.createdAt) || "—"}
                     </td>
                   )}
                   {!isAppointment && !isAdmin && (
-                    <td className="py-3.5">
-                      <span className="inline-flex items-center text-xs font-medium text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center text-xs font-medium text-slate-800 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
                         {row.doctor?.name || row.patient?.referringDoctor?.name || (row.doctorId && !row.doctorId.startsWith("doc-") && !row.doctorId.includes("-") ? row.doctorId : "Direct / Walk-in")}
                       </span>
                     </td>
                   )}
                   {isAdmin && (
-                    <td className="py-3.5">
-                      <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2 py-0.5 text-xs font-semibold text-[#176b87]">
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center rounded-md bg-[#e8f4f7] px-2.5 py-1 text-xs font-semibold text-[#176b87]">
                         {row.franchise?.name || row.franchise?.code || "Central Lab"}
                       </span>
                     </td>
                   )}
+                  {canViewCreatedBy && (
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded border border-slate-200">
+                        {row.addedBy || row.createdBy || "System"}
+                      </span>
+                    </td>
+                  )}
                   {!isAppointment && (
-                    <td className="py-3.5 text-right font-mono text-xs font-semibold text-[#176b87]">
+                    <td className="px-4 py-3.5 text-right font-mono text-xs font-semibold text-[#176b87] whitespace-nowrap">
                       {formatInr(invoicePriceAfterDiscount(row))}
                     </td>
                   )}
-                  <td className="py-3.5">
+                  <td className="px-4 py-3.5 text-center whitespace-nowrap">
                     <StatusBadge tone={("paymentStatus" in row ? row.paymentStatus === "Paid" : row.status === "Upcoming" || row.status === "Completed") ? "success" : "warning"}>
                       {"paymentStatus" in row ? row.paymentStatus : row.status}
                     </StatusBadge>
                   </td>
-                  <td className="py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
+                  <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <Link href={`/${kind}/${row.id}`}>
-                        <Button size="sm" variant="ghost" leftIcon={<Eye size={13} />}>View</Button>
+                        <Button size="sm" variant="ghost" className="whitespace-nowrap" leftIcon={<Eye size={13} />}>View</Button>
                       </Link>
                       {!isAppointment && (
                         <Button 
                           size="sm" 
                           variant="outline" 
+                          className="whitespace-nowrap"
                           leftIcon={<Printer size={13} />}
                           onClick={() => {
                             setPrintModalInvoice(row);
@@ -991,13 +1001,14 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
                       )}
                       {canEdit && (
                         <Link href={`/${kind}/${row.id}/edit`}>
-                          <Button size="sm" variant="secondary" leftIcon={<Edit3 size={13} />}>Edit</Button>
+                          <Button size="sm" variant="secondary" className="whitespace-nowrap" leftIcon={<Edit3 size={13} />}>Edit</Button>
                         </Link>
                       )}
                       {canDelete && (
                         <Button 
                           size="sm" 
                           variant="danger-outline" 
+                          className="whitespace-nowrap"
                           leftIcon={<Trash2 size={13} />}
                           onClick={() => setConfirmDeleteId(row.id)}
                         >

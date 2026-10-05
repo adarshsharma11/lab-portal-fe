@@ -222,6 +222,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
+  const canViewCreatedBy = isAdmin || isFranchise;
   const canManage = isAdmin || isFranchise || isTechnician;
   const franchisesList = useEntityList<Franchise>("franchises");
   const patientsList = useEntityList<Patient>("patients");
@@ -349,6 +350,19 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
             }),
           ]
         : []),
+      ...(canViewCreatedBy
+        ? [
+            h.accessor((row: any) => row.createdBy || row.receivedBy || "System", {
+              id: "createdBy",
+              header: "Created By",
+              cell: ({ getValue }) => (
+                <span className="inline-flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {getValue()}
+                </span>
+              ),
+            }),
+          ]
+        : []),
       h.accessor(row => row.status ?? "Active", {
         id: "status",
         header: "Status",
@@ -389,7 +403,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
         )
       })
     ];
-  }, [isSample, kind, isAdmin, patientsList.data]);
+  }, [isSample, kind, isAdmin, canViewCreatedBy, patientsList.data, canManage]);
 
   const handleDelete = async () => {
     if (!confirmDeleteId) return;
