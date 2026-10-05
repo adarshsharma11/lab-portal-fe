@@ -248,10 +248,17 @@ export function ReportGeneratorWizard() {
 
   // Load Test Schema
   const activeTestSchema: TestDefinition = useMemo(() => {
+    const masters = (testMastersQuery.data ?? []) as TestMaster[];
+    const selectedMaster = masters.find(
+      (t) => t.code === selectedTestName || t.name === selectedTestName
+    );
     const testKey = selectedTestName === "CUSTOM" ? customTestName : selectedTestName;
-    const selectedSubParams = testSubParamsMap[selectedTestName] || testSubParamsMap[testKey];
-    return getTestParameterSchema(testKey, selectedSubParams, activeFranchiseId);
-  }, [selectedTestName, customTestName, testSubParamsMap, activeFranchiseId]);
+    const lookupKey = [testKey, selectedMaster?.name, selectedMaster?.code]
+      .filter(Boolean)
+      .join(" ");
+    const selectedSubParams = testSubParamsMap[selectedTestName] || testSubParamsMap[testKey] || testSubParamsMap[selectedMaster?.name || ""];
+    return getTestParameterSchema(lookupKey || testKey, selectedSubParams, activeFranchiseId);
+  }, [selectedTestName, customTestName, testSubParamsMap, activeFranchiseId, testMastersQuery.data]);
 
   // Parameter values state
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
@@ -828,23 +835,34 @@ export function ReportGeneratorWizard() {
                         )}
                       </td>
                       <td className="py-2.5 px-4">
-                        <Input
-                          list={param.options?.length ? `result-opts-${param.id}` : undefined}
-                          value={val}
-                          onChange={(e) => handleValueChange(param.id, e.target.value)}
-                          placeholder="e.g. value..."
-                          className={cn(
-                            "h-8 text-xs font-mono font-medium",
-                            evalResult.isCritical && "border-rose-500 ring-1 ring-rose-500",
-                            evalResult.isAbnormal && !evalResult.isCritical && "border-amber-500"
-                          )}
-                        />
-                        {param.options && param.options.length > 0 && (
-                          <datalist id={`result-opts-${param.id}`}>
+                        {param.options && param.options.length > 0 ? (
+                          <Select
+                            value={val}
+                            onChange={(e) => handleValueChange(param.id, e.target.value)}
+                            className={cn(
+                              "h-8 text-xs font-medium",
+                              evalResult.isCritical && "border-rose-500 ring-1 ring-rose-500",
+                              evalResult.isAbnormal && !evalResult.isCritical && "border-amber-500"
+                            )}
+                          >
+                            <option value="">Select result</option>
                             {param.options.map((opt) => (
-                              <option key={opt} value={opt} />
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
                             ))}
-                          </datalist>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={val}
+                            onChange={(e) => handleValueChange(param.id, e.target.value)}
+                            placeholder="e.g. value..."
+                            className={cn(
+                              "h-8 text-xs font-mono font-medium",
+                              evalResult.isCritical && "border-rose-500 ring-1 ring-rose-500",
+                              evalResult.isAbnormal && !evalResult.isCritical && "border-amber-500"
+                            )}
+                          />
                         )}
                       </td>
                       <td className="py-2.5 px-4">

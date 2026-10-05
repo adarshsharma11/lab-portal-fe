@@ -352,6 +352,35 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     ]
   },
   {
+    code: "MALARIA",
+    name: "MALARIA PARASITE (RAPID / CARD)",
+    department: "Serology",
+    sampleType: "Whole Blood EDTA",
+    standardPrice: 300,
+    guidelinesRef: "WHO malaria rapid diagnostic test / peripheral smear correlation",
+    parameters: [
+      {
+        id: "malaria_result",
+        name: "Malaria Parasite",
+        unit: "",
+        referenceRange: "Negative",
+        method: "Rapid Antigen / Peripheral Smear",
+        defaultValue: "",
+        options: ["Negative", "Positive"],
+      },
+    ],
+    interpretations: [
+      {
+        heading: "Malaria Antigen / Parasite Report",
+        content: "Rapid immunochromatographic assay for P. falciparum (HRP-2) and P. vivax (pLDH). Correlate with clinical findings and peripheral smear when indicated."
+      }
+    ],
+    remarks: [
+      "1. Negative result does not completely exclude malaria in early infection; repeat if clinically suspected.",
+      "2. Positive results should be correlated with clinical presentation and smear microscopy where available."
+    ]
+  },
+  {
     code: "HM009",
     name: "BLOOD GROUP (ABO & RH TYPING)",
     department: "Haematology",
@@ -768,6 +797,15 @@ export function getTestParameterSchema(
   const isAligarh = isAligarhFranchise(franchiseIdentifier);
 
   let baseSchema: TestDefinition | undefined;
+  const isMalariaQuery =
+    query.includes("malaria") ||
+    query.includes("plasmodium") ||
+    query.includes("falciparum") ||
+    query.includes("vivax") ||
+    /\bmp\b/.test(query) ||
+    query.includes("mp smear") ||
+    query.includes("malaria antigen") ||
+    query.includes("malaria card");
 
   // 1. If Aligarh franchise, search Aligarh-specific catalog first
   if (isAligarh) {
@@ -783,6 +821,10 @@ export function getTestParameterSchema(
   }
 
   // 2. Direct match or standard catalog fallback (Varanasi / Default)
+  if (!baseSchema && isMalariaQuery) {
+    baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "MALARIA");
+  }
+
   if (!baseSchema) {
     const found = STANDARD_TEST_CATALOG.find(t =>
       t.code.toLowerCase() === query ||
@@ -816,6 +858,8 @@ export function getTestParameterSchema(
       baseSchema = STANDARD_TEST_CATALOG[8]; // Electrolytes
     } else if (query.includes("widal") || query.includes("typhi") || query.includes("paratyphi")) {
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
+    } else if (query.includes("malaria") || query.includes("plasmodium") || query === "mp" || query.includes("mp smear") || query.includes("malaria antigen") || query.includes("malaria card")) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "MALARIA") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
     } else {
       baseSchema = {
         code: testNameOrCode.slice(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, "") || "TEST",
