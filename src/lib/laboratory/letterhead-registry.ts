@@ -1,5 +1,6 @@
 import { LETTERHEAD_TEMPLATE_BASE64 } from "./letterhead-template-base64";
 import { LETTERHEAD_ALIGARH_BASE64 } from "./letterhead-aligarh-base64";
+import { LETTERHEAD_ZIPCURE_BASE64 } from "./letterhead-zipcure-base64";
 
 export interface FranchiseLetterheadConfig {
   id: "varanasi" | "aligarh" | string;
@@ -66,6 +67,27 @@ export const ALIGARH_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
 };
 
 /**
+ * Letterhead for Zipcure Healthcare Pvt. Ltd. (DEL-03)
+ */
+export const ZIPCURE_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
+  id: "zipcure",
+  franchiseName: "Zipcure Healthcare Pvt. Ltd.",
+  franchiseCode: "DEL-03",
+  franchiseCity: "New Delhi",
+  backgroundImage: LETTERHEAD_ZIPCURE_BASE64,
+  paddingTop: "220px",
+  paddingBottom: "100px",
+  paddingLeft: "36px",
+  paddingRight: "48px",
+  doctorSignatureArea: {
+    showOverlayDoctorTitle: false,
+  },
+  footerNoteArea: {
+    endOfReportText: "",
+  },
+};
+
+/**
  * Registry of all available franchise letterheads
  */
 export const FRANCHISE_LETTERHEAD_REGISTRY: Record<string, FranchiseLetterheadConfig> = {
@@ -76,6 +98,9 @@ export const FRANCHISE_LETTERHEAD_REGISTRY: Record<string, FranchiseLetterheadCo
   "var-01": VARANASI_LETTERHEAD_CONFIG,
   "e748a2b6-2f2d-43a3-b32f-928b74906177": ALIGARH_LETTERHEAD_CONFIG,
   "95e74dde-fec7-419c-87b1-8722721772f4": ALIGARH_LETTERHEAD_CONFIG,
+  zipcure: ZIPCURE_LETTERHEAD_CONFIG,
+  "del-03": ZIPCURE_LETTERHEAD_CONFIG,
+  "5268f39c-8032-4b20-a6e8-2ad796f530f7": ZIPCURE_LETTERHEAD_CONFIG,
 };
 
 export interface ResolveLetterheadOptions {
@@ -143,6 +168,24 @@ export function resolveReportLetterhead(options?: ResolveLetterheadOptions): Fra
       addId(fObj.name);
       addId(fObj.city);
     }
+  }
+
+  // Direct registry match (id, code, uuid)
+  for (const idStr of identifiers) {
+    const mapped = FRANCHISE_LETTERHEAD_REGISTRY[idStr];
+    if (mapped) return mapped;
+  }
+
+  const isZipcure = identifiers.some(
+    (idStr) =>
+      idStr === "zipcure" ||
+      idStr === "del-03" ||
+      idStr === "5268f39c-8032-4b20-a6e8-2ad796f530f7" ||
+      idStr.includes("zipcure")
+  );
+
+  if (isZipcure) {
+    return ZIPCURE_LETTERHEAD_CONFIG;
   }
 
   // Detection logic for Aligarh

@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Field, Form, Formik, type FormikHelpers } from "formik";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as Yup from "yup";
 import { createColumnHelper } from "@tanstack/react-table";
 import { AlertTriangle, Edit3, Trash2, Eye, Plus, Building2, IndianRupee } from "lucide-react";
@@ -10,6 +10,7 @@ import { PageHeader, StatusBadge, Button, Input, Select, Textarea, Field as UIFi
 import { DataTable } from "@/components/tables/DataTable";
 import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { useFranchise } from "@/lib/context/franchise-context";
 import { DoctorLedgerView } from "@/components/doctors/DoctorLedgerView";
 import type { Doctor, Franchise, Patient, Supplier, User, UserRole } from "@/types/domain";
 
@@ -55,7 +56,12 @@ export function calculateAgeFromDob(dob: string): number | "" {
   return age >= 0 ? age : 0;
 }
 
-function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "referringDoctorId" | "franchiseId"> & { referringDoctor?: { id?: string; name?: string } }) {
+function recordFranchiseId(record?: { franchiseId?: string; franchise?: { id?: string } } | null): string {
+  if (!record) return "";
+  return String(record.franchiseId || record.franchise?.id || "").trim();
+}
+
+function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "referringDoctorId" | "franchiseId"> & { referringDoctor?: { id?: string; name?: string }; franchise?: { id?: string } }) {
   const q = new URLSearchParams({ patientId: patient.id });
   if (patient.patientCode) q.set("patientCode", patient.patientCode);
   const docRef = patient.referringDoctor?.name 
@@ -64,7 +70,8 @@ function billingHrefFromPatient(patient: Pick<Patient, "id" | "patientCode" | "r
         : `Doctor – ${patient.referringDoctor.name}`)
     : (patient.referringDoctorId || "");
   if (docRef) q.set("doctorId", String(docRef));
-  if (patient.franchiseId) q.set("franchiseId", patient.franchiseId);
+  const franchiseId = recordFranchiseId(patient);
+  if (franchiseId) q.set("franchiseId", franchiseId);
   return `/billing/new?${q.toString()}`;
 }
 
@@ -611,6 +618,9 @@ const configs = {
 export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: readonly string[] }>) {
   const config = configs[kind];
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlFranchiseId = searchParams?.get("franchiseId") || "";
+  const { selectedFranchiseId } = useFranchise();
   const isNew = path[0] === "new";
   const id = isNew ? "" : (path[0] ?? "");
   const edit = path[1] === "edit";
@@ -1154,6 +1164,12 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
     if (isNew && kind === "patients") {
       (base as any).patientCode = nextPatientCode;
       (base as any).registrationDate = new Date().toISOString().slice(0, 10);
+      const defaultFranchise =
+        urlFranchiseId ||
+        (selectedFranchiseId && selectedFranchiseId !== "all" ? selectedFranchiseId : "");
+      if (defaultFranchise) {
+        (base as any).franchiseId = defaultFranchise;
+      }
     }
     if (!isNew && detail.data) {
       const data = detail.data as unknown as Record<string, unknown>;
@@ -1186,7 +1202,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
       return merged;
     }
     return base;
-  }, [kind, isNew, detail.data, effectiveFields, nextPatientCode]);
+  }, [kind, isNew, detail.data, effectiveFields, nextPatientCode, urlFranchiseId, selectedFranchiseId]);
 
   // Group fields by section for clean rendering
   const sections = useMemo(() => {
@@ -1256,10 +1272,19 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
       let createdEntityId = id;
       let createdPatientCode = "";
+      let createdFranchiseId = String(input.franchiseId || urlFranchiseId || "");
       if (isNew) {
         const res = await mutations.create.mutateAsync(input as never);
-        createdEntityId = (res as any)?.data?.id || (res as any)?.id || "";
-        createdPatientCode = (res as any)?.data?.patientCode || (res as any)?.patientCode || (input.patientCode as string) || "";
+        const created = (res as any)?.data ?? res;
+        createdEntityId = created?.id || (res as any)?.id || "";
+        createdPatientCode = created?.patientCode || (res as any)?.patientCode || (input.patientCode as string) || "";
+        createdFranchiseId = String(
+          created?.franchiseId ||
+          created?.franchise?.id ||
+          input.franchiseId ||
+          urlFranchiseId ||
+          ""
+        );
       } else {
         if (kind === "patients" && isTechnician) {
           setFormError("Technicians cannot edit patient records.");
@@ -1270,7 +1295,7 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
 
       if (kind === "patients" && proceedToBilling && createdEntityId) {
         const docParam = input.referringDoctorId ? `&doctorId=${encodeURIComponent(String(input.referringDoctorId))}` : "";
-        const franchiseParam = input.franchiseId ? `&franchiseId=${encodeURIComponent(String(input.franchiseId))}` : "";
+        const franchiseParam = createdFranchiseId ? `&franchiseId=${encodeURIComponent(createdFranchiseId)}` : "";
         router.push(`/billing/new?patientId=${createdEntityId}&patientCode=${encodeURIComponent(createdPatientCode)}${docParam}${franchiseParam}`);
       } else {
         router.push(`/${kind}`);

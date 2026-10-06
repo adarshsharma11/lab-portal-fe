@@ -21,6 +21,11 @@ const referringDoctorValue = (name: string) => {
   return `Doctor – ${name}`;
 };
 
+function recordFranchiseId(record?: { franchiseId?: string; franchise?: { id?: string } } | null): string {
+  if (!record) return "";
+  return String(record.franchiseId || record.franchise?.id || "").trim();
+}
+
 function findDoctorByRef(doctors: readonly Doctor[], ref?: string | null) {
   if (!ref) return null;
   const clean = ref.trim().toLowerCase();
@@ -559,7 +564,17 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
   }, []);
 
   const lab = useLaboratorySettings();
-  const { selectedFranchise, selectedFranchiseId } = useFranchise();
+  const { selectedFranchise, selectedFranchiseId, setSelectedFranchiseId } = useFranchise();
+
+  useEffect(() => {
+    if (!urlFranchiseId) return;
+    const role = currentRole || authService.getSession()?.role;
+    const isUserAdmin = role === "Admin" || role === "Administrator";
+    if (isUserAdmin && selectedFranchiseId !== urlFranchiseId) {
+      setSelectedFranchiseId(urlFranchiseId);
+    }
+  }, [urlFranchiseId, currentRole, selectedFranchiseId, setSelectedFranchiseId]);
+
   const isAdmin = currentRole === "Admin" || currentRole === "Administrator";
   const isFranchise = currentRole === "Franchise";
   const isTechnician = currentRole === "Technician";
@@ -1197,10 +1212,21 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
 
     const rawRecord = (isAppointment ? appointment.data : invoice.data) as Record<string, any> | undefined;
 
-    // Find target patient if preloaded via URL query param
-    const targetPatient = (isNew && (urlPatientId || urlPatientCode) && patientsList.data)
-      ? ((patientsList.data as Patient[]).find(p => p.id === urlPatientId || p.patientCode === urlPatientId || (urlPatientCode && p.patientCode === urlPatientCode)) || null)
-      : null;
+    // Find target patient if preloaded via URL query param (id first, then code scoped to franchise)
+    const targetPatient = (() => {
+      if (!isNew || !(urlPatientId || urlPatientCode) || !patientsList.data) return null;
+      const list = patientsList.data as Patient[];
+      const byId = urlPatientId ? list.find((p) => p.id === urlPatientId) : undefined;
+      if (byId) return byId;
+      const looksLikeUuid = Boolean(urlPatientId && urlPatientId.includes("-") && urlPatientId.length >= 32);
+      if (looksLikeUuid) return null;
+      const code = urlPatientCode || urlPatientId;
+      const byCode = list.filter((p) => p.patientCode === code);
+      if (urlFranchiseId) {
+        return byCode.find((p) => recordFranchiseId(p) === urlFranchiseId) || byCode[0] || null;
+      }
+      return byCode[0] || null;
+    })();
 
     const patientDoctorRef = (targetPatient as any)?.referringDoctor?.name 
       ? referringDoctorValue((targetPatient as any).referringDoctor.name)
@@ -1221,7 +1247,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             status: "Upcoming", 
             appointmentLink: "", 
             createdBy: "Reception Desk", 
-            franchiseId: targetPatient?.franchiseId || urlFranchiseId || "" 
+            franchiseId: urlFranchiseId || recordFranchiseId(targetPatient) || (selectedFranchiseId !== "all" ? selectedFranchiseId : "") 
           }
         : { 
             billNumber: targetPatient?.patientCode || urlPatientCode || (urlPatientId.startsWith("BL-") ? urlPatientId : "") || "", 
@@ -1236,7 +1262,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
             cgst: 0, 
             paymentStatus: "Paid", 
             addedBy: "Finance Desk", 
-            franchiseId: targetPatient?.franchiseId || urlFranchiseId || "" 
+            franchiseId: urlFranchiseId || recordFranchiseId(targetPatient) || (selectedFranchiseId !== "all" ? selectedFranchiseId : "") 
           }
       : isAppointment
       ? {

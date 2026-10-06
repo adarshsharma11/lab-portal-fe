@@ -8,7 +8,7 @@ import {
   Check, ArrowRight, Layers
 } from "lucide-react";
 import { PageHeader, Card, Button, Input, Select, Textarea, Field as UIField, StatusBadge, cn, SearchableCombobox, ComboboxOption } from "@/components/ui/index";
-import { usePatients, useDoctors } from "@/features/crud/hooks";
+import { usePatients, useDoctors, useEntity } from "@/features/crud/hooks";
 import { useSamples } from "@/features/laboratory/hooks";
 import { useTestMasters } from "@/features/test-masters/hooks";
 import { useReportTemplates } from "@/features/reports/hooks";
@@ -42,6 +42,7 @@ export function ReportGeneratorWizard() {
   const initialPatientCode = searchParams?.get("patientCode") || "";
   const initialTestCode = searchParams?.get("testCode") || "";
   const initialDoctorId = searchParams?.get("doctorId") || "";
+  const initialFranchiseId = searchParams?.get("franchiseId") || "";
   const rawTestsParam = searchParams?.get("tests") || "";
 
   // Parse prescribed tests from query if available
@@ -79,18 +80,34 @@ export function ReportGeneratorWizard() {
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>("");
 
-  const { selectedFranchiseId } = useFranchise();
+  const { selectedFranchiseId, setSelectedFranchiseId } = useFranchise();
   const patientsQuery = usePatients();
   const doctorsQuery = useDoctors();
+  const urlPatientQuery = useEntity<Patient>("patients", initialPatientId);
   const samplesQuery = useSamples();
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
+
+  const looksLikeUuid = (value: string) => value.includes("-") && value.length >= 32;
+
   const currentPatient = useMemo(() => {
-    return (patientsQuery.data ?? []).find((p: Patient) => p.id === selectedPatientId || p.patientCode === selectedPatientId);
-  }, [patientsQuery.data, selectedPatientId]);
+    const list = (patientsQuery.data ?? []) as Patient[];
+    if (selectedPatientId) {
+      const byId = list.find((p) => p.id === selectedPatientId);
+      if (byId) return byId;
+      if (urlPatientQuery.data?.id === selectedPatientId) return urlPatientQuery.data;
+      if (looksLikeUuid(selectedPatientId)) return urlPatientQuery.data ?? undefined;
+    }
+    return undefined;
+  }, [patientsQuery.data, selectedPatientId, urlPatientQuery.data]);
 
   const activeFranchiseId = useMemo(() => {
-    return currentPatient?.franchiseId || (currentPatient as any)?.franchise?.id || (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined);
-  }, [currentPatient, selectedFranchiseId]);
+    return (
+      initialFranchiseId ||
+      currentPatient?.franchiseId ||
+      (currentPatient as any)?.franchise?.id ||
+      (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined)
+    );
+  }, [initialFranchiseId, currentPatient, selectedFranchiseId]);
 
   const testMastersQuery = useTestMasters("", undefined, 2500, activeFranchiseId);
   const templatesQuery = useReportTemplates();
@@ -149,6 +166,15 @@ export function ReportGeneratorWizard() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!initialFranchiseId) return;
+    const role = currentSession?.role || authService.getSession()?.role;
+    const isUserAdmin = role === "Admin" || role === "Administrator";
+    if (isUserAdmin && selectedFranchiseId !== initialFranchiseId) {
+      setSelectedFranchiseId(initialFranchiseId);
+    }
+  }, [initialFranchiseId, currentSession?.role, selectedFranchiseId, setSelectedFranchiseId]);
+
   const isAdmin = currentSession?.role === "Admin" || currentSession?.role === "Administrator";
 
   // Sync initial pending list when parsedPrescribedTests changes
@@ -161,12 +187,25 @@ export function ReportGeneratorWizard() {
     }
   }, [parsedPrescribedTests]);
 
-  // Match initial patient from URL if provided
+  // Match initial patient from URL by id only (patient codes like BL-01 are reused across franchises)
   useEffect(() => {
-    if ((initialPatientId || initialPatientCode) && (patientsQuery.data ?? []).length > 0) {
-      const match = (patientsQuery.data as Patient[]).find(
-        p => p.id === initialPatientId || p.patientCode === initialPatientId || p.patientCode === initialPatientCode
-      );
+    if (initialPatientId) {
+      setSelectedPatientId(initialPatientId);
+      const list = (patientsQuery.data ?? []) as Patient[];
+      const match =
+        list.find((p) => p.id === initialPatientId) ||
+        (urlPatientQuery.data?.id === initialPatientId ? urlPatientQuery.data : undefined);
+      if (match?.referringDoctorId && !selectedDoctorId) {
+        setSelectedDoctorId(match.referringDoctorId);
+      }
+      return;
+    }
+    if (initialPatientCode && (patientsQuery.data ?? []).length > 0) {
+      const list = patientsQuery.data as Patient[];
+      const matches = list.filter((p) => p.patientCode === initialPatientCode);
+      const match = initialFranchiseId
+        ? matches.find((p) => (p.franchiseId || (p as any).franchise?.id) === initialFranchiseId) || matches[0]
+        : matches[0];
       if (match) {
         setSelectedPatientId(match.id);
         if (match.referringDoctorId && !selectedDoctorId) {
@@ -174,7 +213,7 @@ export function ReportGeneratorWizard() {
         }
       }
     }
-  }, [initialPatientId, initialPatientCode, patientsQuery.data]);
+  }, [initialPatientId, initialPatientCode, initialFranchiseId, patientsQuery.data, urlPatientQuery.data]);
 
   // Combobox options with Date Filter and Franchise scoping (for direct access)
   const patientComboboxOptions = useMemo<ComboboxOption[]>(() => {
@@ -190,7 +229,7 @@ export function ReportGeneratorWizard() {
       });
     }
 
-    return allPatients.map((p) => {
+    const mapped = allPatients.map((p) => {
       const pDate = p.registrationDate || p.createdAt?.slice(0, 10) || "";
       return {
         value: p.id,
@@ -200,7 +239,20 @@ export function ReportGeneratorWizard() {
         extra: p,
       };
     });
-  }, [patientsQuery.data, isAdmin, currentSession, selectedDateFilter]);
+
+    if (currentPatient && !mapped.some((o) => o.value === currentPatient.id)) {
+      const pDate = currentPatient.registrationDate || currentPatient.createdAt?.slice(0, 10) || "";
+      mapped.unshift({
+        value: currentPatient.id,
+        label: currentPatient.name,
+        secondary: `Code: ${currentPatient.patientCode || currentPatient.id} · Age: ${currentPatient.age} · ${currentPatient.sex || ""}${pDate ? ` · Reg: ${pDate}` : ""}`,
+        badge: currentPatient.phone,
+        extra: currentPatient,
+      });
+    }
+
+    return mapped;
+  }, [patientsQuery.data, isAdmin, currentSession, selectedDateFilter, currentPatient]);
 
   const doctorComboboxOptions = useMemo<ComboboxOption[]>(() => {
     const doctors = (doctorsQuery.data ?? []) as Doctor[];

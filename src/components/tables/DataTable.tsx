@@ -88,11 +88,19 @@ export function DataTable<TData>({
     globalFilterFn: (row, _id, filterValue) => {
       if (!filterValue) return true;
       const value = String(filterValue).toLowerCase();
-      const sample = safeData[0];
-      const keys = searchKeys ?? (sample != null ? (Object.keys(sample as object) as (keyof TData)[]) : []);
+      const original = row.original as Record<PropertyKey, unknown>;
+      const keys = searchKeys ?? (Object.keys(original) as (keyof TData)[]);
       return keys.some((k) => {
-        const v = row.getValue(String(k));
-        return String(v ?? "").toLowerCase().includes(value);
+        const v = original[k as PropertyKey];
+        if (v == null) return false;
+        if (typeof v === "object") {
+          try {
+            return JSON.stringify(v).toLowerCase().includes(value);
+          } catch {
+            return false;
+          }
+        }
+        return String(v).toLowerCase().includes(value);
       });
     },
     getRowId: (original, index) => {

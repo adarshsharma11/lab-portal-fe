@@ -231,7 +231,7 @@ export function ResultsWorkbench() {
 
           return (
             <div className="flex items-center justify-center gap-2">
-              <Link href={`/reports/new?patientId=${p.id}&patientCode=${encodeURIComponent(p.patientCode)}${testsQueryParam}`}>
+              <Link href={`/reports/new?patientId=${p.id}&patientCode=${encodeURIComponent(p.patientCode)}&franchiseId=${encodeURIComponent(p.franchiseId || "")}${testsQueryParam}`}>
                 <Button size="sm" variant="primary" leftIcon={<FileText size={13} />}>
                   Generate Report
                 </Button>
