@@ -31,6 +31,24 @@ import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import type { Franchise, Report, ReportTemplate, Result, UserRole } from "@/types/domain";
 
+function formatReportDateTime(value?: string | null, fallback?: string | null): string {
+  const raw = value || fallback;
+  if (!raw) return "—";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    const dateOnly = String(raw).slice(0, 10);
+    return dateOnly || "—";
+  }
+  const date = parsed.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const time = parsed.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${date} ${time}`;
+}
+
 const templateSchema = Yup.object({
   name: Yup.string().trim().required("Template name is required (. Hematology Complete Blood Count)").min(2, "Template name must be at least 2 characters"),
   department: Yup.string().required("Please select a laboratory department"),
@@ -1041,13 +1059,13 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 <div>
                   <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Sample Collected On</span>
                   <span className="font-mono font-semibold text-slate-900 text-[12px]">
-                    {sample.collectedAt ? sample.collectedAt.slice(0, 10) : (item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18")} 07:43 AM
+                    {formatReportDateTime(sample.collectedAt, item.createdAt)}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Report Generated On</span>
                   <span className="font-mono font-semibold text-slate-900 text-[12px]">
-                    {item.createdAt ? item.createdAt.slice(0, 10) : "2026-09-18"} 02:46 PM
+                    {formatReportDateTime(item.createdAt)}
                   </span>
                 </div>
                 <div>
