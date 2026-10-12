@@ -1007,10 +1007,10 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
             {/* Patient Demographic & Specimen Information Table/Card */}
             <section
               style={{
-                borderTop: "1.5px solid #0f172a",
+                borderTop: letterhead.id === "zipcure" ? "none" : "1.5px solid #0f172a",
                 borderBottom: "1.5px solid #0f172a",
                 backgroundColor: "transparent",
-                paddingTop: "5px",
+                paddingTop: letterhead.id === "zipcure" ? "2px" : "5px",
                 paddingBottom: "5px",
                 fontSize: "16px",
                 lineHeight: "1.3",

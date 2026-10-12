@@ -75,7 +75,7 @@ export const ZIPCURE_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
   franchiseCode: "DEL-03",
   franchiseCity: "New Delhi",
   backgroundImage: LETTERHEAD_ZIPCURE_BASE64,
-  paddingTop: "220px",
+  paddingTop: "278px",
   paddingBottom: "100px",
   paddingLeft: "36px",
   paddingRight: "48px",
