@@ -131,7 +131,7 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
       { id: "ast_sgot", name: "Aspartate Aminotransferase (AST/SGOT)", unit: "U/L", min: 3, max: 50, referenceRange: "3 - 50", criticalHigh: 250, method: "UV without P5P", machine: "Beckman Coulter AU 5800", defaultValue: "24.0" },
       { id: "alt_sgpt", name: "Alanine Aminotransferase (ALT/SGPT)", unit: "U/L", min: 3, max: 50, referenceRange: "3 - 50", criticalHigh: 250, method: "UV without P5P", machine: "Beckman Coulter AU 5800", defaultValue: "22.0" },
       { id: "alp", name: "Alkaline Phosphatase (ALP)", unit: "U/L", min: 43, max: 115, referenceRange: "43 - 115", method: "AMP Buffer", machine: "Beckman Coulter AU 5800", defaultValue: "76.0" },
-      { id: "ggt", name: "Gamma Glutamyl Transferase (GGT)", unit: "U/L", min: 5, max: 55, referenceRange: "5 - 55", method: "IFCC", machine: "Beckman Coulter AU 5800", defaultValue: "32.0" },
+      { id: "ggt", name: "Gamma Glutamyl Transferase (GGT)", unit: "U/L", min: 5, max: 47, referenceRange: "ADULT MALES : 7 - 47 U/L\nADULT FEMALES : 5 - 25 U/L\nNEWBORNS : Up to 5 times adult levels", method: "IFCC", machine: "Beckman Coulter AU 5800", defaultValue: "" },
     ],
     interpretations: [
       {
@@ -492,6 +492,7 @@ export const ALIGARH_TEST_CATALOG: readonly TestDefinition[] = [
       { id: "ast_sgot", name: "SGOT", unit: "U/L", min: 10.0, max: 50.0, referenceRange: "10.0 - 50.0", method: "UV without P5P", defaultValue: "24.0" },
       { id: "alt_sgpt", name: "SGPT", unit: "U/L", min: 10.0, max: 50.0, referenceRange: "10.0 - 50.0", method: "UV without P5P", defaultValue: "22.0" },
       { id: "s_alp", name: "S.ALKALINE PHOSPHATASE", unit: "U/L", min: 37, max: 143, referenceRange: "37 - 143", method: "AMP Buffer", defaultValue: "76.0" },
+      { id: "ggt", name: "GGT", unit: "U/L", min: 5, max: 47, referenceRange: "ADULT MALES : 7 - 47 U/L\nADULT FEMALES : 5 - 25 U/L\nNEWBORNS : Up to 5 times adult levels", method: "IFCC", defaultValue: "" },
     ],
     interpretations: [
       {
@@ -626,6 +627,7 @@ export const MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "SGOT", aliasList: ["sgot", "ast", "aspartate aminotransferase", "aspartate aminotransferase (ast/sgot)", "ast/sgot"], paramId: "ast_sgot" },
       { name: "SGPT", aliasList: ["sgpt", "alt", "alanine aminotransferase", "alanine aminotransferase (alt/sgpt)", "alt/sgpt"], paramId: "alt_sgpt" },
       { name: "ALP", aliasList: ["alp", "alkaline phosphatase", "alkaline phosphatase (alp)"], paramId: "alp" },
+      { name: "GGT", aliasList: ["ggt", "gamma gt", "gamma glutamyl", "gamma glutamyl transferase", "gamma glutamyl transferase (ggt)"], paramId: "ggt" },
     ],
   },
   {
@@ -702,6 +704,7 @@ export const ALIGARH_MAIN_PARAMETERS_CONFIG: MainParameterConfig[] = [
       { name: "SGOT", aliasList: ["sgot", "ast", "aspartate aminotransferase", "ast/sgot"], paramId: "ast_sgot" },
       { name: "SGPT", aliasList: ["sgpt", "alt", "alanine aminotransferase", "alt/sgpt"], paramId: "alt_sgpt" },
       { name: "S.ALKALINE PHOSPHATASE", aliasList: ["s.alkaline phosphatase", "alkaline phosphatase", "alp", "s_alp"], paramId: "s_alp" },
+      { name: "GGT", aliasList: ["ggt", "gamma gt", "gamma glutamyl", "gamma glutamyl transferase", "gamma glutamyl transferase (ggt)"], paramId: "ggt" },
     ],
   },
   {
@@ -1069,6 +1072,26 @@ export function crpMaxForPatient(patient?: { age?: number; dateOfBirth?: string 
   const age = Number(patient?.age);
   if (!Number.isNaN(age) && age < 18) return 2.8;
   return 6;
+}
+
+const GGT_MALE = { min: 7, max: 47 };
+const GGT_FEMALE = { min: 5, max: 25 };
+
+/** Sex- and age-stratified GGT limits (U/L) matching the printed LFT card. */
+export function ggtLimitsForPatient(patient?: { age?: number; sex?: string; dateOfBirth?: string } | null): { min: number; max: number } {
+  const sex = String(patient?.sex || "").toLowerCase();
+  const adult = sex.startsWith("f") ? GGT_FEMALE : sex.startsWith("m") ? GGT_MALE : { min: 5, max: 47 };
+
+  if (patient?.dateOfBirth) {
+    const dob = new Date(patient.dateOfBirth);
+    if (!Number.isNaN(dob.getTime())) {
+      const weeks = (Date.now() - dob.getTime()) / (7 * 24 * 60 * 60 * 1000);
+      if (weeks >= 0 && weeks <= 4) return { min: 0, max: adult.max * 5 };
+    }
+  }
+  const age = Number(patient?.age);
+  if (!Number.isNaN(age) && age === 0) return { min: 0, max: adult.max * 5 };
+  return adult;
 }
 
 

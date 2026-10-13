@@ -20,6 +20,7 @@ import {
   getSubParametersForTest,
   evaluateParameterFlag,
   crpMaxForPatient,
+  ggtLimitsForPatient,
   type ParameterDefinition,
   type TestDefinition
 } from "@/lib/laboratory/test-parameter-definitions";
@@ -393,6 +394,8 @@ export function ReportGeneratorWizard() {
         const evalParam =
           param.id === "crp"
             ? { ...param, max: crpMaxForPatient(currentPatient) }
+            : param.id === "ggt"
+            ? { ...param, ...ggtLimitsForPatient(currentPatient) }
             : param;
         const evalResult = evaluateParameterFlag(value, evalParam);
         return {
@@ -872,6 +875,8 @@ export function ReportGeneratorWizard() {
                   const evalParam =
                     param.id === "crp"
                       ? { ...param, max: crpMaxForPatient(currentPatient) }
+                      : param.id === "ggt"
+                      ? { ...param, ...ggtLimitsForPatient(currentPatient) }
                       : param;
                   const evalResult = evaluateParameterFlag(val, evalParam);
 
