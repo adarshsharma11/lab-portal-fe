@@ -943,35 +943,43 @@ export function ReportGeneratorWizard() {
                         {rangeVal.includes("\n") ? (
                           <Textarea
                             rows={3}
+                            readOnly
+                            tabIndex={-1}
                             value={rangeVal}
-                            onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
-                            className="text-xs font-mono leading-snug"
+                            className="text-xs font-mono leading-snug cursor-not-allowed bg-slate-50"
                           />
                         ) : (
                           <Input
+                            readOnly
+                            tabIndex={-1}
                             value={rangeVal}
-                            onChange={(e) => setParamRanges((prev) => ({ ...prev, [param.id]: e.target.value }))}
                             placeholder="e.g. <1:80 Negative"
-                            className="h-8 text-xs font-mono"
+                            className="h-8 text-xs font-mono cursor-not-allowed bg-slate-50"
                           />
                         )}
                       </td>
-                      <td className="py-3.5 px-4">
-                        {evalResult.isCritical ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded text-[11px]">
-                            <AlertCircle size={12} /> CRITICAL
-                          </span>
-                        ) : evalResult.isAbnormal ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded text-[11px]">
-                            {evalResult.flag === "High" ? "↑ HIGH" : "↓ LOW"}
-                          </span>
-                        ) : val ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[11px] font-medium">
-                            <CheckCircle2 size={12} /> Normal
-                          </span>
-                        ) : (
-                          <span className="text-[color:var(--muted)] text-[11px]">Pending entry</span>
-                        )}
+                      <td className="py-2.5 px-4">
+                        <Input
+                          readOnly
+                          tabIndex={-1}
+                          value={
+                            !val
+                              ? ""
+                              : evalResult.isCritical
+                                ? "CRITICAL"
+                                : evalResult.isAbnormal
+                                  ? (evalResult.flag === "High" ? "HIGH" : evalResult.flag === "Low" ? "LOW" : "ABNORMAL")
+                                  : "Normal"
+                          }
+                          placeholder="Pending entry"
+                          className={cn(
+                            "h-8 text-xs font-semibold cursor-not-allowed",
+                            evalResult.isCritical && "text-rose-700 bg-rose-50 border-rose-200",
+                            evalResult.isAbnormal && !evalResult.isCritical && "text-amber-800 bg-amber-50 border-amber-200",
+                            val && !evalResult.isAbnormal && !evalResult.isCritical && "text-emerald-800 bg-emerald-50 border-emerald-200",
+                            !val && "bg-slate-50"
+                          )}
+                        />
                       </td>
                     </tr>
                   );
