@@ -526,6 +526,8 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const doctor = item.doctor || {};
   const sample = item.sample || {};
   const barcodeNumber = sample.barcode || sample.accession || "E8399903";
+  const cannedClinicalNote = "Clinical findings correlate with biological laboratory standards. Routine follow-up suggested.";
+  const clinicalNotes = String(item.comments || "").trim() === cannedClinicalNote ? "" : String(item.comments || "").trim();
 
   const approve = () => {
     if (!critical || confirm("Critical values are present. Confirm final approval & release?")) {
@@ -1106,7 +1108,6 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                   <th className="py-0.5 px-2 text-right">Observed Value</th>
                   <th className="py-0.5 px-2">Unit</th>
                   <th className="py-0.5 px-2">Biological Reference Interval</th>
-                  <th className="py-0.5 px-2 text-center">Flag</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80" style={{ backgroundColor: "transparent" }}>
@@ -1123,7 +1124,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                   if (isHeadingRow) {
                     return (
                       <tr key={r.id || idx} style={{ backgroundColor: "transparent" }}>
-                        <td colSpan={5} className="pt-1.5 pb-0.5 px-2">
+                        <td colSpan={4} className="pt-1.5 pb-0.5 px-2">
                           <p className="font-black text-slate-900 text-[12.5px] uppercase tracking-wide">
                             {r.parameter.replace(/\s*\(dlc\)\s*/i, "")}
                           </p>
@@ -1152,43 +1153,36 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                       <td className="py-0.5 px-2 font-mono font-medium text-slate-700 text-[11px] whitespace-pre-line leading-snug">
                         {r.referenceRange || "—"}
                       </td>
-                      <td className="py-0.5 px-2 text-center font-bold text-[11px]">
-                        {r.criticalFlag ? (
-                          <span className="font-black text-rose-700 tracking-wider">
-                            CRITICAL
-                          </span>
-                        ) : r.abnormalFlag ? (
-                          <span className="font-black text-amber-700 tracking-wider">
-                            ABNORMAL
-                          </span>
-                        ) : (
-                          <span className="font-semibold text-emerald-800">Normal</span>
-                        )}
-                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
 
-            {/* Clinical Comments & Pathological Observations */}
-            {item.comments && (
-              <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "3px" }}>
-                <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[10.5px]">
-                  Clinical Interpretation & Pathological Notes
-                </h4>
+            {/* Clinical Comments & Pathological Observations — heading always shown for handwritten notes */}
+            <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "3px" }}>
+              <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[10.5px]">
+                Clinical Interpretation & Pathological Notes
+              </h4>
+              {clinicalNotes ? (
                 <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[11px]">
-                  {item.comments}
+                  {clinicalNotes}
                 </p>
-              </div>
-            )}
+              ) : (
+                <div className="pt-1" aria-hidden="true">
+                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
+                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
+                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Bottom Overlay Row: Doctor Signature & Page Indicator */}
           <div 
             className="flex items-end justify-between pt-1" 
             style={{ 
-              minHeight: letterhead.id === "aligarh" ? "35px" : "75px", 
+              minHeight: letterhead.id === "aligarh" || letterhead.id === "zipcure" ? "35px" : "75px", 
               zIndex: 10, 
               backgroundColor: "transparent" 
             }}

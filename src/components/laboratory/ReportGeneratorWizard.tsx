@@ -333,13 +333,7 @@ export function ReportGeneratorWizard() {
     setParamUnits(initialUnits);
     setParamRanges(initialRanges);
     setSampleType(activeTestSchema.sampleType);
-    
-    // Set default interpretation
-    if (activeTestSchema.interpretations && activeTestSchema.interpretations.length > 0) {
-      setComments(activeTestSchema.interpretations[0].content);
-    } else {
-      setComments("Clinical findings correlate with biological laboratory standards. Routine follow-up suggested.");
-    }
+    setComments("");
   }, [activeTestSchema]);
 
   const handleValueChange = (paramId: string, val: string) => {
@@ -851,7 +845,6 @@ export function ReportGeneratorWizard() {
                   <th className="py-3 px-4 w-44">Observed Value</th>
                   <th className="py-3 px-4">Units</th>
                   <th className="py-3 px-4">Biological Reference Interval</th>
-                  <th className="py-3 px-4">Flag / Evaluation</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--line)]">
@@ -859,7 +852,7 @@ export function ReportGeneratorWizard() {
                   if (param.isHeading) {
                     return (
                       <tr key={param.id} className="bg-slate-100/90 border-y-2 border-slate-300">
-                        <td colSpan={5} className="py-2.5 px-4 font-black uppercase text-slate-800 text-[11px] tracking-wider">
+                        <td colSpan={4} className="py-2.5 px-4 font-black uppercase text-slate-800 text-[11px] tracking-wider">
                           <div className="flex items-center gap-2">
                             <span className="size-2 rounded-full bg-[#176b87]" />
                             <span>{param.name}</span>
@@ -958,29 +951,6 @@ export function ReportGeneratorWizard() {
                           />
                         )}
                       </td>
-                      <td className="py-2.5 px-4">
-                        <Input
-                          readOnly
-                          tabIndex={-1}
-                          value={
-                            !val
-                              ? ""
-                              : evalResult.isCritical
-                                ? "CRITICAL"
-                                : evalResult.isAbnormal
-                                  ? (evalResult.flag === "High" ? "HIGH" : evalResult.flag === "Low" ? "LOW" : "ABNORMAL")
-                                  : "Normal"
-                          }
-                          placeholder="Pending entry"
-                          className={cn(
-                            "h-8 text-xs font-semibold cursor-not-allowed",
-                            evalResult.isCritical && "text-rose-700 bg-rose-50 border-rose-200",
-                            evalResult.isAbnormal && !evalResult.isCritical && "text-amber-800 bg-amber-50 border-amber-200",
-                            val && !evalResult.isAbnormal && !evalResult.isCritical && "text-emerald-800 bg-emerald-50 border-emerald-200",
-                            !val && "bg-slate-50"
-                          )}
-                        />
-                      </td>
                     </tr>
                   );
                 })}
@@ -1028,6 +998,19 @@ export function ReportGeneratorWizard() {
               </UIField>
             </div>
           </div> */}
+
+          <UIField
+            label="Clinical Interpretation & Pathological Notes"
+            name="comments"
+            hint="Optional. Leave blank if notes will be added on the printed report."
+          >
+            <Textarea
+              rows={4}
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Add clinical correlation or pathological notes…"
+            />
+          </UIField>
 
           {/* Action buttons */}
           <div className="mt-8 pt-6 border-[color:var(--line)] flex items-center justify-end">

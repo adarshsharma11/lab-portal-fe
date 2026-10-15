@@ -76,7 +76,7 @@ export const ZIPCURE_LETTERHEAD_CONFIG: FranchiseLetterheadConfig = {
   franchiseCity: "New Delhi",
   backgroundImage: LETTERHEAD_ZIPCURE_BASE64,
   paddingTop: "278px",
-  paddingBottom: "100px",
+  paddingBottom: "170px",
   paddingLeft: "36px",
   paddingRight: "48px",
   doctorSignatureArea: {
