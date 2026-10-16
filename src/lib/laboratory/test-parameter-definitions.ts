@@ -217,14 +217,14 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     ]
   },
   {
-    code: "FBS",
-    name: "Fasting Blood Sugar (Glucose)",
+    code: "BC052",
+    name: "BLOOD GLUCOSE FASTING",
     department: "Biochemistry",
     sampleType: "Sodium Fluoride Plasma",
-    standardPrice: 150,
+    standardPrice: 100,
     guidelinesRef: "ADA Diagnostic Guidelines",
     parameters: [
-      { id: "fbs", name: "Glucose, Fasting Plasma", unit: "mg/dL", min: 70, max: 100, referenceRange: "70 - 100 Normal", criticalLow: 50, criticalHigh: 300, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "88.0" },
+      { id: "glucose_fasting", name: "GLUCOSE FASTING", unit: "mg/dL", min: 70, max: 100, referenceRange: "70 - 100", criticalLow: 50, criticalHigh: 300, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "88.0" },
     ],
     interpretations: [
       {
@@ -234,6 +234,68 @@ export const STANDARD_TEST_CATALOG: readonly TestDefinition[] = [
     ],
     remarks: [
       "1. Sample drawn in sodium fluoride glycolytic inhibitor tube after 8-10 hour fast."
+    ]
+  },
+  {
+    code: "BC053",
+    name: "BLOOD GLUCOSE PP",
+    department: "Biochemistry",
+    sampleType: "Sodium Fluoride Plasma",
+    standardPrice: 100,
+    guidelinesRef: "ADA Diagnostic Guidelines",
+    parameters: [
+      { id: "glucose_pp", name: "GLUCOSE PP", unit: "mg/dL", min: 70, max: 140, referenceRange: "70 - 140", criticalLow: 50, criticalHigh: 350, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "115.0" },
+    ],
+    interpretations: [
+      {
+        heading: "Post Prandial Glucose Classification",
+        content: "Normal 2-hour post prandial plasma glucose: 70–140 mg/dL. Impaired glucose tolerance: 141–199 mg/dL. Provisional diabetes: ≥ 200 mg/dL."
+      }
+    ],
+    remarks: [
+      "1. Sample drawn exactly 2 hours after commencement of meal."
+    ]
+  },
+  {
+    code: "BC289",
+    name: "BLOOD GLUCOSE FASTING AND PP",
+    department: "Biochemistry",
+    sampleType: "Sodium Fluoride Plasma",
+    standardPrice: 180,
+    guidelinesRef: "ADA Diagnostic Guidelines",
+    parameters: [
+      { id: "glucose_fasting", name: "GLUCOSE FASTING", unit: "mg/dL", min: 70, max: 100, referenceRange: "70 - 100", criticalLow: 50, criticalHigh: 300, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "88.0" },
+      { id: "glucose_pp", name: "GLUCOSE PP", unit: "mg/dL", min: 70, max: 140, referenceRange: "70 - 140", criticalLow: 50, criticalHigh: 350, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "115.0" },
+    ],
+    interpretations: [
+      {
+        heading: "Glycemic Assessment (Fasting & Post Prandial)",
+        content: "Fasting Normal: 70–100 mg/dL (Prediabetes: 101–125 mg/dL; Diabetes: ≥ 126 mg/dL). Post Prandial Normal: 70–140 mg/dL (Impaired: 141–199 mg/dL; Diabetes: ≥ 200 mg/dL)."
+      }
+    ],
+    remarks: [
+      "1. Fasting sample drawn after 8-10 hours overnight fast.",
+      "2. PP sample collected 2 hours after meal intake."
+    ]
+  },
+  {
+    code: "BC054",
+    name: "BLOOD GLUCOSE RANDOM",
+    department: "Biochemistry",
+    sampleType: "Sodium Fluoride Plasma",
+    standardPrice: 100,
+    guidelinesRef: "ADA Diagnostic Guidelines",
+    parameters: [
+      { id: "glucose_random", name: "GLUCOSE RANDOM", unit: "mg/dL", min: 70, max: 140, referenceRange: "70 - 140", criticalLow: 50, criticalHigh: 350, method: "Hexokinase Enzymatic", machine: "Beckman Coulter DXC 700 AU", defaultValue: "95.0" },
+    ],
+    interpretations: [
+      {
+        heading: "Random Blood Glucose Classification",
+        content: "Normal random plasma glucose: 70–140 mg/dL. Diabetes suspect if random plasma glucose ≥ 200 mg/dL in presence of classical symptoms."
+      }
+    ],
+    remarks: [
+      "1. Non-fasting spot blood sample."
     ]
   },
   {
@@ -866,6 +928,63 @@ export function getTestParameterSchema(
     baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "CRP");
   }
 
+  // Specific Blood Glucose tests (FASTING, PP, FASTING AND PP, RANDOM)
+  const isGlucoseQuery =
+    query.includes("glucose") ||
+    query.includes("sugar") ||
+    query.includes("fbs") ||
+    query.includes("ppbs") ||
+    query.includes("rbs") ||
+    query.includes("bc052") ||
+    query.includes("bc053") ||
+    query.includes("bc289") ||
+    query.includes("bc054") ||
+    query.includes("lshhi821") ||
+    query.includes("lshhi822") ||
+    query.includes("lshhi6152") ||
+    query.includes("lshhi823");
+
+  if (!baseSchema && isGlucoseQuery) {
+    const hasFasting =
+      query.includes("fasting") ||
+      query.includes("fbs") ||
+      query.includes("bc052") ||
+      query.includes("lshhi821");
+    const hasPP =
+      query.includes("pp") ||
+      query.includes("post prandial") ||
+      query.includes("postprandial") ||
+      query.includes("ppbs") ||
+      query.includes("bc053") ||
+      query.includes("lshhi822");
+    const isFastingAndPP =
+      (hasFasting && hasPP) ||
+      query.includes("fasting and pp") ||
+      query.includes("fasting & pp") ||
+      query.includes("fasting/pp") ||
+      query.includes("f & pp") ||
+      query.includes("f and pp") ||
+      query.includes("bc289") ||
+      query.includes("lshhi6152");
+    const isRandom =
+      query.includes("random") ||
+      query.includes("rbs") ||
+      query.includes("bc054") ||
+      query.includes("lshhi823");
+
+    if (isFastingAndPP) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "BC289" || t.name === "BLOOD GLUCOSE FASTING AND PP");
+    } else if (hasPP && !hasFasting) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "BC053" || t.name === "BLOOD GLUCOSE PP");
+    } else if (hasFasting && !hasPP) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "BC052" || t.name === "BLOOD GLUCOSE FASTING");
+    } else if (isRandom) {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "BC054" || t.name === "BLOOD GLUCOSE RANDOM");
+    } else {
+      baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "BC052" || t.name === "BLOOD GLUCOSE FASTING");
+    }
+  }
+
   if (!baseSchema) {
     const found = STANDARD_TEST_CATALOG.find(t =>
       t.code.toLowerCase() === query ||
@@ -880,23 +999,23 @@ export function getTestParameterSchema(
     } else if (query.includes("group") || query.includes("abo") || query.includes("rh typing") || query.includes("hm009") || query.includes("lshhi302") || (query.includes("blood") && query.includes("rh"))) {
       baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "HM009" || t.name.includes("BLOOD GROUP")) || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 1];
     } else if (query.includes("cbc") || query.includes("hemogram") || query.includes("haemogram") || query.includes("complete blood count") || query.includes("hm078")) {
-      baseSchema = STANDARD_TEST_CATALOG[0]; // CBC
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "CBC");
     } else if (query.includes("lipid") || query.includes("cholesterol") || query.includes("triglyceride")) {
-      baseSchema = STANDARD_TEST_CATALOG[1]; // Lipid
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "LIPID");
     } else if (query.includes("liver") || query.includes("lft") || query.includes("bilirubin") || query.includes("sgot") || query.includes("sgpt")) {
-      baseSchema = STANDARD_TEST_CATALOG[2]; // LFT
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "LFT");
     } else if (query.includes("kidney") || query.includes("kft") || query.includes("renal") || query.includes("rft") || query.includes("creatinine") || query.includes("urea")) {
-      baseSchema = STANDARD_TEST_CATALOG[3]; // KFT
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "KFT");
     } else if (query.includes("sugar") || query.includes("glucose") || query.includes("fbs") || query.includes("diabetes")) {
-      baseSchema = STANDARD_TEST_CATALOG[5]; // FBS
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "BC052");
     } else if (query.includes("hba1c") || query.includes("glycated")) {
-      baseSchema = STANDARD_TEST_CATALOG[4]; // HbA1c
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "HBA1C");
     } else if (query.includes("thyroid") || query.includes("tsh") || query.includes("t3") || query.includes("t4")) {
-      baseSchema = STANDARD_TEST_CATALOG[6]; // Thyroid
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "THYROID");
     } else if (query.includes("urine")) {
-      baseSchema = STANDARD_TEST_CATALOG[7]; // Urine
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "URINE");
     } else if (query.includes("electrolyte") || query.includes("sodium") || query.includes("potassium")) {
-      baseSchema = STANDARD_TEST_CATALOG[8]; // Electrolytes
+      baseSchema = STANDARD_TEST_CATALOG.find(t => t.code === "ELECTROLYTES");
     } else if (query.includes("widal") || query.includes("typhi") || query.includes("paratyphi")) {
       baseSchema = STANDARD_TEST_CATALOG.find((t) => t.code === "WIDAL") || STANDARD_TEST_CATALOG[STANDARD_TEST_CATALOG.length - 2];
     } else if (query.includes("malaria") || query.includes("plasmodium") || query === "mp" || query.includes("mp smear") || query.includes("malaria antigen") || query.includes("malaria card")) {
@@ -928,7 +1047,8 @@ export function getTestParameterSchema(
   };
 
   // If selectedSubParams are provided and non-empty, filter parameters accordingly
-  if (selectedSubParams && selectedSubParams.length > 0) {
+  // Glucose tests always retain all their respective parameters without sub-parameter selection
+  if (!isGlucoseQuery && selectedSubParams && selectedSubParams.length > 0) {
     const normSelected = selectedSubParams.map(s => s.toLowerCase().trim());
     const isDlcSelected = normSelected.some(
       s => s === "dlc" || s.includes("differential leucocyte count") || s === "differential count" || s.includes("(dlc)") || s === "dlc_heading"

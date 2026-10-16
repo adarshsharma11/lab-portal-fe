@@ -68,13 +68,23 @@ function formatInr(amount: number): string {
 }
 
 function invoicePriceAfterDiscount(invoice: Invoice): number {
+  let rawItems: any = invoice.items;
+  if (typeof rawItems === "string") {
+    try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
+  }
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  if (items.length > 0) {
+    const mrpSum = items.reduce(
+      (sum: number, item: any) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+    const discount = Number(invoice.discount) || 0;
+    const taxes = (Number(invoice.sgst) || 0) + (Number(invoice.cgst) || 0);
+    return Math.max(0, mrpSum - discount + taxes);
+  }
   const total = Number(invoice.total);
   if (Number.isFinite(total)) return Math.max(0, total);
-  const mrpSum = (invoice.items ?? []).reduce(
-    (sum, item) => sum + (Number(item.mrp) || 0) * (Number(item.quantity) || 1),
-    0
-  );
-  return Math.max(0, mrpSum - (Number(invoice.discount) || 0) + (Number(invoice.sgst) || 0) + (Number(invoice.cgst) || 0));
+  return 0;
 }
 
 const BRAND_LOGO_SRC = "/branding/bxl-diagnostic-brand.webp";
@@ -258,12 +268,18 @@ function InvoicePrintView({
   }
   const items: any[] = Array.isArray(rawItems) && rawItems.length > 0
     ? rawItems
-    : [{ description: (invoice as any).itemDescription || "Diagnostic Pathology Services", quantity: Number((invoice as any).itemQuantity) || 1, mrp: Number((invoice as any).itemMrp) || Number(invoice.total) || 450 }];
+    : [{ 
+        description: (invoice as any).itemDescription || "Diagnostic Pathology Services", 
+        quantity: Number((invoice as any).itemQuantity) || 1, 
+        mrp: (invoice as any).itemMrp !== undefined && (invoice as any).itemMrp !== null && !isNaN(Number((invoice as any).itemMrp))
+          ? Number((invoice as any).itemMrp)
+          : (invoice.total !== undefined && invoice.total !== null && !isNaN(Number(invoice.total)) ? Number(invoice.total) : 0) 
+      }];
 
-  const subtotal = items.reduce((acc, it) => acc + (it.quantity * it.mrp), 0);
+  const subtotal = items.reduce((acc, it) => acc + (Number(it.quantity || 1) * Number(it.mrp || 0)), 0);
   const discount = Number(invoice.discount || 0);
   const taxes = Number(invoice.sgst || 0) + Number(invoice.cgst || 0);
-  const grandTotal = Number(invoice.total || (subtotal - discount + taxes));
+  const grandTotal = Math.max(0, subtotal - discount + taxes);
 
   if (layout === "thermal") {
     return (
