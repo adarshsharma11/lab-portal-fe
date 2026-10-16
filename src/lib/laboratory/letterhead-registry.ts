@@ -209,3 +209,51 @@ export function resolveReportLetterhead(options?: ResolveLetterheadOptions): Fra
   // Default / Varanasi
   return VARANASI_LETTERHEAD_CONFIG;
 }
+
+export const DEFAULT_CLINICAL_NOTE_TEXT =
+  "Clinical findings correlate with biological laboratory standards. Routine follow-up suggested.";
+
+export type ClinicalNotesEmptyMode = "default-text" | "dotted-lines";
+
+export interface FranchiseClinicalNotesConfig {
+  /** Short key used in logs / future admin UI */
+  id: string;
+  /** Franchise letterhead id, code, uuid, or name fragments (lowercase) */
+  match: readonly string[];
+  title: string;
+  emptyMode: ClinicalNotesEmptyMode;
+  defaultText?: string;
+  dottedLineCount?: number;
+}
+
+/** Per-franchise notes layout. First match wins; add a row here to change a franchise later. */
+export const CLINICAL_NOTES_BY_FRANCHISE: readonly FranchiseClinicalNotesConfig[] = [
+  {
+    id: "zipcure",
+    match: ["zipcure", "del-03", "5268f39c-8032-4b20-a6e8-2ad796f530f7"],
+    title: "Clinical Interpretation & Pathological Notes",
+    emptyMode: "dotted-lines",
+    dottedLineCount: 3,
+  },
+];
+
+export const DEFAULT_CLINICAL_NOTES_CONFIG: FranchiseClinicalNotesConfig = {
+  id: "default",
+  match: ["*"],
+  title: "Clinical Interpretation & Pathological Notes",
+  emptyMode: "default-text",
+  defaultText: DEFAULT_CLINICAL_NOTE_TEXT,
+};
+
+export function resolveClinicalNotesConfig(
+  keys?: Array<string | null | undefined>
+): FranchiseClinicalNotesConfig {
+  const normalized = (keys ?? [])
+    .map((k) => String(k || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  const found = CLINICAL_NOTES_BY_FRANCHISE.find((cfg) =>
+    cfg.match.some((token) => normalized.includes(token) || normalized.some((k) => k.includes(token)))
+  );
+  return found ?? DEFAULT_CLINICAL_NOTES_CONFIG;
+}

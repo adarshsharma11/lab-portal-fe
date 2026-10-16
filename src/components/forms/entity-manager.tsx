@@ -189,7 +189,7 @@ const patientFields: readonly FieldConfig[] = [
       { label: "O-", value: "O-" },
     ],
   },
-  { name: "phone", label: "Phone Number", type: "text", placeholder: "+91 9876543210", required: true, section: "Contact Details" },
+  { name: "phone", label: "Phone Number", type: "text", placeholder: "+91 9876543210", section: "Contact Details" },
   { name: "email", label: "Email Address", type: "text", placeholder: "maya.sharma@example.com", section: "Contact Details" },
   { name: "emergencyContact", label: "Emergency Contact Phone", type: "text", placeholder: "+91 9811122334", section: "Contact Details" },
   { name: "city", label: "City", type: "text", placeholder: "Bangalore", section: "Contact Details" },
@@ -486,7 +486,7 @@ const patientSchema = Yup.object({
   sex: Yup.string().required("Please select gender").oneOf(["Female", "Male", "Other"], "Invalid gender option"),
   age: Yup.number().typeError("Age must be a valid number").required("Age is required").min(0, "Age cannot be negative").max(130, "Please enter a valid age"),
   bloodGroup: Yup.string().trim(),
-  phone: Yup.string().trim().required("Phone number is required"),
+  phone: Yup.string().trim(),
   email: Yup.string().trim().email("Please enter a valid email address"),
   city: Yup.string().trim(),
   state: Yup.string().trim(),
@@ -766,7 +766,13 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           header: "Blood Group",
           cell: ({ getValue }) => <span className="font-semibold text-rose-600">{getValue() || "—"}</span>,
         }),
-        p.accessor("phone", { header: "Phone Number" }),
+        p.accessor("phone", {
+          header: "Phone Number",
+          cell: ({ getValue }) => {
+            const phone = String(getValue() ?? "").trim();
+            return phone ? phone : <span className="text-[color:var(--muted)]">N/A</span>;
+          },
+        }),
         p.accessor("pincode", {
           header: "Pincode",
           cell: ({ getValue }) => <span className="font-mono text-xs">{getValue() || "—"}</span>,

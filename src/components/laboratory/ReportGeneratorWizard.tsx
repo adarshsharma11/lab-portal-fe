@@ -25,6 +25,7 @@ import {
   type TestDefinition
 } from "@/lib/laboratory/test-parameter-definitions";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
+import { resolveClinicalNotesConfig } from "@/lib/laboratory/letterhead-registry";
 import { useFranchise } from "@/lib/context/franchise-context";
 import type { Patient, Sample, Doctor, TestMaster } from "@/types/domain";
 
@@ -109,6 +110,18 @@ export function ReportGeneratorWizard() {
       (selectedFranchiseId !== "all" ? selectedFranchiseId : undefined)
     );
   }, [initialFranchiseId, currentPatient, selectedFranchiseId]);
+
+  const clinicalNotesConfig = useMemo(
+    () =>
+      resolveClinicalNotesConfig([
+        activeFranchiseId,
+        currentPatient?.franchiseId,
+        (currentPatient as any)?.franchise?.id,
+        (currentPatient as any)?.franchise?.code,
+        (currentPatient as any)?.franchise?.name,
+      ]),
+    [activeFranchiseId, currentPatient]
+  );
 
   const testMastersQuery = useTestMasters("", undefined, 2500, activeFranchiseId);
   const templatesQuery = useReportTemplates();
@@ -333,8 +346,10 @@ export function ReportGeneratorWizard() {
     setParamUnits(initialUnits);
     setParamRanges(initialRanges);
     setSampleType(activeTestSchema.sampleType);
-    setComments("");
-  }, [activeTestSchema]);
+    setComments(
+      clinicalNotesConfig.emptyMode === "dotted-lines" ? "" : (clinicalNotesConfig.defaultText || "")
+    );
+  }, [activeTestSchema, clinicalNotesConfig]);
 
   const handleValueChange = (paramId: string, val: string) => {
     setParamValues(prev => ({ ...prev, [paramId]: val }));
@@ -1000,9 +1015,13 @@ export function ReportGeneratorWizard() {
           </div> */}
 
           <UIField
-            label="Clinical Interpretation & Pathological Notes"
+            label={clinicalNotesConfig.title}
             name="comments"
-            hint="Optional. Leave blank if notes will be added on the printed report."
+            hint={
+              clinicalNotesConfig.emptyMode === "dotted-lines"
+                ? "Optional. Leave blank to print dotted lines for handwritten notes."
+                : "Default remark prints if left unchanged. Edit or clear as needed."
+            }
           >
             <Textarea
               rows={4}

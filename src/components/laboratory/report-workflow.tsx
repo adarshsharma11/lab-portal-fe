@@ -25,7 +25,7 @@ import {
 } from "@/features/reports/hooks";
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
-import { resolveReportLetterhead } from "@/lib/laboratory/letterhead-registry";
+import { DEFAULT_CLINICAL_NOTE_TEXT, resolveClinicalNotesConfig, resolveReportLetterhead } from "@/lib/laboratory/letterhead-registry";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
@@ -526,8 +526,22 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
   const doctor = item.doctor || {};
   const sample = item.sample || {};
   const barcodeNumber = sample.barcode || sample.accession || "E8399903";
-  const cannedClinicalNote = "Clinical findings correlate with biological laboratory standards. Routine follow-up suggested.";
-  const clinicalNotes = String(item.comments || "").trim() === cannedClinicalNote ? "" : String(item.comments || "").trim();
+  const clinicalNotesConfig = resolveClinicalNotesConfig([
+    letterhead.id,
+    letterhead.franchiseCode,
+    item.franchiseId,
+    item.franchise?.id,
+    item.franchise?.code,
+    item.franchise?.name,
+    patient.franchiseId,
+    patient.franchise?.id,
+  ]);
+  const rawClinicalNotes = String(item.comments || "").trim();
+  const isStockClinicalNote =
+    !rawClinicalNotes ||
+    rawClinicalNotes === DEFAULT_CLINICAL_NOTE_TEXT ||
+    rawClinicalNotes === (clinicalNotesConfig.defaultText || "");
+  const typedClinicalNotes = isStockClinicalNote ? "" : rawClinicalNotes;
 
   const approve = () => {
     if (!critical || confirm("Critical values are present. Confirm final approval & release?")) {
@@ -1159,21 +1173,25 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
               </tbody>
             </table>
 
-            {/* Clinical Comments & Pathological Observations — heading always shown for handwritten notes */}
+            {/* Clinical Comments & Pathological Observations */}
             <div style={{ borderTop: "1px solid #cbd5e1", backgroundColor: "transparent", paddingTop: "3px" }}>
               <h4 className="font-bold uppercase tracking-wider text-slate-800 mb-0.5 text-[10.5px]">
-                Clinical Interpretation & Pathological Notes
+                {clinicalNotesConfig.title}
               </h4>
-              {clinicalNotes ? (
+              {typedClinicalNotes ? (
                 <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[11px]">
-                  {clinicalNotes}
+                  {typedClinicalNotes}
                 </p>
-              ) : (
+              ) : clinicalNotesConfig.emptyMode === "dotted-lines" ? (
                 <div className="pt-1" aria-hidden="true">
-                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
-                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
-                  <div style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
+                  {Array.from({ length: clinicalNotesConfig.dottedLineCount || 3 }).map((_, i) => (
+                    <div key={i} style={{ borderBottom: "1px dotted #94a3b8", height: "16px" }} />
+                  ))}
                 </div>
+              ) : (
+                <p className="text-slate-700 leading-tight whitespace-pre-wrap text-[11px]">
+                  {clinicalNotesConfig.defaultText || DEFAULT_CLINICAL_NOTE_TEXT}
+                </p>
               )}
             </div>
           </div>
