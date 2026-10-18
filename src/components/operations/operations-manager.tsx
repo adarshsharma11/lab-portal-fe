@@ -12,6 +12,7 @@ import { useEntityList } from "@/features/crud/hooks";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
+import { formatPatientAgeLabel } from "@/lib/patient-age";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import type { Appointment, Doctor, Franchise, Invoice, Patient, TestMaster, UserRole } from "@/types/domain";
 
@@ -254,7 +255,10 @@ function InvoicePrintView({
 
   const patientName = patient?.name || (invoice as any).patient?.name || invoice.patientId || "Patient";
   const patientCode = patient?.patientCode || (invoice as any).patient?.patientCode || invoice.patientId || "PID-001";
-  const patientAgeGender = patient?.age ? `${patient.age} Y / ${patient.sex || "—"}` : ((invoice as any).patient?.age ? `${(invoice as any).patient.age} Y / ${(invoice as any).patient?.sex || "—"}` : "—");
+  const ageSource = patient || (invoice as any).patient;
+  const patientAgeGender = ageSource
+    ? `${formatPatientAgeLabel(ageSource.dateOfBirth, ageSource.age)} / ${ageSource.sex || "—"}`
+    : "—";
   const patientPhone = patient?.phone || (invoice as any).patient?.phone || "—";
   const doctorName = doctor?.name || (invoice as any).doctor?.name || invoice.doctorId || "Self / Consultant";
 
@@ -640,7 +644,7 @@ export function OperationsManager({ kind, path }: Readonly<{ kind: "appointments
     return filtered.map((p) => ({
       value: p.id,
       label: p.name,
-      secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
+      secondary: `Code: ${p.patientCode || p.id} · Age: ${formatPatientAgeLabel(p.dateOfBirth, p.age)} · ${p.sex || ""}`,
       badge: p.phone,
       extra: p,
     }));

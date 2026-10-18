@@ -26,6 +26,7 @@ import {
 } from "@/lib/laboratory/test-parameter-definitions";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
 import { resolveClinicalNotesConfig } from "@/lib/laboratory/letterhead-registry";
+import { formatPatientAgeLabel } from "@/lib/patient-age";
 import { useFranchise } from "@/lib/context/franchise-context";
 import type { Patient, Sample, Doctor, TestMaster } from "@/types/domain";
 
@@ -248,7 +249,7 @@ export function ReportGeneratorWizard() {
       return {
         value: p.id,
         label: p.name,
-        secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}${pDate ? ` · Reg: ${pDate}` : ""}`,
+        secondary: `Code: ${p.patientCode || p.id} · Age: ${formatPatientAgeLabel(p.dateOfBirth, p.age)} · ${p.sex || ""}${pDate ? ` · Reg: ${pDate}` : ""}`,
         badge: p.phone,
         extra: p,
       };
@@ -259,7 +260,7 @@ export function ReportGeneratorWizard() {
       mapped.unshift({
         value: currentPatient.id,
         label: currentPatient.name,
-        secondary: `Code: ${currentPatient.patientCode || currentPatient.id} · Age: ${currentPatient.age} · ${currentPatient.sex || ""}${pDate ? ` · Reg: ${pDate}` : ""}`,
+        secondary: `Code: ${currentPatient.patientCode || currentPatient.id} · Age: ${formatPatientAgeLabel(currentPatient.dateOfBirth, currentPatient.age)} · ${currentPatient.sex || ""}${pDate ? ` · Reg: ${pDate}` : ""}`,
         badge: currentPatient.phone,
         extra: currentPatient,
       });
@@ -638,7 +639,7 @@ export function ReportGeneratorWizard() {
                     <div>
                       <span className="text-[color:var(--muted)] block">Age / Gender</span>
                       <span className="font-semibold text-[color:var(--foreground)]">
-                        {currentPatient.age} Yrs · {currentPatient.sex || "—"}
+                        {formatPatientAgeLabel(currentPatient.dateOfBirth, currentPatient.age)} · {currentPatient.sex || "—"}
                       </span>
                     </div>
                     <div>
@@ -786,7 +787,7 @@ export function ReportGeneratorWizard() {
                     </div>
                     <div>
                       <span className="text-[color:var(--muted)] block">Age / Gender</span>
-                      <span className="font-semibold text-[color:var(--foreground)]">{currentPatient.age} Yrs / {currentPatient.sex}</span>
+                      <span className="font-semibold text-[color:var(--foreground)]">{formatPatientAgeLabel(currentPatient.dateOfBirth, currentPatient.age)} / {currentPatient.sex}</span>
                     </div>
                     <div>
                       <span className="text-[color:var(--muted)] block">Contact Phone</span>

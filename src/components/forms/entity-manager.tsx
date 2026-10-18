@@ -11,6 +11,7 @@ import { DataTable } from "@/components/tables/DataTable";
 import { useEntity, useEntityList, useEntityMutations, type Kind } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { useFranchise } from "@/lib/context/franchise-context";
+import { calculateAgeFromDob, formatPatientAgeLabel } from "@/lib/patient-age";
 import { DoctorLedgerView } from "@/components/doctors/DoctorLedgerView";
 import type { Doctor, Franchise, Patient, Supplier, User, UserRole } from "@/types/domain";
 
@@ -28,33 +29,7 @@ interface FieldConfig {
   section?: string;
 }
 
-export function calculateAgeFromDob(dob: string): number | "" {
-  if (!dob || typeof dob !== "string" || !dob.trim()) return "";
-  const clean = dob.trim();
-  let birthDate: Date | null = null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    const [y, m, d] = clean.split("-").map(Number);
-    birthDate = new Date(y, m - 1, d);
-  } else if (/^\d{2}[/-]\d{2}[/-]\d{4}$/.test(clean)) {
-    const parts = clean.split(/[/-]/).map(Number);
-    birthDate = new Date(parts[2], parts[1] - 1, parts[0]);
-  } else {
-    const parsed = new Date(clean);
-    if (!isNaN(parsed.getTime())) {
-      birthDate = parsed;
-    }
-  }
-
-  if (!birthDate || isNaN(birthDate.getTime())) return "";
-
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : 0;
-}
+export { calculateAgeFromDob } from "@/lib/patient-age";
 
 function recordFranchiseId(record?: { franchiseId?: string; franchise?: { id?: string } } | null): string {
   if (!record) return "";
@@ -166,7 +141,7 @@ const patientFields: readonly FieldConfig[] = [
     ],
   },
   { name: "dateOfBirth", label: "Date of Birth", type: "date", placeholder: "YYYY-MM-DD", hint: "Selecting Date of Birth calculates Age automatically", section: "Personal Details" },
-  { name: "age", label: "Age", type: "number", placeholder: "32", required: true, hint: "Auto-calculated from Date of Birth", section: "Personal Details" },
+  { name: "age", label: "Age", type: "number", placeholder: "32", required: true, hint: "Auto-calculated from Date of Birth (days, months, or years).", section: "Personal Details" },
   {
     name: "bloodGroup",
     label: "Blood Group",
@@ -762,6 +737,14 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
           cell: ({ getValue }) => <span className="font-semibold text-[color:var(--foreground)]">{getValue()}</span>,
         }),
         p.accessor("sex", { header: "Gender" }),
+        p.accessor("age", {
+          header: "Age",
+          cell: ({ row }) => (
+            <span>
+              {formatPatientAgeLabel(row.original.dateOfBirth, row.original.age)}
+            </span>
+          ),
+        }),
         p.accessor("bloodGroup", {
           header: "Blood Group",
           cell: ({ getValue }) => <span className="font-semibold text-rose-600">{getValue() || "—"}</span>,
@@ -1599,6 +1582,22 @@ export function EntityManager({ kind, path }: Readonly<{ kind: Kind; path: reado
                               as={Textarea}
                               placeholder={placeholder}
                             />
+                          ) : kind === "patients" && field.name === "age" ? (
+                            (values as any).dateOfBirth ? (
+                              <Input
+                                readOnly
+                                tabIndex={-1}
+                                value={formatPatientAgeLabel((values as any).dateOfBirth, (values as any).age)}
+                                className="cursor-not-allowed bg-slate-50 font-semibold"
+                              />
+                            ) : (
+                              <Field
+                                name="age"
+                                type="number"
+                                as={Input}
+                                placeholder={placeholder}
+                              />
+                            )
                           ) : field.name === "dateOfBirth" ? (
                             <Field
                               name={field.name}

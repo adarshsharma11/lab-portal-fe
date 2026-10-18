@@ -14,6 +14,7 @@ import { useTestMasters } from "@/features/test-masters/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
 import { SubParameterSelect } from "@/components/laboratory/SubParameterSelect";
+import { formatPatientAgeLabel } from "@/lib/patient-age";
 import type { Franchise, Patient, Sample, Test, TestMaster, UserRole } from "@/types/domain";
 
 type Kind = "samples" | "tests";
@@ -256,7 +257,7 @@ export function LabManager({ kind, path }: Readonly<{ kind: Kind; path: readonly
     return filtered.map((p) => ({
       value: p.id,
       label: p.name,
-      secondary: `Code: ${p.patientCode || p.id} · Age: ${p.age} · ${p.sex || ""}`,
+      secondary: `Code: ${p.patientCode || p.id} · Age: ${formatPatientAgeLabel(p.dateOfBirth, p.age)} · ${p.sex || ""}`,
       badge: p.phone,
       extra: p,
     }));

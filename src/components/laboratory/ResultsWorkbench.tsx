@@ -14,6 +14,7 @@ import { useReports } from "@/features/reports/hooks";
 import { useTests, useSamples } from "@/features/laboratory/hooks";
 import { useInvoices } from "@/features/operations/hooks";
 import { authService } from "@/lib/auth/auth-service";
+import { formatPatientAgeLabel } from "@/lib/patient-age";
 import type { Patient, Report, Test, Sample, Invoice, UserRole } from "@/types/domain";
 
 type DatePreset = "all" | "today" | "week" | "month" | "custom";
@@ -166,7 +167,7 @@ export function ResultsWorkbench() {
           <div>
             <span className="font-bold text-[color:var(--foreground)] block">{getValue()}</span>
             <span className="text-xs text-[color:var(--muted)]">
-              {row.original.age} Yrs · {row.original.sex || "—"} {row.original.bloodGroup ? `· ${row.original.bloodGroup}` : ""}
+              {formatPatientAgeLabel(row.original.dateOfBirth, row.original.age)} · {row.original.sex || "—"} {row.original.bloodGroup ? `· ${row.original.bloodGroup}` : ""}
             </span>
           </div>
         ),

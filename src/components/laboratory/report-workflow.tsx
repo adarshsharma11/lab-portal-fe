@@ -26,6 +26,7 @@ import {
 import { ReportGeneratorWizard } from "@/components/laboratory/ReportGeneratorWizard";
 import { getTestParameterSchema, evaluateParameterFlag } from "@/lib/laboratory/test-parameter-definitions";
 import { DEFAULT_CLINICAL_NOTE_TEXT, resolveClinicalNotesConfig, resolveReportLetterhead } from "@/lib/laboratory/letterhead-registry";
+import { formatPatientAgeLabel } from "@/lib/patient-age";
 import { useLaboratorySettings } from "@/features/settings/hooks";
 import { useEntityList } from "@/features/crud/hooks";
 import { authService } from "@/lib/auth/auth-service";
@@ -1057,7 +1058,7 @@ function ReportDetailView({ id }: Readonly<{ id: string }>) {
                 </div>
                 <div>
                   <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Age / Gender</span>
-                  <span className="font-bold text-slate-900 text-[12.5px]">{patient.age || 45} Yrs / {patient.sex || "Male"}</span>
+                  <span className="font-bold text-slate-900 text-[12.5px]">{formatPatientAgeLabel(patient.dateOfBirth, patient.age)} / {patient.sex || "Male"}</span>
                 </div>
                 <div>
                   <span className="text-slate-600 text-[10.5px] block font-bold uppercase tracking-wider">Order / Booking ID</span>
